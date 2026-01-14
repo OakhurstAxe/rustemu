@@ -1,0 +1,7 @@
+[workspace]
+members = [
+    "emumemory",
+    "emucpu",
+    "vcs",
+    "emu"]
+resolver = "3"
