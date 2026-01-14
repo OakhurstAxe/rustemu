@@ -1,0 +1,15 @@
+[package]
+name = "vcs"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "vcs"
+path = "src/lib.rs"
+
+[dependencies]
+iced = { version = "0.14", features = ["tokio", "image-without-codecs"] }
+emumemory = { path = "../emumemory" }
+emucpu = { path = "../emucpu" }
+zip = { version = "7.0.0" }
+rand = "0.8.5"

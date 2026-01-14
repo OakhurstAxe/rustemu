@@ -1,0 +1,10 @@
+[package]
+name = "rustemu"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+iced = { version = "0.14", features = ["canvas", "image-without-codecs"] }
+zip = { version = "7.0.0" }
+vcs = { path = "../vcs" }
+tracing-subscriber = "0.3.22"

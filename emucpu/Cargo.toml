@@ -1,0 +1,15 @@
+[package]
+name = "emucpu"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "emucpu"
+path = "src/lib.rs"
+
+[[test]]
+name = "test"
+path = "src/tests/m6502_test.rs"
+
+[dependencies]
+emumemory = { path = "../emumemory" }
