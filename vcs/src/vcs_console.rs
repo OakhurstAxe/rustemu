@@ -5,8 +5,9 @@ pub mod vcs {
     use std::cell::{RefCell, RefMut};
     use std::fs;
 
+    use emumemory::memory_mapper::emu_memory::MemoryMapper;
     use iced::widget::image::FilterMethod;
-    use iced::widget::{center, Image, button, column, text};
+    use iced::widget::{center, Image};
     use iced::{Task, Element, Subscription, time};
     use iced::time::milliseconds;
 
@@ -27,7 +28,6 @@ pub mod vcs {
         vcs_riot: Rc<RefCell<VcsRiot>>,
         vcs_console_type: Rc<RefCell<VcsConsoleType>>,
         vcs_tia: Rc<RefCell<VcsTia>>,
-        vcs_memory: VcsMemory,
         vcs_audio: i32,
         cpu: M6502,
         total_ticks: u32,
@@ -51,15 +51,15 @@ pub mod vcs {
             parameters = VcsParameters::new(rom.unwrap());
 
             let console_type: Rc<RefCell<VcsConsoleType>> = Rc::new(RefCell::new(VcsConsoleType::new(parameters.console_type)));
-            let cpu: M6502 = M6502::new();
             let riot: Rc<RefCell<VcsRiot>> = Rc::new(RefCell::new(VcsRiot::new()));
             let tia: Rc<RefCell<VcsTia>> = Rc::new(RefCell::new(VcsTia::new(Rc::clone(&console_type))));
-           
+            let memory: Rc<RefCell<dyn MemoryMapper>> = Rc::new(RefCell::new(VcsMemory::new (&parameters, Rc::clone(&tia), Rc::clone(&riot))));
+            let cpu: M6502 = M6502::new(Rc::clone(&memory));
+
             let mut temp_instance = Self {
                 vcs_riot: Rc::clone(&riot),
                 vcs_console_type: Rc::clone(&console_type),
                 vcs_tia: Rc::clone(&tia),
-                vcs_memory: VcsMemory::new (&parameters, Rc::clone(&tia), Rc::clone(&riot)),
                 vcs_audio: 0,
                 cpu: cpu,
                 total_ticks: 0,
@@ -78,7 +78,7 @@ pub mod vcs {
         }
 
         fn start_up(&mut self) {
-            self.cpu.reset(&self.vcs_memory);
+            self.cpu.reset();
             self.vcs_riot.borrow_mut().reset();
             self.vcs_tia.borrow_mut().reset();
 
@@ -129,7 +129,7 @@ pub mod vcs {
                 if self.total_ticks % 3 == 0 {
 
                     if !self.vcs_tia.borrow().is_cpu_blocked() {
-                        self.cpu.execute_tick(&mut self.vcs_memory);
+                        self.cpu.execute_tick();
                     }
                     self.vcs_riot.borrow_mut().execute_tick();
                 }

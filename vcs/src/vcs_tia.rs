@@ -127,15 +127,13 @@ pub mod vcs {
         }
 
         pub fn read(&self, location: u16) -> u8 {
-            let mut result: u8;
             
             if location < 0x30 || location > 0x3D {
                 // Undefined TIA read returns address 0x30
-                result = self.registers.read(0x30);
+                return self.registers.read(0x30);
             }
 
-            result = self.registers.read(location);
-            result
+            self.registers.read(location)
         }
 
         pub fn write(&mut self, location: u16, byte: u8) {
@@ -179,7 +177,7 @@ pub mod vcs {
             }
             else if location == REG_ENABL {
                 if self.registers.read(REG_VDELBL) & 0x01 > 0 {
-                    self.enable_delay = 0;
+                    self.enable_delay = byte;
                 }
                 else {
                     self.registers.write(REG_ENABL, byte);
@@ -529,6 +527,76 @@ pub mod vcs {
             return result;
         }
 
+        fn get_missle_pixel(&mut self, enable: u8, missle_reset: u8, missle_size: u8, missle_color: u8, missle_cycle: u16) -> i16 {
+            let mut result: i16 = -1;
+            
+            if enable & 0x02 > 0 && missle_reset & 0x02 == 0 {
+                let mut position_2_cycle: u16 = missle_cycle;
+                let mut position_3_cycle: u16 = missle_cycle;
+                let mut size: u8 = missle_size;
+
+                if size & 0x07 == 1 {
+                    position_2_cycle = missle_cycle + CLOSE;
+                }
+                else if size & 0x07 == 2 {
+                    position_2_cycle = missle_cycle + MEDIUM;
+                }
+                else if size & 0x07 == 3 {
+                    position_2_cycle = missle_cycle + CLOSE;
+                    position_3_cycle = missle_cycle + MEDIUM;
+                }
+                else if size & 0x07 == 4 {
+                    position_2_cycle = missle_cycle + WIDE;
+                }
+                else if size & 0x07 == 6 {
+                    position_2_cycle = missle_cycle + MEDIUM;
+                    position_3_cycle = missle_cycle + WIDE;
+                }
+                size = (size & 0x30) >> 4;
+
+                match size {
+                    0 => size = 1,
+                    1 => size = 2,
+                    2 => size = 4,
+                    3 => size = 8,
+                    _ => size = size
+                }
+
+                if missle_cycle <= self.cycle && missle_cycle + size as u16 > self.cycle {
+                    result  = missle_color as i16;
+                }
+                if position_2_cycle <= self.cycle && position_2_cycle + size as u16 > self.cycle {
+                    result  = missle_color as i16;
+                }
+                if position_3_cycle <= self.cycle && position_3_cycle + size as u16 > self.cycle {
+                    result  = missle_color as i16;
+                }
+            }
+            result
+        }
+
+        fn get_ball_pixel(&mut self) -> i16{
+            let mut result: i16 = -1;
+            
+            if self.registers.read(REG_ENABL) & 0x02 > 0 {
+                let mut size: u8 = self.registers.read(REG_CTRLPF);
+                size = (size & 0x30) >> 4;
+                match size {
+                    1 => size = 1,
+                    2 => size = 2,
+                    4 => size = 4,
+                    8 => size = 8,
+                    _ => size = size
+                }
+
+                if self.res_bl_cycle <= self.cycle && self.res_bl_cycle + size as u16 >= self.cycle {
+                    result = self.registers.read(REG_COLUPF) as i16;
+                }
+            }
+            
+            result
+        }
+
         fn render_pixel(&mut self) {
             let screen_x: u16 = self.cycle - 68;
             let screen_y: u16 = self.scan_line - (3 + self.vcs_console_type.borrow_mut().get_v_blank_lines()) as u16;
@@ -545,19 +613,18 @@ pub mod vcs {
             // Get each pixel for collision detection
             let p0_pixel: i16 = self.get_player_pixel(self.registers.read(REG_GRP0), self.registers.read(REG_NUSIZ0), self.registers.read(REG_REFP0), self.registers.read(REG_COLUP0), self.res_p0_cycle);
             let p1_pixel: i16 = self.get_player_pixel(self.registers.read(REG_GRP1), self.registers.read(REG_NUSIZ1), self.registers.read(REG_REFP1), self.registers.read(REG_COLUP1), self.res_p1_cycle);
-            //int16_t m0Pixel = GetMisslePixel(memory_[REG_ENAM0], memory_[REG_RESMP0], memory_[REG_NUSIZ0], memory_[REG_COLUP0], resM0Cycle_);
-            //int16_t m1Pixel = GetMisslePixel(memory_[REG_ENAM1], memory_[REG_RESMP1], memory_[REG_NUSIZ1], memory_[REG_COLUP1], resM1Cycle_);
-            //int16_t ballPixel = GetBallPixel();
+            let m0_pixel: i16 = self.get_missle_pixel(self.registers.read(REG_ENAM0), self.registers.read(REG_RESM0), self.registers.read(REG_NUSIZ0), self.registers.read(REG_COLUP0), self.res_m0_cycle);
+            let m1_pixel: i16 = self.get_missle_pixel(self.registers.read(REG_ENAM1), self.registers.read(REG_RESM1), self.registers.read(REG_NUSIZ1), self.registers.read(REG_COLUP1), self.res_m1_cycle);
+            let ball_pixel: i16 = self.get_ball_pixel();
             
             let current_pixel: u32 = (screen_y * self.vcs_console_type.borrow().get_x_resolution() as u16 + screen_x) as u32;
 
             // Don't display pixel if PF has priority and is set
             if pf_above {                
                 // Ball
-                //if (ballPixel >= 0 && currentColor == -1)
-                //{
-                  //  currentColor = (uint8_t)ballPixel;
-                //}
+                if ball_pixel >= 0 && current_color == -1 {
+                    current_color = ball_pixel as i16;
+                }
                 // Playfield
                 if playfield_pixel >= 0 && current_color == -1 {
                     current_color = playfield_pixel;
@@ -568,26 +635,24 @@ pub mod vcs {
                 current_color = p0_pixel as i16;
             }
             // M0
-            //if (m0Pixel >= 0 && currentColor == -1)
-            //{
-            //    currentColor = (uint8_t)m0Pixel;
-            //}
+            if m0_pixel >= 0 && current_color == -1 {
+                current_color = m0_pixel as i16;
+            }
             
             // P1
             if p1_pixel >= 0 && current_color == -1 {
                 current_color = p1_pixel as i16;
             }
             // M1
-            //if (m1Pixel >= 0 && currentColor == -1)
-            //{
-            //    currentColor = (uint8_t)m1Pixel;
-            //}
+            if m1_pixel >= 0 && current_color == -1 {
+                current_color = m1_pixel as i16;
+            }
 
             // Ball
-            //if (ballPixel >= 0 && currentColor == -1)
-            //{
-            //    currentColor = (uint8_t)ballPixel;
-            //}
+            if ball_pixel >= 0 && current_color == -1 {
+                current_color = ball_pixel as i16;
+            }
+
             // Playfield
             if playfield_pixel >= 0 && current_color == -1 {
                 current_color = playfield_pixel;
