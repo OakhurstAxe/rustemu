@@ -5,12 +5,12 @@ pub mod vcs {
     use std::cell::{RefCell, RefMut};
     use std::fs;
 
-    use emumemory::memory_mapper::emu_memory::MemoryMapper;
     use iced::widget::image::FilterMethod;
     use iced::widget::{center, Image};
     use iced::{Task, Element, Subscription, time};
     use iced::time::milliseconds;
 
+    use emumemory::memory_mapper::emu_memory::MemoryMapper;
     use emucpu::base_cpu::emu_cpu::BaseCpu;
     use emucpu::m6502::emu_cpu::M6502;
     use crate::vcs_memory::vcs::VcsMemory;
@@ -31,7 +31,6 @@ pub mod vcs {
         vcs_audio: i32,
         cpu: M6502,
         total_ticks: u32,
-        cpu_timer: i32,
         ticks_per_frame: u32,
         image: Vec<u8>
     }
@@ -63,7 +62,6 @@ pub mod vcs {
                 vcs_audio: 0,
                 cpu: cpu,
                 total_ticks: 0,
-                cpu_timer: 0,
                 ticks_per_frame: (console_type.borrow().ticks_per_second() / console_type.borrow().get_frames_per_second() as i32) as u32,
                 image: Vec::with_capacity(0)
             };
@@ -83,10 +81,6 @@ pub mod vcs {
             self.vcs_tia.borrow_mut().reset();
 
             self.total_ticks = 0;
-//            connect(&cpuTimer_, SIGNAL(timeout()), SLOT(StartNextFrame()));
-//            cpuTimer_.setTimerType(Qt::PreciseTimer);
-//            cpuTimer_.setInterval(16);
-//            cpuTimer_.start();
         }
 
         pub fn update(&mut self, message: Message) -> Task<Message> {
@@ -111,8 +105,8 @@ pub mod vcs {
                     width.try_into().unwrap(),
                     height.try_into().unwrap(), 
                     image))
-                .width(width as u32)
-                .height(height as u32)
+                .width(width * 4 as u32)
+                .height(height * 4 as u32)
                 .filter_method(FilterMethod::Nearest);
 
             center(content).into()

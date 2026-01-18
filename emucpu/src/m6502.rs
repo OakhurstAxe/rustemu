@@ -156,7 +156,7 @@ pub mod emu_cpu {
             op_code_lookup[0x36] = OperationStruct { operation: M6502::op_rol, address_method: M6502::zero_x_address, ticks: 6 };
             op_code_lookup[0x37] = OperationStruct { operation: M6502::op_brk, address_method: M6502::null_address, ticks: 7 };
             op_code_lookup[0x38] = OperationStruct { operation: M6502::op_sec, address_method: M6502::null_address, ticks: 2 };
-            op_code_lookup[0x38] = OperationStruct { operation: M6502::op_and, address_method: M6502::absolute_y_address, ticks: 4 };
+            op_code_lookup[0x39] = OperationStruct { operation: M6502::op_and, address_method: M6502::absolute_y_address, ticks: 4 };
             op_code_lookup[0x3a] = OperationStruct { operation: M6502::op_nop, address_method: M6502::null_address, ticks: 2 };
             op_code_lookup[0x3b] = OperationStruct { operation: M6502::op_brk, address_method: M6502::null_address, ticks: 7 };
             op_code_lookup[0x3c] = OperationStruct { operation: M6502::op_nop, address_method: M6502::absolute_x_address, ticks: 4 };
@@ -712,7 +712,7 @@ pub mod emu_cpu {
         fn op_bit(&mut self, address_method: fn(&mut M6502) -> u16) {
             let address: u16 = address_method(self);
             let byte: u8 = self.memory.borrow().cpu_read(address);
-            self.set_status_flag(OVERFLOW_FLAG, byte & 0x40 > 0);
+            self.set_status_flag(OVERFLOW_FLAG, (byte & 0x40) > 0);
             self.set_negative(byte);
             self.set_zero(byte & self.accumulator);
         }
@@ -770,11 +770,12 @@ pub mod emu_cpu {
             else
             {
                 byte = !byte;
-                let (tmp_value, _overflow1) = byte.overflowing_add(self.get_status_flag(CARRY_FLAG));
-                let (_value, _overflow2) = self.accumulator.overflowing_add(tmp_value);
-                self.set_status_flag(CARRY_FLAG, _overflow1 || _overflow2);
+                let (tmp_value, overflow1) = byte.overflowing_add(self.get_status_flag(CARRY_FLAG));
+                let (value1, overflow2) = self.accumulator.overflowing_add(tmp_value);
+                self.set_status_flag(CARRY_FLAG, overflow1 || overflow2);
+                value = value1;
             }
-            self.set_status_flag(OVERFLOW_FLAG, ((self.accumulator ^ value) & (byte ^ value) & 0x80) != 0);
+            self.set_status_flag(OVERFLOW_FLAG, ((self.accumulator ^ value) & ((byte ^ value) & 0x80)) != 0);
             self.accumulator = value;
             self.set_negative_zero(self.accumulator);
         }

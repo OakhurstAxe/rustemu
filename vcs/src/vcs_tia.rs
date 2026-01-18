@@ -5,7 +5,6 @@ pub mod vcs {
     use std::cell::RefCell;
 
     use emumemory::{base_memory::emu_memory::BaseMemory, memory_ram::emu_memory::MemoryRam};
-    use rand::Rng;
     use crate::{vcs_console_type::{vcs::VcsConsoleType}, vcs_palette::vcs::VcsPalette};
 
     const REG_VSYNC: u16 =    0x00;
@@ -144,39 +143,39 @@ pub mod vcs {
             }
             
             if location == REG_GRP0 {
-                if self.registers.read(REG_VDELP0) & 0x01 > 0 {
+                if (self.registers.read(REG_VDELP0) & 0x01) > 0 {
                     self.grp_0_delay = byte;
                 }
                 else {
                     self.registers.write(REG_GRP0, byte);
                 }
 
-                if self.registers.read(REG_VDELP1) & 0x01 > 0 {
+                if (self.registers.read(REG_VDELP1) & 0x01) > 0 {
                     self.registers.write(REG_GRP1, self.grp_1_delay);
                     self.grp_1_delay = 0;
                 }
             }
             else if location == REG_GRP1
             {
-                if self.registers.read(REG_VDELP1) & 0x01 > 0 {
+                if (self.registers.read(REG_VDELP1) & 0x01) > 0 {
                     self.grp_1_delay = byte;
                 }
                 else {
                     self.registers.write(REG_GRP1, byte);
                 }
 
-                if self.registers.read(REG_VDELP0) & 0x01 > 0 {
+                if (self.registers.read(REG_VDELP0) & 0x01) > 0 {
                     self.registers.write(REG_GRP0, self.grp_0_delay);
                     self.grp_0_delay = 0;
                 }
 
-                if self.registers.read(REG_VDELBL) & 0x01 > 0 {
+                if (self.registers.read(REG_VDELBL) & 0x01) > 0 {
                     self.registers.write(REG_ENABL, self.enable_delay);
                     self.enable_delay = 0;
                 }
             }
             else if location == REG_ENABL {
-                if self.registers.read(REG_VDELBL) & 0x01 > 0 {
+                if (self.registers.read(REG_VDELBL) & 0x01) > 0 {
                     self.enable_delay = byte;
                 }
                 else {
@@ -184,7 +183,7 @@ pub mod vcs {
                 }
             }
             else if location == REG_VSYNC {
-                if byte & 0x02 == 0 && self.registers.read(REG_VSYNC) & 0x02 > 0 {
+                if (byte & 0x02 == 0) && (self.registers.read(REG_VSYNC) & 0x02) > 0 {
                     self.scan_line = 2;
                     self.registers.write(REG_VBLANK, self.registers.read(REG_VBLANK) | 0x02);
                 }
@@ -194,7 +193,7 @@ pub mod vcs {
             else if location == REG_VBLANK {
 
                 // the scanLine_ > 30 is a hack that seems to work,  Probably a more accurate way to do it
-                if byte & 0x02 == 0 && self.registers.read(REG_VBLANK & 0x02) > 0 && self.scan_line > 30 {
+                if (byte & 0x02) == 0 && (self.registers.read(REG_VBLANK) & 0x02 > 0) && self.scan_line > 30 {
                     self.scan_line = 2 + self.vcs_console_type.borrow().get_v_blank_lines() as u16;
                 }
                 self.registers.write(REG_VBLANK, byte);
@@ -432,7 +431,7 @@ pub mod vcs {
             let mut byte: u8;
             let mut result: i16 = -1;
 
-            if control_playfield & 0x02 > 0 {
+            if (control_playfield & 0x02) > 0 {
                 if screen_x < 80 {
                     playfield_color = self.registers.read(REG_COLUP0);
                 }
@@ -494,8 +493,7 @@ pub mod vcs {
                         }
                     }
                 }
-                else
-                {
+                else {
                     if screen_x < 96 {
                         byte = (self.registers.read(REG_PF0) >> 4) & 0x0f;
                         let shift: u8 = ((screen_x - 80) >> 2) as u8;
@@ -559,7 +557,7 @@ pub mod vcs {
                     1 => size = 2,
                     2 => size = 4,
                     3 => size = 8,
-                    _ => size = size
+                    _ => ()
                 }
 
                 if missle_cycle <= self.cycle && missle_cycle + size as u16 > self.cycle {
@@ -586,7 +584,7 @@ pub mod vcs {
                     2 => size = 2,
                     4 => size = 4,
                     8 => size = 8,
-                    _ => size = size
+                    _ => ()
                 }
 
                 if self.res_bl_cycle <= self.cycle && self.res_bl_cycle + size as u16 >= self.cycle {
@@ -668,9 +666,81 @@ pub mod vcs {
             self.screen[current_pixel as usize * 4 + 2] = ((color & 0x0000ff)) as u8;
             self.screen[current_pixel as usize * 4 + 3] = 255;
 
-            //CheckCollisions(playfieldPixel,
-            //    p0Pixel, p1Pixel, m0Pixel, m1Pixel,
-            //    ballPixel);
+            self.check_collisions(playfield_pixel, p0_pixel, p1_pixel, m0_pixel, m1_pixel, ball_pixel);
+        }
+
+        fn check_collisions(&mut self, playfield_pixel: i16, p0_pixel: i16, p1_pixel: i16, 
+            m0_pixel: i16, m1_pixel: i16, ball_pixel: i16) {
+            // Collisions
+            let mut collision: u8 = self.registers.read(REG_CXM0P);
+
+            if m0_pixel >= 0 && p1_pixel >= 0 {
+                collision |= 0x80;
+            }
+            if m0_pixel >= 0 && p0_pixel >= 0 {
+                collision |= 0x40;
+            }
+            self.registers.write(REG_CXM0P, collision);
+
+            collision = self.registers.read(REG_CXM1P);
+            if m1_pixel >= 0 && p0_pixel >= 0 {
+                collision |= 0x80;
+            }
+            if m1_pixel >= 0 && p1_pixel >= 0 {
+                collision |= 0x40;
+            }
+            self.registers.write(REG_CXM1P, collision);
+
+            collision = self.registers.read(REG_CXP0FB);
+            if p0_pixel >= 0 && playfield_pixel >= 0 {
+                collision |= 0x80;
+            }
+            if p0_pixel >= 0 && ball_pixel >= 0 {
+                collision |= 0x40;
+            }
+            self.registers.write(REG_CXP0FB, collision);
+
+            collision = self.registers.read(REG_CXP1FB);
+            if p1_pixel >= 0 && playfield_pixel >= 0 {
+                collision |= 0x80;
+            }
+            if p1_pixel >= 0 && ball_pixel >= 0 {
+                collision |= 0x40;
+            }
+            self.registers.write(REG_CXP1FB, collision);
+            
+            collision = self.registers.read(REG_CXM0FB);
+            if m0_pixel >= 0 && playfield_pixel >= 0 {
+                collision |= 0x80;
+            }
+            if m0_pixel >= 0 && ball_pixel >= 0 {
+                collision |= 0x40;
+            }
+            self.registers.write(REG_CXM0FB, collision);
+
+            collision = self.registers.read(REG_CXM1FB);
+            if m1_pixel >= 0 && playfield_pixel >= 0 {
+                collision |= 0x80;
+            }
+            if m1_pixel >= 0 && ball_pixel >= 0 {
+                collision |= 0x40;
+            }
+            self.registers.write(REG_CXM1FB, collision);
+            
+            collision = self.registers.read(REG_CXBLPF);
+            if ball_pixel >= 0 && playfield_pixel >= 0 {
+                collision |= 0x80;
+            }
+            self.registers.write(REG_CXBLPF, collision);
+
+            collision = self.registers.read(REG_CXPPMM);
+            if p0_pixel >= 0 && p1_pixel >= 0 {
+                collision |= 0x80;
+            }
+            if m0_pixel >= 0 && m1_pixel >= 0 {
+                collision |= 0x40;
+            }
+            self.registers.write(REG_CXPPMM, collision);
         }
 
         pub fn is_cpu_blocked(&self) -> bool {
@@ -686,11 +756,11 @@ pub mod vcs {
         fn reverse_bits(n: u8) -> u8 {
             let mut input: u8 = n;
             let mut ans: u8 = 0;
-            for i in 7..0 {
+            for i in (0..8).rev() {
                 ans |= (input & 1) << i;
                 input = input >> 1;
             }
-            return ans;
+            ans
         }
 
     }
