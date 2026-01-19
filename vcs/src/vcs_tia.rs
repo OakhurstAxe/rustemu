@@ -93,7 +93,10 @@ pub mod vcs {
         res_bl_cycle: u16,
         grp_0_delay: u8,
         grp_1_delay: u8,
-        enable_delay: u8
+        enable_delay: u8,
+        v_blank: u8,
+        x_resolution: u8,
+        y_resolution: u8
     }
 
     impl VcsTia {
@@ -118,11 +121,25 @@ pub mod vcs {
                 grp_0_delay: 0,
                 grp_1_delay: 0,
                 enable_delay: 0,
+                v_blank: console_type.borrow().get_v_blank_lines(),
+                x_resolution: console_type.borrow().get_x_resolution(),
+                y_resolution: console_type.borrow().get_y_resolution()
             }
         }
 
         pub fn get_screen(&self) -> Vec<u8> {
             self.screen_display.clone()
+        }
+
+        pub fn left_controller_trigger(&mut self, value: bool) {
+            let mut reg_input_4 = self.registers.read(REG_INPT4);
+            if value {
+                reg_input_4 &= 0x7f;
+            }
+            else {
+                reg_input_4 |= 0x80;                
+            }
+            self.registers.write(REG_INPT4, reg_input_4);
         }
 
         pub fn read(&self, location: u16) -> u8 {
@@ -141,7 +158,7 @@ pub mod vcs {
                 // Sometimes used to waste specific cycle count.
                 return; 
             }
-            
+
             if location == REG_GRP0 {
                 if (self.registers.read(REG_VDELP0) & 0x01) > 0 {
                     self.grp_0_delay = byte;
@@ -194,7 +211,7 @@ pub mod vcs {
 
                 // the scanLine_ > 30 is a hack that seems to work,  Probably a more accurate way to do it
                 if (byte & 0x02) == 0 && (self.registers.read(REG_VBLANK) & 0x02 > 0) && self.scan_line > 30 {
-                    self.scan_line = 2 + self.vcs_console_type.borrow().get_v_blank_lines() as u16;
+                    self.scan_line = 2 + self.v_blank as u16;
                 }
                 self.registers.write(REG_VBLANK, byte);
             }
@@ -281,15 +298,15 @@ pub mod vcs {
 
         pub fn execute_tick(&mut self) {
             self.cycle += 1;
-            if self.cycle > 67 + self.vcs_console_type.borrow().get_x_resolution() as u16 {
+            if self.cycle > 67 + self.x_resolution as u16 {
                 // Set rendering registers for when scrolling happens
                 self.cycle = 0;
                 self.scan_line += 1;
             }
             
-            if (self.scan_line > (2 + self.vcs_console_type.borrow().get_v_blank_lines() as u16)) && 
-                (self.scan_line <= (2 + self.vcs_console_type.borrow().get_v_blank_lines() as u16 + 
-                    self.vcs_console_type.borrow().get_y_resolution() as u16)) && (self.cycle > 67) {
+            if (self.scan_line > (2 + self.v_blank as u16)) && 
+                (self.scan_line <= (2 + self.v_blank as u16 + 
+                    self.y_resolution as u16)) && (self.cycle > 67) {
                 self.render_pixel();
             }
             
@@ -335,21 +352,22 @@ pub mod vcs {
             self.cycle == 0 && self.scan_line == 3
         }
 
-        fn move_object(&mut self, mov: u8) -> u16 {
-            let mut move_value: u8 = ((mov & 0x70) >> 4) as u8;
-            if move_value & 0x80 > 0 {
+        fn move_object(&mut self, mov: u8, object_cycle: u16) -> u16 {
+            let mut move_value: i8 = ((mov & 0x70) >> 4) as i8;
+            if mov & 0x80 > 0 {
                 // twos compliment
-                move_value = move_value | 0xf8;
+                move_value = (move_value as u8 | 0xf8) as i8;
             }
-            move_value as u16
+            let (new_value, _overflow) = object_cycle.overflowing_sub(move_value as u16);
+            new_value
         }
 
         fn apply_movement(&mut self) {
-            self.res_p0_cycle -= self.move_object(self.registers.read(REG_HMP0));
-            self.res_p1_cycle -= self.move_object(self.registers.read(REG_HMP1));
-            self.res_m0_cycle -= self.move_object(self.registers.read(REG_HMM0));
-            self.res_m1_cycle -= self.move_object(self.registers.read(REG_HMM1));
-            self.res_bl_cycle -= self.move_object(self.registers.read(REG_HMBL));
+            self.res_p0_cycle = self.move_object(self.registers.read(REG_HMP0), self.res_p0_cycle);
+            self.res_p1_cycle = self.move_object(self.registers.read(REG_HMP1), self.res_p1_cycle);
+            self.res_m0_cycle = self.move_object(self.registers.read(REG_HMM0), self.res_m0_cycle);
+            self.res_m1_cycle = self.move_object(self.registers.read(REG_HMM1), self.res_m1_cycle);
+            self.res_bl_cycle = self.move_object(self.registers.read(REG_HMBL), self.res_bl_cycle);
         }
         
         fn clear_move_registers(&mut self) {
@@ -402,20 +420,20 @@ pub mod vcs {
                 size_multiple = 4;
             }
 
-            let (mut value, mut _overflow) = self.cycle.overflowing_sub(player_cycle);
+            let (value, mut _overflow) = self.cycle.overflowing_sub(player_cycle);
             let mut shift: u32 = (value/ size_multiple as u16) as u32;
             if shift < 8 && (((sprite_data >> shift) & 0x01) > 0) {
                 result = color as i16;
                 return result;
             }
-            (value, _overflow) = self.cycle.overflowing_sub(position2_cycle);
-            shift = (value/ size_multiple as u16) as u32;
+            let (value2, _overflow) = self.cycle.overflowing_sub(position2_cycle);
+            shift = (value2/ size_multiple as u16) as u32;
             if shift < 8 && (((sprite_data >> shift) & 0x01) > 0) {
                 result = color as i16;
                 return result;
             }
-            (value, _overflow) = self.cycle.overflowing_sub(position3_cycle);
-            shift = (value/ size_multiple as u16) as u32;
+            let (value3, _overflow) = self.cycle.overflowing_sub(position3_cycle);
+            shift = (value3/ size_multiple as u16) as u32;
             if shift < 8 && (((sprite_data >> shift) & 0x01) > 0) {
                 result = color as i16;
                 return result;
@@ -483,7 +501,7 @@ pub mod vcs {
                             result = playfield_color as i16;
                         }
                     }
-                    else if screen_x <= self.vcs_console_type.borrow_mut().get_x_resolution() as u16{
+                    else if screen_x <= self.x_resolution as u16{
                         byte = (self.registers.read(REG_PF0) >> 4) & 0x0f;
                         byte = VcsTia::reverse_bits(byte) >> 4;
                         let shift: u8 = ((screen_x - 144) >> 2) as u8;
@@ -511,7 +529,7 @@ pub mod vcs {
                             result = playfield_color as i16;
                         }
                     }
-                    else if screen_x < self.vcs_console_type.borrow_mut().get_x_resolution() as u16 {
+                    else if screen_x < self.x_resolution as u16 {
                         byte = self.registers.read(REG_PF2);
                         let shift: u8 = ((screen_x - 128) >> 2) as u8;
                         byte = (byte >> shift) & 0x01;
@@ -528,7 +546,7 @@ pub mod vcs {
         fn get_missle_pixel(&mut self, enable: u8, missle_reset: u8, missle_size: u8, missle_color: u8, missle_cycle: u16) -> i16 {
             let mut result: i16 = -1;
             
-            if enable & 0x02 > 0 && missle_reset & 0x02 == 0 {
+            if (enable & 0x02) > 0 && (missle_reset & 0x02) == 0 {
                 let mut position_2_cycle: u16 = missle_cycle;
                 let mut position_3_cycle: u16 = missle_cycle;
                 let mut size: u8 = missle_size;
@@ -570,6 +588,7 @@ pub mod vcs {
                     result  = missle_color as i16;
                 }
             }
+
             result
         }
 
@@ -597,7 +616,7 @@ pub mod vcs {
 
         fn render_pixel(&mut self) {
             let screen_x: u16 = self.cycle - 68;
-            let screen_y: u16 = self.scan_line - (3 + self.vcs_console_type.borrow_mut().get_v_blank_lines()) as u16;
+            let screen_y: u16 = self.scan_line - (3 + self.v_blank) as u16;
             let background: u8 = self.registers.read(REG_COLUBK);
             let mut current_color: i16 = -1;
             
@@ -615,7 +634,7 @@ pub mod vcs {
             let m1_pixel: i16 = self.get_missle_pixel(self.registers.read(REG_ENAM1), self.registers.read(REG_RESM1), self.registers.read(REG_NUSIZ1), self.registers.read(REG_COLUP1), self.res_m1_cycle);
             let ball_pixel: i16 = self.get_ball_pixel();
             
-            let current_pixel: u32 = (screen_y * self.vcs_console_type.borrow().get_x_resolution() as u16 + screen_x) as u32;
+            let current_pixel: u32 = (screen_y * self.x_resolution as u16 + screen_x) as u32;
 
             // Don't display pixel if PF has priority and is set
             if pf_above {                

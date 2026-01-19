@@ -7,7 +7,8 @@ pub mod vcs {
 
     use iced::widget::image::FilterMethod;
     use iced::widget::{center, Image};
-    use iced::{Task, Element, Subscription, time};
+    use iced::{Task, Element, Event, Subscription, time};
+    use iced::keyboard;
     use iced::time::milliseconds;
 
     use emumemory::memory_mapper::emu_memory::MemoryMapper;
@@ -21,7 +22,9 @@ pub mod vcs {
 
     #[derive(Debug, Clone)]
     pub enum Message {
-        Tick
+        Tick,
+        KeyboardEventOccurred(keyboard::Event),
+        EventOccurred(Event),
     }
 
     pub struct VcsConsole {
@@ -88,7 +91,56 @@ pub mod vcs {
                 Message::Tick => {
                     self.start_next_frame();
                     self.vcs_tia.borrow_mut().repaint();
-                }
+                },
+                Message::KeyboardEventOccurred(event) => {
+                    if let keyboard::Event::KeyPressed { physical_key, .. } = event {
+                        if physical_key == keyboard::key::Code::KeyA {
+                            self.vcs_riot.borrow_mut().select_pressed(true);
+                        }
+                        else if physical_key == keyboard::key::Code::KeyS {
+                            self.vcs_riot.borrow_mut().reset_pressed(true);
+                        }
+                        else if physical_key == keyboard::key::Code::ArrowUp {
+                            self.vcs_riot.borrow_mut().left_controller_up_down(1);
+                        }
+                        else if physical_key == keyboard::key::Code::ArrowDown {
+                            self.vcs_riot.borrow_mut().left_controller_up_down(-1);
+                        }
+                        else if physical_key == keyboard::key::Code::ArrowLeft {
+                            self.vcs_riot.borrow_mut().left_controller_left_right(-1);
+                        }
+                        else if physical_key == keyboard::key::Code::ArrowRight {
+                            self.vcs_riot.borrow_mut().left_controller_left_right(1);
+                        }
+                        else if physical_key == keyboard::key::Code::Space {
+                            self.vcs_tia.borrow_mut().left_controller_trigger(true);
+                        }
+                    }
+                    if let keyboard::Event::KeyReleased {physical_key, .. } = event {
+                        if physical_key == keyboard::key::Code::KeyA {
+                            self.vcs_riot.borrow_mut().select_pressed(false);
+                        }
+                        else if physical_key == keyboard::key::Code::KeyS {
+                            self.vcs_riot.borrow_mut().reset_pressed(false);
+                        }
+                        else if physical_key == keyboard::key::Code::ArrowUp {
+                            self.vcs_riot.borrow_mut().left_controller_up_down(0);
+                        }
+                        else if physical_key == keyboard::key::Code::ArrowDown {
+                            self.vcs_riot.borrow_mut().left_controller_up_down(0);
+                        }
+                        else if physical_key == keyboard::key::Code::ArrowLeft {
+                            self.vcs_riot.borrow_mut().left_controller_left_right(0);
+                        }
+                        else if physical_key == keyboard::key::Code::ArrowRight {
+                            self.vcs_riot.borrow_mut().left_controller_left_right(0);
+                        }
+                        else if physical_key == keyboard::key::Code::Space {
+                            self.vcs_tia.borrow_mut().left_controller_trigger(false);
+                        }
+                    }
+                },
+                _ => ()
             }
 
             Task::none()
@@ -113,9 +165,22 @@ pub mod vcs {
         }
 
         pub fn subscription(&self) -> Subscription<Message> {
-            time::every(milliseconds(1000 / 17 as u64)).map(|_| Message::Tick)
+            let subscriptions = vec![
+                self.time_subscription(),
+                self.keyboard_subscription(),
+            ];
+
+            iced::Subscription::batch(subscriptions)
         }
         
+        pub fn time_subscription(&self) -> Subscription<Message> {
+            time::every(milliseconds(1000 / 60 as u64)).map(|_| Message::Tick)
+        }
+
+        pub fn keyboard_subscription(&self) -> Subscription<Message> {
+            keyboard::listen().map(Message::KeyboardEventOccurred)
+        }
+
         pub fn start_next_frame (&mut self) {
             let mut frame_ticks: u32 = 0;
             //vcsAudio_.ExecuteTick();

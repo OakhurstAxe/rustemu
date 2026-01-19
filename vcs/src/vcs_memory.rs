@@ -11,7 +11,8 @@ pub mod vcs {
     pub struct VcsMemory {
         vcs_tia: Rc<RefCell<VcsTia>>,
         vcs_riot: Rc<RefCell<VcsRiot>>,
-        vcs_cartridge: VcsCartridge2k
+        vcs_cartridge: VcsCartridge2k,
+        debug: u8
     }
 
     impl VcsMemory {
@@ -19,7 +20,8 @@ pub mod vcs {
             Self {
                 vcs_tia: tia,
                 vcs_riot: riot,
-                vcs_cartridge: <VcsCartridge2k as VcsCartridge>::get_cartridge(&vcs_parameters)
+                vcs_cartridge: <VcsCartridge2k as VcsCartridge>::get_cartridge(&vcs_parameters),
+                debug: 0
             }
         }
     }
@@ -28,7 +30,6 @@ pub mod vcs {
         
         fn cpu_read(&self, mut location: u16) -> u8 {
             let result: u8;
-
             location = location & 0x1FFF;
             
             if location & 0x1080 == 0 {
@@ -38,7 +39,7 @@ pub mod vcs {
             }
             else if location & 0x1280 == 0x0080 {
                 location &= 0x7F;
-                result = self.vcs_riot.borrow_mut().read(location)
+                result = self.vcs_riot.borrow().read_ram(location)
             }
             else if location & 0x1280 == 0x0280 {
                 location &= 0x1F;
@@ -55,7 +56,7 @@ pub mod vcs {
             else {
                 panic!()
             }
-
+            
             result
         }
 
@@ -72,7 +73,7 @@ pub mod vcs {
             // Working RAM A12=0, A9=0, A7=1 0 **0* 1*** ****
             else if location & 0x1280 == 0x0080 {
                 location &= 0x7F;
-                self.vcs_riot.borrow_mut().write(location, byte);
+                self.vcs_riot.borrow_mut().write_ram(location, byte);
             }            
             // PIA I/O Mirrors - A12=0, A9=1, A7=1  0 **1* 1*** ****
             else if location & 0x1280 == 0x0280 {

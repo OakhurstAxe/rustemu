@@ -34,6 +34,7 @@ pub mod emu_cpu {
         register_x: u8,
         register_y: u8,
         status_register: u8,
+        debug: u8,
 
         op_code_lookup: [OperationStruct; 0x100],
         operation: OperationStruct,
@@ -56,8 +57,8 @@ pub mod emu_cpu {
 
         fn reset(&mut self) {
             self.operation = self.op_code_lookup[0xea]; //OpNOP       
-            self.stack_pointer_page = 0x00;  // should be 0100 but is 0x00 for atari
-            self.stack_pointer = 255;
+            self.stack_pointer_page = 0x100;  // should be 0100 but is 0x00 for atari
+            self.stack_pointer = 0xff;
             let pcl: u8 = self.memory.borrow().cpu_read(0xfffc);
             let pch: u8 = self.memory.borrow().cpu_read(0xfffd);
             self.program_counter = ((pch as u16) << 8) + pcl as u16;
@@ -80,15 +81,16 @@ pub mod emu_cpu {
                     memory: memory_mapper,
                     overflow_ticks: 0,
                     program_counter: 0,
-                    stack_pointer_page: 0x00,
-                    stack_pointer: 0,
+                    stack_pointer_page: 0x100,
+                    stack_pointer: 0xff,
                     accumulator: 0,
                     register_x: 0,
                     register_y: 0,
                     status_register: 0x40,
                     op_code_lookup: op_code_lookup,
                     operation: operation,
-                    instruction: 0
+                    instruction: 0,
+                    debug: 0
             }
         }
 
@@ -388,14 +390,14 @@ pub mod emu_cpu {
         fn set_overflow_for_operation(&mut self)
         {
             // If branch operaion takes a branch it causes extra tick
-            if (fn_addr_eq(self.operation.operation, M6502::op_bcc as fn(&mut M6502, fn(&mut M6502) -> u16)) && self.get_status_flag(CARRY_FLAG) > 0) 
-                || (fn_addr_eq(self.operation.operation, M6502::op_bcs as fn(&mut M6502, fn(&mut M6502) -> u16)) && self.get_status_flag(CARRY_FLAG) > 0) 
-                || (fn_addr_eq(self.operation.operation, M6502::op_beq as fn(&mut M6502, fn(&mut M6502) -> u16)) && self.get_status_flag(ZERO_FLAG) > 0) 
-                || (fn_addr_eq(self.operation.operation, M6502::op_bmi as fn(&mut M6502, fn(&mut M6502) -> u16)) && self.get_status_flag(NEGATIVE_FLAG) > 0) 
-                || (fn_addr_eq(self.operation.operation, M6502::op_bne as fn(&mut M6502, fn(&mut M6502) -> u16)) && self.get_status_flag(ZERO_FLAG) > 0) 
-                || (fn_addr_eq(self.operation.operation, M6502::op_bpl as fn(&mut M6502, fn(&mut M6502) -> u16)) && self.get_status_flag(NEGATIVE_FLAG) > 0) 
-                || (fn_addr_eq(self.operation.operation, M6502::op_bvc as fn(&mut M6502, fn(&mut M6502) -> u16)) && self.get_status_flag(OVERFLOW_FLAG) > 0) 
-                || (fn_addr_eq(self.operation.operation, M6502::op_bvs as fn(&mut M6502, fn(&mut M6502) -> u16)) && self.get_status_flag(OVERFLOW_FLAG) > 0) {
+            if (fn_addr_eq(self.operation.operation, M6502::op_bcc as fn(&mut M6502, fn(&mut M6502) -> u16)) && self.get_status_flag(CARRY_FLAG) != 0) 
+                || (fn_addr_eq(self.operation.operation, M6502::op_bcs as fn(&mut M6502, fn(&mut M6502) -> u16)) && self.get_status_flag(CARRY_FLAG) != 0) 
+                || (fn_addr_eq(self.operation.operation, M6502::op_beq as fn(&mut M6502, fn(&mut M6502) -> u16)) && self.get_status_flag(ZERO_FLAG) != 0) 
+                || (fn_addr_eq(self.operation.operation, M6502::op_bmi as fn(&mut M6502, fn(&mut M6502) -> u16)) && self.get_status_flag(NEGATIVE_FLAG) != 0) 
+                || (fn_addr_eq(self.operation.operation, M6502::op_bne as fn(&mut M6502, fn(&mut M6502) -> u16)) && self.get_status_flag(ZERO_FLAG) != 0) 
+                || (fn_addr_eq(self.operation.operation, M6502::op_bpl as fn(&mut M6502, fn(&mut M6502) -> u16)) && self.get_status_flag(NEGATIVE_FLAG) != 0) 
+                || (fn_addr_eq(self.operation.operation, M6502::op_bvc as fn(&mut M6502, fn(&mut M6502) -> u16)) && self.get_status_flag(OVERFLOW_FLAG) != 0) 
+                || (fn_addr_eq(self.operation.operation, M6502::op_bvs as fn(&mut M6502, fn(&mut M6502) -> u16)) && self.get_status_flag(OVERFLOW_FLAG) != 0) {
                 self.overflow_ticks += 1;
                 let address_met = self.operation.address_method;
                 let relative_address: u16 = address_met(self);
@@ -538,7 +540,8 @@ pub mod emu_cpu {
             let loadl: u8 = self.memory.borrow().cpu_read(indirect & 0xff);
             indirect += 1;
             let loadh: u8 = self.memory.borrow().cpu_read(indirect & 0xff);
-            ((loadh as u16) << 8) + loadl as u16
+            let address: u16 = ((loadh as u16) << 8) + loadl as u16 + self.register_x as u16;
+            address
         }
 
         fn indirect_y_address(&mut self) -> u16 {
@@ -547,7 +550,7 @@ pub mod emu_cpu {
             let loadl: u8 = self.memory.borrow().cpu_read(indirect & 0xff);
             indirect += 1;
             let loadh: u8 = self.memory.borrow().cpu_read(indirect & 0xff);
-            let address: u16 = (loadh as u16).wrapping_shl(8) + loadl as u16 + self.register_y as u16;
+            let address: u16 = ((loadh as u16) << 8) + loadl as u16 + self.register_y as u16;
             address 
         }
 
@@ -589,7 +592,7 @@ pub mod emu_cpu {
         }
 
         fn set_negative(&mut self, byte: u8) {
-            self.set_status_flag(NEGATIVE_FLAG, (byte & 0x80) > 0);
+            self.set_status_flag(NEGATIVE_FLAG, (byte & 0x80) != 0);
         }
 
         fn set_zero(&mut self, byte: u8) {
@@ -671,11 +674,7 @@ pub mod emu_cpu {
         }
 
         fn op_php(&mut self, _address_method: fn(&mut M6502) -> u16) {
-            self.set_status_flag(BREAK_COMMAND, true);
-            self.set_status_flag(IGNORED, true);
             self.push_stack(self.status_register);
-            self.set_status_flag(BREAK_COMMAND, false);
-            self.set_status_flag(IGNORED, false);
         }
 
         fn op_pla(&mut self, _address_method: fn(&mut M6502) -> u16) {
@@ -712,8 +711,8 @@ pub mod emu_cpu {
         fn op_bit(&mut self, address_method: fn(&mut M6502) -> u16) {
             let address: u16 = address_method(self);
             let byte: u8 = self.memory.borrow().cpu_read(address);
-            self.set_status_flag(OVERFLOW_FLAG, (byte & 0x40) > 0);
-            self.set_negative(byte);
+            self.set_status_flag(OVERFLOW_FLAG, (byte & 0x40) != 0);
+            self.set_status_flag(NEGATIVE_FLAG, (byte & 0x80) != 0);
             self.set_zero(byte & self.accumulator);
         }
 
@@ -722,8 +721,13 @@ pub mod emu_cpu {
             let mut byte: u8 = self.memory.borrow().cpu_read(address);
             let mut value: u8;
 
-            if self.get_status_flag(DECIMAL_MODE) > 0 {
-                byte = (((byte & 0xF0) >> 4) * 10) + (byte & 0x0F) + self.get_status_flag(CARRY_FLAG);
+            let mut carry: u8 = 0;
+            if self.get_status_flag(CARRY_FLAG) != 0 {
+                carry = 1;
+            }
+
+            if self.get_status_flag(DECIMAL_MODE) != 0 {
+                byte = (((byte & 0xF0) >> 4) * 10) + (byte & 0x0F) + carry;
                 let temp_accumulator: u8 = (((self.accumulator & 0xF0) >> 4) * 10) + (self.accumulator & 0x0F);
                 value = temp_accumulator + byte + self.get_status_flag(CARRY_FLAG);
                 self.set_status_flag(CARRY_FLAG, value > 99);
@@ -733,10 +737,6 @@ pub mod emu_cpu {
                 value = ((value / 10) << 4) + (value % 10);
             }
             else {
-                let mut carry: u8 = 0;
-                if self.get_status_flag(CARRY_FLAG) > 0 {
-                    carry = 1;
-                }
                 self.set_status_flag(CARRY_FLAG, false);
                 let (value1, overflow1) = self.accumulator.overflowing_add(byte);
                 let (value2, overflow2) = value1.overflowing_add(carry);
@@ -757,20 +757,27 @@ pub mod emu_cpu {
             let mut byte: u8 = self.memory.borrow().cpu_read(address);
             let mut value: u8 = 0;
 
-            if self.get_status_flag(DECIMAL_MODE) > 0 {
+            let mut carry: u8 = 0;
+            if self.get_status_flag(CARRY_FLAG) != 0 {
+                carry = 1;
+            }
+
+
+            if self.get_status_flag(DECIMAL_MODE) != 0 {
                 byte = (((byte & 0xF0) >> 4) * 10) + (byte & 0x0F);
                 let temp_accumulator: u8 = (((self.accumulator & 0xF0) >> 4) * 10) + (self.accumulator & 0x0F);
                 let (result, mut _overflowed) = temp_accumulator.overflowing_sub(byte);
-                (value, _overflowed) = result.overflowing_sub(self.get_status_flag(CARRY_FLAG));
-                if (value as i8) < 0 {
-                    (value, _overflowed) = value.overflowing_add(100);
+                let (value1, _overflowed) = result.overflowing_sub(carry);
+                if (value1 as i8) < 0 {
+                    let (value2, _overflowed) = value1.overflowing_add(100);
+                    value = value2;
                 }
                 value = ((value / 10) << 4) + (value % 10);
             }
             else
             {
                 byte = !byte;
-                let (tmp_value, overflow1) = byte.overflowing_add(self.get_status_flag(CARRY_FLAG));
+                let (tmp_value, overflow1) = byte.overflowing_add(carry);
                 let (value1, overflow2) = self.accumulator.overflowing_add(tmp_value);
                 self.set_status_flag(CARRY_FLAG, overflow1 || overflow2);
                 value = value1;
@@ -792,23 +799,25 @@ pub mod emu_cpu {
             let address: u16 = address_method(self);
             let byte: u8 = self.memory.borrow().cpu_read(address);
             self.set_status_flag(CARRY_FLAG, self.register_x >= byte);
-            self.set_negative_zero(self.register_x - byte);
+            let (negzerocheck, _overflow) = self.register_x.overflowing_sub(byte);
+            self.set_negative_zero(negzerocheck);
         }
 
         fn op_cpy(&mut self, address_method: fn(&mut M6502) -> u16) {
             let address: u16 = address_method(self);
             let byte: u8 = self.memory.borrow().cpu_read(address);
             self.set_status_flag(CARRY_FLAG, self.register_y >= byte);
-            self.set_negative_zero(self.register_y - byte);
+            let (negzerocheck, _overflow) = self.register_y.overflowing_sub(byte);
+            self.set_negative_zero(negzerocheck);
         }
 
         // Increment and decrement operations
         fn op_inc(&mut self, address_method: fn(&mut M6502) -> u16) {
             let address: u16 = address_method(self);
             let byte: u8 = self.memory.borrow().cpu_read(address);
-            let(byte, _overflow) = byte.overflowing_add(1);
-            self.memory.borrow_mut().cpu_write(address, byte);
-            self.set_negative_zero(byte);
+            let(byte2, _overflow) = byte.overflowing_add(1);
+            self.memory.borrow_mut().cpu_write(address, byte2);
+            self.set_negative_zero(byte2);
         }
 
         fn op_inx(&mut self, _address_method: fn(&mut M6502) -> u16) {
@@ -818,7 +827,8 @@ pub mod emu_cpu {
         }
 
         fn op_iny(&mut self, _address_method: fn(&mut M6502) -> u16) {
-            self.register_y += 1;
+            let (value, _overflow) = self.register_y.overflowing_add(1);
+            self.register_y = value;
             self.set_negative_zero(self.register_y);
         }
 
@@ -837,7 +847,8 @@ pub mod emu_cpu {
         }
 
         fn op_dey(&mut self, _address_method: fn(&mut M6502) -> u16) {
-            self.register_y -= 1;
+            let (new_y, _overflow) = self.register_y.overflowing_sub(1);
+            self.register_y = new_y;
             self.set_negative_zero(self.register_y);
         }
 
@@ -853,7 +864,7 @@ pub mod emu_cpu {
                 address = address_method(self);
                 byte = self.memory.borrow().cpu_read(address);
             }
-            self.set_status_flag(CARRY_FLAG, byte & 0x80 > 0);
+            self.set_status_flag(CARRY_FLAG, (byte & 0x80) != 0);
             byte = byte << 1;
             self.set_negative_zero(byte);
             if fn_addr_eq(address_method, M6502::accumulator_address as for<'a, 'b> fn(&'a mut M6502) -> u16) {
@@ -875,7 +886,7 @@ pub mod emu_cpu {
                 address = address_method(self);
                 byte = self.memory.borrow().cpu_read(address);
             }
-            self.set_status_flag(CARRY_FLAG, byte & 0x01 > 0);
+            self.set_status_flag(CARRY_FLAG, (byte & 0x01) != 0);
             byte = byte >> 1;
             self.set_negative_zero(byte);
             if fn_addr_eq(address_method, M6502::accumulator_address as for<'a, 'b> fn(&'a mut M6502) -> u16) {
@@ -889,6 +900,12 @@ pub mod emu_cpu {
         fn op_rol(&mut self, address_method: fn(&mut M6502) -> u16) {
             let mut byte: u8;
             let mut address: u16 = 0;
+
+            let mut carry: u8 = 0;
+            if self.get_status_flag(CARRY_FLAG) != 0 {
+                carry = 1;
+            }
+
             if fn_addr_eq(address_method, M6502::accumulator_address as for<'a, 'b> fn(&'a mut M6502) -> u16) {
                 byte = address_method(self) as u8;
             }
@@ -896,8 +913,8 @@ pub mod emu_cpu {
                 address = address_method(self);
                 byte = self.memory.borrow().cpu_read(address);
             }
-            let temp: u8 = (byte << 1) + self.get_status_flag(CARRY_FLAG);
-            self.set_status_flag(CARRY_FLAG, (byte & 0x80) > 0);
+            let temp: u8 = (byte << 1) + carry;
+            self.set_status_flag(CARRY_FLAG, (byte & 0x80) != 0);
             byte = temp;
             self.set_negative_zero(byte);
             if fn_addr_eq(address_method, M6502::accumulator_address as for<'a, 'b> fn(&'a mut M6502) -> u16) {
@@ -911,6 +928,12 @@ pub mod emu_cpu {
         fn op_ror(&mut self, address_method: fn(&mut M6502) -> u16) {
             let mut byte: u8;
             let mut address: u16 = 0;
+
+            let mut carry: u8 = 0;
+            if self.get_status_flag(CARRY_FLAG) != 0 {
+                carry = 1;
+            }
+
             if fn_addr_eq(address_method, M6502::accumulator_address as for<'a, 'b> fn(&'a mut M6502) -> u16) {
                 byte = address_method(self) as u8;
             }
@@ -918,8 +941,8 @@ pub mod emu_cpu {
                 address = address_method(self);
                 byte = self.memory.borrow().cpu_read(address);
             }
-            let temp: u8 = (byte >> 1) + self.get_status_flag(CARRY_FLAG);
-            self.set_status_flag(CARRY_FLAG, byte & 0x01 > 0);
+            let temp: u8 = (byte >> 1) + carry;
+            self.set_status_flag(CARRY_FLAG, byte & 0x01 != 0);
             byte = temp;
             self.set_negative_zero(byte);
             if fn_addr_eq(address_method, M6502::accumulator_address as for<'a, 'b> fn(&'a mut M6502) -> u16) {
@@ -970,7 +993,7 @@ pub mod emu_cpu {
         fn op_bcs(&mut self, address_method: fn(&mut M6502) -> u16) {
             let address: u16 = address_method(self);
             let relative_address: i8 = self.memory.borrow().cpu_read(address) as i8;
-            if self.get_status_flag(CARRY_FLAG) > 0 {
+            if self.get_status_flag(CARRY_FLAG) != 0 {
                 if relative_address > 0 {
                     self.program_counter += relative_address as u16;
                 }
@@ -983,7 +1006,7 @@ pub mod emu_cpu {
         fn op_beq(&mut self, address_method: fn(&mut M6502) -> u16) {
             let address: u16 = address_method(self);
             let relative_address: i8 = self.memory.borrow().cpu_read(address) as i8;
-            if self.get_status_flag(ZERO_FLAG) > 0 {
+            if self.get_status_flag(ZERO_FLAG) != 0 {
                 if relative_address > 0 {
                     self.program_counter += relative_address as u16;
                 }
@@ -996,7 +1019,7 @@ pub mod emu_cpu {
         fn op_bmi(&mut self, address_method: fn(&mut M6502) -> u16) {
             let address: u16 = address_method(self);
             let relative_address: i8 = self.memory.borrow().cpu_read(address) as i8;
-            if self.get_status_flag(NEGATIVE_FLAG) > 0 {
+            if self.get_status_flag(NEGATIVE_FLAG) != 0 {
                 if relative_address > 0 {
                     self.program_counter += relative_address as u16;
                 }
@@ -1048,7 +1071,7 @@ pub mod emu_cpu {
         fn op_bvs(&mut self, address_method: fn(&mut M6502) -> u16) {
             let address: u16 = address_method(self);
             let relative_address: i8 = self.memory.borrow().cpu_read(address) as i8;
-            if self.get_status_flag(OVERFLOW_FLAG) > 0 {
+            if self.get_status_flag(OVERFLOW_FLAG) != 0 {
                 if relative_address > 0 {
                     self.program_counter += relative_address as u16;
                 }
@@ -1138,7 +1161,7 @@ pub mod emu_cpu {
             let address: u16 = address_method(self);
             let address: u16 = self.memory.borrow().cpu_read(address) as u16;
             let mut byte: u8 = self.memory.borrow().cpu_read(address);
-            self.set_status_flag(CARRY_FLAG, (byte & 0x80) > 0);
+            self.set_status_flag(CARRY_FLAG, (byte & 0x80) != 0);
             byte = byte << 1;
             self.memory.borrow_mut().cpu_write(address, byte);
 

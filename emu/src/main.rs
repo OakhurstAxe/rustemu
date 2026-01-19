@@ -8,7 +8,7 @@ pub fn main() -> iced::Result {
 
 
     iced::application(VcsConsole::default, VcsConsole::update, VcsConsole::view)
-        .subscription(VcsConsole::subscription)
+        .subscription(VcsConsole::subscription) 
         .theme(Theme::Dark)
         .centered()
         .run()
