@@ -96,7 +96,8 @@ pub mod vcs {
         enable_delay: u8,
         v_blank: u8,
         x_resolution: u8,
-        y_resolution: u8
+        y_resolution: u8,
+        debug: u8
     }
 
     impl VcsTia {
@@ -123,7 +124,8 @@ pub mod vcs {
                 enable_delay: 0,
                 v_blank: console_type.borrow().get_v_blank_lines(),
                 x_resolution: console_type.borrow().get_x_resolution(),
-                y_resolution: console_type.borrow().get_y_resolution()
+                y_resolution: console_type.borrow().get_y_resolution(),
+                debug: 0
             }
         }
 
@@ -358,7 +360,14 @@ pub mod vcs {
                 // twos compliment
                 move_value = (move_value as u8 | 0xf8) as i8;
             }
-            let (new_value, _overflow) = object_cycle.overflowing_sub(move_value as u16);
+            let (mut new_value, _overflow) = object_cycle.overflowing_sub(move_value as u16);
+
+            if new_value > 71 + self.vcs_console_type.borrow().get_x_resolution() as u16 {
+                new_value = 71;
+            }
+            if new_value < 68 {
+                new_value = 68 + self.vcs_console_type.borrow().get_x_resolution() as u16;
+            }
             new_value
         }
 

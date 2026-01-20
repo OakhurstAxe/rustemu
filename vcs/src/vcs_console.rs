@@ -90,7 +90,6 @@ pub mod vcs {
             match message {
                 Message::Tick => {
                     self.start_next_frame();
-                    self.vcs_tia.borrow_mut().repaint();
                 },
                 Message::KeyboardEventOccurred(event) => {
                     if let keyboard::Event::KeyPressed { physical_key, .. } = event {
@@ -158,8 +157,8 @@ pub mod vcs {
                     height.try_into().unwrap(), 
                     image))
                 .width(width * 4 as u32)
-                .height(height * 4 as u32)
-                .filter_method(FilterMethod::Nearest);
+                .height(height * 4 as u32);
+                //.filter_method(FilterMethod::Nearest);
 
             center(content).into()
         }

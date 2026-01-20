@@ -11,5 +11,6 @@ path = "src/lib.rs"
 iced = { version = "0.14", features = ["tokio", "image-without-codecs"] }
 emumemory = { path = "../emumemory" }
 emucpu = { path = "../emucpu" }
-zip = { version = "7.0.0" }
-rand = "0.8.5"
+
+[profile.release]
+debug = true
