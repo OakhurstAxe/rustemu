@@ -13,6 +13,7 @@ pub mod vcs {
     use crate::vcs_console_type::vcs::VcsConsoleType;
     use crate::vcs_riot::vcs::VcsRiot;
     use crate::vcs_tia::vcs::VcsTia;
+    use crate::vcs_audio::vcs::VcsAudio;
 
     #[derive(Clone)]
     pub enum Message {
@@ -23,7 +24,7 @@ pub mod vcs {
         vcs_riot: Arc<Mutex<VcsRiot>>,
         vcs_console_type: Arc<Mutex<VcsConsoleType>>,
         vcs_tia: Arc<Mutex<VcsTia>>,
-        _vcs_audio: i32,
+        vcs_audio: VcsAudio,
         cpu: M6502,
         total_ticks: u32,
         ticks_per_frame: u32,
@@ -56,7 +57,7 @@ pub mod vcs {
                 vcs_riot: Arc::clone(&riot),
                 vcs_console_type: Arc::clone(&console_type),
                 vcs_tia: Arc::clone(&tia),
-                _vcs_audio: 0,
+                vcs_audio: VcsAudio::new(Arc::clone(&tia)),
                 cpu: cpu,
                 total_ticks: 0,
                 ticks_per_frame: (ticks_per_second / frames_per_second as i32) as u32,
@@ -115,7 +116,7 @@ pub mod vcs {
         pub fn start_next_frame (&mut self) {
             let mut frame_ticks: u32 = 0;
 
-            //vcsAudio_.ExecuteTick();
+            self.vcs_audio.execute_tick();
             while frame_ticks < self.ticks_per_frame {
                 if self.total_ticks % 3 == 0 {
 

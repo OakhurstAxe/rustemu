@@ -31,12 +31,12 @@ pub mod vcs {
     const REG_RESM1: u16 =    0x13;
     const REG_RESBL: u16 =    0x14;
 
-    const _REG_AUDC0: u16 =    0x15;
-    const _REG_AUDC1: u16 =    0x16;
-    const _REG_AUDF0: u16 =    0x17;
-    const _REG_AUDF1: u16 =    0x18;
-    const _REG_AUDV0: u16 =    0x19;
-    const _REG_AUDV1: u16 =    0x1A;
+    const REG_AUDC0: u16 =    0x15;
+    const REG_AUDC1: u16 =    0x16;
+    const REG_AUDF0: u16 =    0x17;
+    const REG_AUDF1: u16 =    0x18;
+    const REG_AUDV0: u16 =    0x19;
+    const REG_AUDV1: u16 =    0x1A;
 
     const REG_GRP0: u16 =     0x1B;
     const REG_GRP1: u16 =     0x1C;
@@ -776,6 +776,25 @@ pub mod vcs {
             }
 
             result
+        }
+
+        pub fn get_audio_c0(&self) -> u8 {
+            self.registers.read(REG_AUDC0)
+        }
+        pub fn get_audio_c1(&self) -> u8 {
+            self.registers.read(REG_AUDC1)
+        }
+        pub fn get_audio_f0(&self) -> u8 {
+            self.registers.read(REG_AUDF0)
+        }
+        pub fn get_audio_f1(&self) -> u8 {
+            self.registers.read(REG_AUDF1)
+        }
+        pub fn get_audio_v0(&self) -> u8 {
+            self.registers.read(REG_AUDV0)
+        }
+        pub fn get_audio_v1(&self) -> u8 {
+            self.registers.read(REG_AUDV1)
         }
 
         fn reverse_bits(n: u8) -> u8 {

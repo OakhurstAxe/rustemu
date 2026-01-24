@@ -7,4 +7,6 @@ pub mod vcs_cartridge2k;
 pub mod vcs_riot;
 pub mod vcs_tia;
 pub mod vcs_palette;
+pub mod vcs_audio;
+pub mod vcs_audio_channel;
 
