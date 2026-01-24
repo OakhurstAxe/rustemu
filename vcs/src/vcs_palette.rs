@@ -1,8 +1,9 @@
 
 pub mod vcs {
 
-    use std::rc::Rc;
-    use std::cell::RefCell;
+    use std::sync::{ Arc, Mutex };
+
+    use egui::Color32;
 
     use crate::vcs_console_type::vcs::VcsConsoleType;
     use crate::vcs_console_type::vcs::ConsoleType;
@@ -66,30 +67,33 @@ pub mod vcs {
     ];
         
     pub struct VcsPalette {
-        vcs_console_type: Rc<RefCell<VcsConsoleType>>,
-        palette: [[u32; 128]; 3]
+        palette: [[Color32; 128]; 3],
+        video_type: ConsoleType
     }
 
     impl VcsPalette {
 
-        pub fn new(console_type: Rc<RefCell<VcsConsoleType>>) -> Self {
+        pub fn new(console_type: Arc<Mutex<VcsConsoleType>>) -> Self {
             let mut temp_instance: VcsPalette;
             
+            let video_type = console_type.lock().unwrap().get_video_type();
+
             temp_instance = VcsPalette { 
-                vcs_console_type: console_type,
-                palette: [[0; 128]; 3]
+                palette: [[Color32::default(); 128]; 3],
+                video_type: video_type,
+
             };
             temp_instance.setup_palettes();
 
             temp_instance
         }
 
-        pub fn get_color(&self, mut position: u8) -> u32 {
+        pub fn get_color(&self, mut position: u8) -> Color32 {
             let mut pallette_choice: u32 = 0; // default NTSC
-            if self.vcs_console_type.borrow().get_video_type() == ConsoleType::PAL {
+            if self.video_type == ConsoleType::PAL {
                 pallette_choice = 1;
             }
-            else if self.vcs_console_type.borrow().get_video_type() == ConsoleType::SECAM {
+            else if self.video_type == ConsoleType::SECAM {
                 pallette_choice = 2;
             }
             position = position >> 1;
@@ -111,7 +115,10 @@ pub mod vcs {
         
         fn set_color(&mut self, color_byte: u32, position: usize, palette: u8) {
 
-            self.palette[palette as usize][position] = color_byte;
+            let color = Color32::from_rgb(((color_byte & 0xff0000) >> 16) as u8,
+                 ((color_byte & 0x00ff00) >> 8) as u8,
+                  ((color_byte & 0x0000ff)) as u8) ;
+            self.palette[palette as usize][position] = color;
         }
     }
 

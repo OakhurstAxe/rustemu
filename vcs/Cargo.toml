@@ -8,9 +8,18 @@ name = "vcs"
 path = "src/lib.rs"
 
 [dependencies]
-iced = { version = "0.14", features = ["tokio", "image-without-codecs"] }
 emumemory = { path = "../emumemory" }
 emucpu = { path = "../emucpu" }
+egui = { version = "0.33.3" }
+eframe = { version = "0.33.0", default-features = false, features = [
+    "accesskit",     # Make egui compatible with screen readers. NOTE: adds a lot of dependencies.
+    "default_fonts", # Embed the default egui fonts.
+    "glow",          # Use the glow rendering backend. Alternative: "wgpu".
+    "persistence",   # Enable restoring app state when restarting the app.
+    "wayland",       # To support Linux (and CI)
+    "x11",           # To support older Linux distributions (restores one of the default features)
+] }
+egui_elm = { version = "0.3.3" }
 
 [profile.release]
 debug = true

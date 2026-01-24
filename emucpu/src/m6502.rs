@@ -2,8 +2,6 @@
 pub mod emu_cpu {
 
     use std::ptr::fn_addr_eq;
-    use std::rc::Rc;
-    use std::cell::RefCell;
 
     use emumemory::memory_mapper::emu_memory::MemoryMapper;
     use crate::base_cpu::emu_cpu::BaseCpu;
@@ -25,7 +23,7 @@ pub mod emu_cpu {
     }
 
     pub struct M6502 {
-        memory: Rc<RefCell<dyn MemoryMapper>>,
+        memory: Box<dyn MemoryMapper + Send>,
         overflow_ticks: i32,
         program_counter: u16,
         stack_pointer_page: u16,
@@ -34,7 +32,7 @@ pub mod emu_cpu {
         register_x: u8,
         register_y: u8,
         status_register: u8,
-        debug: u8,
+        _debug: u8,
 
         op_code_lookup: [OperationStruct; 0x100],
         operation: OperationStruct,
@@ -59,8 +57,8 @@ pub mod emu_cpu {
             self.operation = self.op_code_lookup[0xea]; //OpNOP       
             self.stack_pointer_page = 0x100;  // should be 0100 but is 0x00 for atari
             self.stack_pointer = 0xff;
-            let pcl: u8 = self.memory.borrow().cpu_read(0xfffc);
-            let pch: u8 = self.memory.borrow().cpu_read(0xfffd);
+            let pcl: u8 = self.memory.cpu_read(0xfffc);
+            let pch: u8 = self.memory.cpu_read(0xfffd);
             self.program_counter = ((pch as u16) << 8) + pcl as u16;
             self.accumulator = 0;
             self.register_x = 0;
@@ -72,7 +70,7 @@ pub mod emu_cpu {
 
     impl M6502 {
 
-        pub fn new(memory_mapper: Rc<RefCell<dyn MemoryMapper>>) -> Self {
+        pub fn new(memory_mapper: Box<dyn MemoryMapper + Send>) -> Self {
 
             let op_code_lookup: [OperationStruct; 0x100] = M6502::get_op_codes();
             let operation: OperationStruct = op_code_lookup[0xea];
@@ -82,7 +80,7 @@ pub mod emu_cpu {
                     overflow_ticks: 0,
                     program_counter: 0,
                     stack_pointer_page: 0x100,
-                    stack_pointer: 0xff,
+                    stack_pointer: 0xfd,
                     accumulator: 0,
                     register_x: 0,
                     register_y: 0,
@@ -90,7 +88,7 @@ pub mod emu_cpu {
                     op_code_lookup: op_code_lookup,
                     operation: operation,
                     instruction: 0,
-                    debug: 0
+                    _debug: 0
             }
         }
 
@@ -378,8 +376,8 @@ pub mod emu_cpu {
         }
 
         pub fn get_next_operation(&mut self) {
-            self.instruction = self.memory.borrow().cpu_read(self.program_counter);
-            self.operation = self.op_code_lookup[self.memory.borrow().cpu_read(self.program_counter) as usize];
+            self.instruction = self.memory.cpu_read(self.program_counter);
+            self.operation = self.op_code_lookup[self.memory.cpu_read(self.program_counter) as usize];
             self.program_counter += 1;
 
             self.overflow_ticks += self.operation.ticks as i32;
@@ -414,16 +412,16 @@ pub mod emu_cpu {
             // overflow on address lookup ONLY if low byte carrys to 
             // high byte by adding X or Y register
             if fn_addr_eq(address_method, M6502::absolute_x_address as for<'a, 'b> fn(&'a mut M6502) -> u16) {
-                let loadl: u8 = self.memory.borrow().cpu_read(self.program_counter);
+                let loadl: u8 = self.memory.cpu_read(self.program_counter);
                 carry = loadl as u16 + self.register_x as u16;
             }
             else if fn_addr_eq(address_method, M6502::absolute_y_address as for<'a, 'b> fn(&'a mut M6502) -> u16) {
-                let loadl: u8 = self.memory.borrow().cpu_read(self.program_counter);
+                let loadl: u8 = self.memory.cpu_read(self.program_counter);
                 carry = loadl as u16 + self.register_y as u16;
             }
             else if fn_addr_eq(address_method, M6502::indirect_y_address as for<'a, 'b> fn(&'a mut M6502) -> u16) {
-                let indirect: u16 = self.memory.borrow().cpu_read(self.program_counter) as u16;
-                let loadl: u8 = self.memory.borrow().cpu_read(indirect & 0xff);
+                let indirect: u16 = self.memory.cpu_read(self.program_counter) as u16;
+                let loadl: u8 = self.memory.cpu_read(indirect & 0xff);
                 carry = loadl as u16 + self.register_y as u16;
             }
             
@@ -437,7 +435,7 @@ pub mod emu_cpu {
             if self.stack_pointer == 0 {
                 panic!("Stack overflow");
             }
-            self.memory.borrow_mut().cpu_write(self.stack_pointer + self.stack_pointer_page, byte);
+            self.memory.cpu_write(self.stack_pointer + self.stack_pointer_page, byte);
             self.stack_pointer -= 1;
         }
 
@@ -446,7 +444,7 @@ pub mod emu_cpu {
                 panic!("Stack underflow");
             }
             self.stack_pointer += 1;
-            self.memory.borrow().cpu_read(self.stack_pointer + self.stack_pointer_page)
+            self.memory.cpu_read(self.stack_pointer + self.stack_pointer_page)
         }
 
         fn null_address(&mut self) -> u16 {
@@ -464,36 +462,36 @@ pub mod emu_cpu {
         }
         
         fn zero_address(&mut self) -> u16 {
-            let address: u16 = self.memory.borrow().cpu_read(self.program_counter) as u16 & 0xFF;
+            let address: u16 = self.memory.cpu_read(self.program_counter) as u16 & 0xFF;
             self.program_counter += 1;
             address
         }
         
         fn zero_x_address(&mut self) -> u16 {
-            let address: u16 = self.memory.borrow().cpu_read(self.program_counter) as u16 + self.register_x as u16 & 0xFF;
+            let address: u16 = self.memory.cpu_read(self.program_counter) as u16 + self.register_x as u16 & 0xFF;
             self.program_counter += 1;
             address
         }
 
         fn zero_y_address(&mut self) -> u16 {
-            let address: u16 = self.memory.borrow().cpu_read(self.program_counter) as u16 + self.register_y as u16 & 0xFF;
+            let address: u16 = self.memory.cpu_read(self.program_counter) as u16 + self.register_y as u16 & 0xFF;
             self.program_counter += 1;
             address
         }
 
         fn absolute_address(&mut self) -> u16 {
-            let loadl: u8 = self.memory.borrow().cpu_read(self.program_counter);
+            let loadl: u8 = self.memory.cpu_read(self.program_counter);
             self.program_counter += 1;
-            let loadh: u8 = self.memory.borrow().cpu_read(self.program_counter);
+            let loadh: u8 = self.memory.cpu_read(self.program_counter);
             self.program_counter += 1;
             let address: u16 = ((loadh as u16) << 8) + (loadl as u16);
             address
         }
 
         fn absolute_x_address(&mut self) -> u16 {
-            let loadl: u8 = self.memory.borrow().cpu_read(self.program_counter);
+            let loadl: u8 = self.memory.cpu_read(self.program_counter);
             self.program_counter += 1;
-            let loadh: u8 = self.memory.borrow().cpu_read(self.program_counter);
+            let loadh: u8 = self.memory.cpu_read(self.program_counter);
             self.program_counter += 1;
             let address: u16 = ((loadh as u16) << 8) + loadl as u16 + self.register_x as u16;
             address
@@ -504,9 +502,9 @@ pub mod emu_cpu {
         }
 
         fn absolute_y_address(&mut self) -> u16 {
-            let loadl: u8 = self.memory.borrow().cpu_read(self.program_counter);
+            let loadl: u8 = self.memory.cpu_read(self.program_counter);
             self.program_counter += 1;
-            let loadh: u8 = self.memory.borrow().cpu_read(self.program_counter);
+            let loadh: u8 = self.memory.cpu_read(self.program_counter);
             self.program_counter += 1;
             let address: u16 = ((loadh as u16) << 8) + loadl as u16 + self.register_y as u16;
             address
@@ -517,39 +515,39 @@ pub mod emu_cpu {
         }
 
         fn indirect_address(&mut self) -> u16 {
-            let mut loadl: u8 = self.memory.borrow().cpu_read(self.program_counter);
+            let mut loadl: u8 = self.memory.cpu_read(self.program_counter);
             self.program_counter += 1;
-            let mut loadh: u8 = self.memory.borrow().cpu_read(self.program_counter);
+            let mut loadh: u8 = self.memory.cpu_read(self.program_counter);
             let mut load: u16 = ((loadh as u16) << 8) + loadl as u16;
             // Bug in M6502 if low nibble is end of page
             if loadl == 0x00ff {
-                loadl = self.memory.borrow().cpu_read(load);
-                loadh = self.memory.borrow().cpu_read(load & 0xff00);
+                loadl = self.memory.cpu_read(load);
+                loadh = self.memory.cpu_read(load & 0xff00);
             }
             else {
-                loadl = self.memory.borrow().cpu_read(load);
+                loadl = self.memory.cpu_read(load);
                 load += 1;
-                loadh = self.memory.borrow().cpu_read(load);
+                loadh = self.memory.cpu_read(load);
             }
             ((loadh as u16) << 8) + loadl as u16
         }
 
         fn indirect_x_address(&mut self) -> u16 {
-            let mut indirect: u16 = self.memory.borrow().cpu_read(self.program_counter) as u16 + self.register_x as u16;
+            let mut indirect: u16 = self.memory.cpu_read(self.program_counter) as u16 + self.register_x as u16;
             self.program_counter += 1;
-            let loadl: u8 = self.memory.borrow().cpu_read(indirect & 0xff);
+            let loadl: u8 = self.memory.cpu_read(indirect & 0xff);
             indirect += 1;
-            let loadh: u8 = self.memory.borrow().cpu_read(indirect & 0xff);
+            let loadh: u8 = self.memory.cpu_read(indirect & 0xff);
             let address: u16 = ((loadh as u16) << 8) + loadl as u16 + self.register_x as u16;
             address
         }
 
         fn indirect_y_address(&mut self) -> u16 {
-            let mut indirect: u16 = self.memory.borrow().cpu_read(self.program_counter) as u16;
+            let mut indirect: u16 = self.memory.cpu_read(self.program_counter) as u16;
             self.program_counter += 1;
-            let loadl: u8 = self.memory.borrow().cpu_read(indirect & 0xff);
+            let loadl: u8 = self.memory.cpu_read(indirect & 0xff);
             indirect += 1;
-            let loadh: u8 = self.memory.borrow().cpu_read(indirect & 0xff);
+            let loadh: u8 = self.memory.cpu_read(indirect & 0xff);
             let address: u16 = ((loadh as u16) << 8) + loadl as u16 + self.register_y as u16;
             address 
         }
@@ -607,35 +605,35 @@ pub mod emu_cpu {
         // Load Store operations
         fn op_lda(&mut self, address_method: fn(&mut M6502) -> u16) {
             let address: u16 = address_method(self);
-            self.accumulator = self.memory.borrow().cpu_read(address);
+            self.accumulator = self.memory.cpu_read(address);
             self.set_negative_zero(self.accumulator);
         }
 
         fn op_ldx(&mut self, address_method: fn(&mut M6502) -> u16) {
             let address: u16 = address_method(self);
-            self.register_x = self.memory.borrow().cpu_read(address);
+            self.register_x = self.memory.cpu_read(address);
             self.set_negative_zero(self.register_x);
         }
 
         fn op_ldy(&mut self, address_method: fn(&mut M6502) -> u16) {
             let address: u16 = address_method(self);
-            self.register_y = self.memory.borrow().cpu_read(address);
+            self.register_y = self.memory.cpu_read(address);
             self.set_negative_zero(self.register_y);
         }
 
         fn op_sta(&mut self, address_method: fn(&mut M6502) -> u16) {
             let address: u16 = address_method(self);
-            self.memory.borrow_mut().cpu_write(address, self.accumulator);
+            self.memory.cpu_write(address, self.accumulator);
         }
         
         fn op_stx(&mut self, address_method: fn(&mut M6502) -> u16) {
             let address: u16 = address_method(self);
-            self.memory.borrow_mut().cpu_write(address, self.register_x);
+            self.memory.cpu_write(address, self.register_x);
         }
 
         fn op_sty(&mut self, address_method: fn(&mut M6502) -> u16) {
             let address: u16 = address_method(self);
-            self.memory.borrow_mut().cpu_write(address, self.register_y);
+            self.memory.cpu_write(address, self.register_y);
         }
 
         // Register transfers
@@ -689,28 +687,28 @@ pub mod emu_cpu {
         // Logical operations
         fn op_and(&mut self, address_method: fn(&mut M6502) -> u16) {
             let address: u16 = address_method(self);
-            let byte: u8 = self.memory.borrow().cpu_read(address);
+            let byte: u8 = self.memory.cpu_read(address);
             self.accumulator &= byte;
             self.set_negative_zero(self.accumulator);
         }
 
         fn op_eor(&mut self, address_method: fn(&mut M6502) -> u16) {
             let address: u16 = address_method(self);
-            let byte: u8 = self.memory.borrow().cpu_read(address);
+            let byte: u8 = self.memory.cpu_read(address);
             self.accumulator ^= byte;
             self.set_negative_zero(self.accumulator);
         }
 
         fn op_ora(&mut self, address_method: fn(&mut M6502) -> u16) {
             let address: u16 = address_method(self);
-            let byte: u8 = self.memory.borrow().cpu_read(address);
+            let byte: u8 = self.memory.cpu_read(address);
             self.accumulator |= byte;
             self.set_negative_zero(self.accumulator);
         }
 
         fn op_bit(&mut self, address_method: fn(&mut M6502) -> u16) {
             let address: u16 = address_method(self);
-            let byte: u8 = self.memory.borrow().cpu_read(address);
+            let byte: u8 = self.memory.cpu_read(address);
             self.set_status_flag(OVERFLOW_FLAG, (byte & 0x40) != 0);
             self.set_status_flag(NEGATIVE_FLAG, (byte & 0x80) != 0);
             self.set_zero(byte & self.accumulator);
@@ -718,7 +716,7 @@ pub mod emu_cpu {
 
         fn op_adc(&mut self, address_method: fn(&mut M6502) -> u16) {
             let address: u16 = address_method(self);
-            let mut byte: u8 = self.memory.borrow().cpu_read(address);
+            let mut byte: u8 = self.memory.cpu_read(address);
             let mut value: u8;
 
             let mut carry: u8 = 0;
@@ -754,7 +752,7 @@ pub mod emu_cpu {
         // Same as ADC, except switch input byte to 1s-Compliment
         fn op_sbc(&mut self, address_method: fn(&mut M6502) -> u16) {
             let address: u16 = address_method(self);
-            let mut byte: u8 = self.memory.borrow().cpu_read(address);
+            let mut byte: u8 = self.memory.cpu_read(address);
             let mut value: u8 = 0;
 
             let mut carry: u8 = 0;
@@ -789,7 +787,7 @@ pub mod emu_cpu {
 
         fn op_cmp(&mut self, address_method: fn(&mut M6502) -> u16) {
             let address: u16 = address_method(self);
-            let byte: u8 = self.memory.borrow().cpu_read(address);
+            let byte: u8 = self.memory.cpu_read(address);
             self.set_status_flag(CARRY_FLAG, self.accumulator >= byte);
             let(result, _overflow) = self.accumulator.overflowing_sub(byte);
             self.set_negative_zero(result);
@@ -797,7 +795,7 @@ pub mod emu_cpu {
 
         fn op_cpx(&mut self, address_method: fn(&mut M6502) -> u16) {
             let address: u16 = address_method(self);
-            let byte: u8 = self.memory.borrow().cpu_read(address);
+            let byte: u8 = self.memory.cpu_read(address);
             self.set_status_flag(CARRY_FLAG, self.register_x >= byte);
             let (negzerocheck, _overflow) = self.register_x.overflowing_sub(byte);
             self.set_negative_zero(negzerocheck);
@@ -805,7 +803,7 @@ pub mod emu_cpu {
 
         fn op_cpy(&mut self, address_method: fn(&mut M6502) -> u16) {
             let address: u16 = address_method(self);
-            let byte: u8 = self.memory.borrow().cpu_read(address);
+            let byte: u8 = self.memory.cpu_read(address);
             self.set_status_flag(CARRY_FLAG, self.register_y >= byte);
             let (negzerocheck, _overflow) = self.register_y.overflowing_sub(byte);
             self.set_negative_zero(negzerocheck);
@@ -814,9 +812,9 @@ pub mod emu_cpu {
         // Increment and decrement operations
         fn op_inc(&mut self, address_method: fn(&mut M6502) -> u16) {
             let address: u16 = address_method(self);
-            let byte: u8 = self.memory.borrow().cpu_read(address);
+            let byte: u8 = self.memory.cpu_read(address);
             let(byte2, _overflow) = byte.overflowing_add(1);
-            self.memory.borrow_mut().cpu_write(address, byte2);
+            self.memory.cpu_write(address, byte2);
             self.set_negative_zero(byte2);
         }
 
@@ -834,9 +832,9 @@ pub mod emu_cpu {
 
         fn op_dec(&mut self, address_method: fn(&mut M6502) -> u16) {
             let address: u16 = address_method(self);
-            let byte: u8 = self.memory.borrow().cpu_read(address);
+            let byte: u8 = self.memory.cpu_read(address);
             let (byte, _overflow) = byte.overflowing_sub(1);
-            self.memory.borrow_mut().cpu_write(address, byte);
+            self.memory.cpu_write(address, byte);
             self.set_negative_zero(byte);
         }
 
@@ -862,7 +860,7 @@ pub mod emu_cpu {
             }
             else {
                 address = address_method(self);
-                byte = self.memory.borrow().cpu_read(address);
+                byte = self.memory.cpu_read(address);
             }
             self.set_status_flag(CARRY_FLAG, (byte & 0x80) != 0);
             byte = byte << 1;
@@ -871,7 +869,7 @@ pub mod emu_cpu {
                 self.accumulator = byte;
             }
             else {
-                self.memory.borrow_mut().cpu_write(address, byte);
+                self.memory.cpu_write(address, byte);
             }
         }    
 
@@ -884,7 +882,7 @@ pub mod emu_cpu {
             }
             else {
                 address = address_method(self);
-                byte = self.memory.borrow().cpu_read(address);
+                byte = self.memory.cpu_read(address);
             }
             self.set_status_flag(CARRY_FLAG, (byte & 0x01) != 0);
             byte = byte >> 1;
@@ -893,7 +891,7 @@ pub mod emu_cpu {
                 self.accumulator = byte;
             }
             else {
-                self.memory.borrow_mut().cpu_write(address, byte);
+                self.memory.cpu_write(address, byte);
             }
         }
 
@@ -911,7 +909,7 @@ pub mod emu_cpu {
             }
             else {
                 address = address_method(self);
-                byte = self.memory.borrow().cpu_read(address);
+                byte = self.memory.cpu_read(address);
             }
             let temp: u8 = (byte << 1) + carry;
             self.set_status_flag(CARRY_FLAG, (byte & 0x80) != 0);
@@ -921,7 +919,7 @@ pub mod emu_cpu {
                 self.accumulator  = byte;
             }
             else {
-                self.memory.borrow_mut().cpu_write(address, byte);
+                self.memory.cpu_write(address, byte);
             }
         }
 
@@ -939,7 +937,7 @@ pub mod emu_cpu {
             }
             else {
                 address = address_method(self);
-                byte = self.memory.borrow().cpu_read(address);
+                byte = self.memory.cpu_read(address);
             }
             let temp: u8 = (byte >> 1) + carry;
             self.set_status_flag(CARRY_FLAG, byte & 0x01 != 0);
@@ -950,7 +948,7 @@ pub mod emu_cpu {
             }
             else
             {
-                self.memory.borrow_mut().cpu_write(address, byte);
+                self.memory.cpu_write(address, byte);
             }
         }
 
@@ -979,7 +977,7 @@ pub mod emu_cpu {
         // Branch operations
         fn op_bcc(&mut self, address_method: fn(&mut M6502) -> u16) {
             let address: u16 = address_method(self);
-            let relative_address: i8 = self.memory.borrow().cpu_read(address) as i8;
+            let relative_address: i8 = self.memory.cpu_read(address) as i8;
             if self.get_status_flag(CARRY_FLAG) == 0 {
                 if relative_address > 0 {
                     self.program_counter += relative_address as u16;
@@ -992,7 +990,7 @@ pub mod emu_cpu {
 
         fn op_bcs(&mut self, address_method: fn(&mut M6502) -> u16) {
             let address: u16 = address_method(self);
-            let relative_address: i8 = self.memory.borrow().cpu_read(address) as i8;
+            let relative_address: i8 = self.memory.cpu_read(address) as i8;
             if self.get_status_flag(CARRY_FLAG) != 0 {
                 if relative_address > 0 {
                     self.program_counter += relative_address as u16;
@@ -1005,7 +1003,7 @@ pub mod emu_cpu {
 
         fn op_beq(&mut self, address_method: fn(&mut M6502) -> u16) {
             let address: u16 = address_method(self);
-            let relative_address: i8 = self.memory.borrow().cpu_read(address) as i8;
+            let relative_address: i8 = self.memory.cpu_read(address) as i8;
             if self.get_status_flag(ZERO_FLAG) != 0 {
                 if relative_address > 0 {
                     self.program_counter += relative_address as u16;
@@ -1018,7 +1016,7 @@ pub mod emu_cpu {
         
         fn op_bmi(&mut self, address_method: fn(&mut M6502) -> u16) {
             let address: u16 = address_method(self);
-            let relative_address: i8 = self.memory.borrow().cpu_read(address) as i8;
+            let relative_address: i8 = self.memory.cpu_read(address) as i8;
             if self.get_status_flag(NEGATIVE_FLAG) != 0 {
                 if relative_address > 0 {
                     self.program_counter += relative_address as u16;
@@ -1031,7 +1029,7 @@ pub mod emu_cpu {
 
         fn op_bne(&mut self, address_method: fn(&mut M6502) -> u16) {
             let address: u16 = address_method(self);
-            let relative_address: i8 = self.memory.borrow().cpu_read(address) as i8;
+            let relative_address: i8 = self.memory.cpu_read(address) as i8;
             if self.get_status_flag(ZERO_FLAG) == 0 {
                 if relative_address > 0 {
                     self.program_counter += relative_address as u16;
@@ -1044,7 +1042,7 @@ pub mod emu_cpu {
         
         fn op_bpl(&mut self, address_method: fn(&mut M6502) -> u16) {
             let address: u16 = address_method(self);
-            let relative_address: i8 = self.memory.borrow().cpu_read(address) as i8;
+            let relative_address: i8 = self.memory.cpu_read(address) as i8;
             if self.get_status_flag(NEGATIVE_FLAG) == 0 {
                 if relative_address > 0 {
                     self.program_counter += relative_address as u16;
@@ -1057,7 +1055,7 @@ pub mod emu_cpu {
 
         fn op_bvc(&mut self, address_method: fn(&mut M6502) -> u16) {
             let address: u16 = address_method(self);
-            let relative_address: i8 = self.memory.borrow().cpu_read(address) as i8;
+            let relative_address: i8 = self.memory.cpu_read(address) as i8;
             if self.get_status_flag(OVERFLOW_FLAG) == 0 {
                 if relative_address > 0 {
                     self.program_counter += relative_address as u16;
@@ -1070,7 +1068,7 @@ pub mod emu_cpu {
 
         fn op_bvs(&mut self, address_method: fn(&mut M6502) -> u16) {
             let address: u16 = address_method(self);
-            let relative_address: i8 = self.memory.borrow().cpu_read(address) as i8;
+            let relative_address: i8 = self.memory.cpu_read(address) as i8;
             if self.get_status_flag(OVERFLOW_FLAG) != 0 {
                 if relative_address > 0 {
                     self.program_counter += relative_address as u16;
@@ -1119,8 +1117,8 @@ pub mod emu_cpu {
             self.set_status_flag(BREAK_COMMAND, true);
             self.push_stack(self.status_register);
             self.set_status_flag(BREAK_COMMAND, false);
-            let loadl: u8 = self.memory.borrow().cpu_read(0xfffe);
-            let loadh: u8 = self.memory.borrow().cpu_read(0xffff);
+            let loadl: u8 = self.memory.cpu_read(0xfffe);
+            let loadh: u8 = self.memory.cpu_read(0xffff);
             let load: u16 = ((loadh as u16) << 8) + loadl as u16;
             self.program_counter = load;
         }
@@ -1139,9 +1137,9 @@ pub mod emu_cpu {
 
         fn op_isc(&mut self, address_method: fn(&mut M6502) -> u16) {
             let address: u16 = address_method(self);
-            let mut byte: u8 = self.memory.borrow().cpu_read(address);
+            let mut byte: u8 = self.memory.cpu_read(address);
             byte += 1;
-            self.memory.borrow_mut().cpu_write(address, byte);
+            self.memory.cpu_write(address, byte);
             
             byte = !byte;
             let value: u16 = (self.accumulator + byte + self.get_status_flag(CARRY_FLAG)) as u16;
@@ -1154,16 +1152,16 @@ pub mod emu_cpu {
         fn op_sax(&mut self, address_method: fn(&mut M6502) -> u16) {
             let address: u16 = address_method(self);
             let byte: u8 = self.accumulator & self.register_x;
-            self.memory.borrow_mut().cpu_write(address, byte);
+            self.memory.cpu_write(address, byte);
         }
 
         fn op_slo(&mut self, address_method: fn(&mut M6502) -> u16) {
             let address: u16 = address_method(self);
-            let address: u16 = self.memory.borrow().cpu_read(address) as u16;
-            let mut byte: u8 = self.memory.borrow().cpu_read(address);
+            let address: u16 = self.memory.cpu_read(address) as u16;
+            let mut byte: u8 = self.memory.cpu_read(address);
             self.set_status_flag(CARRY_FLAG, (byte & 0x80) != 0);
             byte = byte << 1;
-            self.memory.borrow_mut().cpu_write(address, byte);
+            self.memory.cpu_write(address, byte);
 
             self.accumulator |= byte;
             self.set_negative_zero(self.accumulator);

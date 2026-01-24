@@ -1,8 +1,9 @@
 
 pub mod vcs {
 
-    use std::rc::Rc;
-    use std::cell::RefCell;
+    use std::sync::{ Arc, Mutex };
+
+    use egui::Color32;
 
     use emumemory::{base_memory::emu_memory::BaseMemory, memory_ram::emu_memory::MemoryRam};
     use crate::{vcs_console_type::{vcs::VcsConsoleType}, vcs_palette::vcs::VcsPalette};
@@ -30,12 +31,12 @@ pub mod vcs {
     const REG_RESM1: u16 =    0x13;
     const REG_RESBL: u16 =    0x14;
 
-    const REG_AUDC0: u16 =    0x15;
-    const REG_AUDC1: u16 =    0x16;
-    const REG_AUDF0: u16 =    0x17;
-    const REG_AUDF1: u16 =    0x18;
-    const REG_AUDV0: u16 =    0x19;
-    const REG_AUDV1: u16 =    0x1A;
+    const _REG_AUDC0: u16 =    0x15;
+    const _REG_AUDC1: u16 =    0x16;
+    const _REG_AUDF0: u16 =    0x17;
+    const _REG_AUDF1: u16 =    0x18;
+    const _REG_AUDV0: u16 =    0x19;
+    const _REG_AUDV1: u16 =    0x1A;
 
     const REG_GRP0: u16 =     0x1B;
     const REG_GRP1: u16 =     0x1C;
@@ -58,7 +59,7 @@ pub mod vcs {
     const REG_CXCLR: u16 =    0x2C;
 
     const REG_CXM0P: u16 =    0x30;
-    const REG_CXM1P: u16 =   0x31;
+    const REG_CXM1P: u16 =    0x31;
     const REG_CXP0FB: u16 =   0x32;
     const REG_CXP1FB: u16 =   0x33;
     const REG_CXM0FB: u16 =   0x34;
@@ -79,11 +80,10 @@ pub mod vcs {
     const SPRITEOFFSET: u16 =  5;
     pub struct VcsTia {
         registers: MemoryRam,
-        vcs_console_type: Rc<RefCell<VcsConsoleType>>,
         cycle: u16,
         scan_line: u16,
-        screen: Vec<u8>,
-        screen_display: Vec<u8>,
+        screen: Vec<Color32>,
+        screen_display: Vec<Color32>,
         vcs_palette: VcsPalette,
         w_sync_set: bool,
         res_p0_cycle: u16,
@@ -97,22 +97,22 @@ pub mod vcs {
         v_blank: u8,
         x_resolution: u8,
         y_resolution: u8,
-        debug: u8
+        _debug: u8
     }
 
     impl VcsTia {
 
-        pub fn new(console_type: Rc<RefCell<VcsConsoleType>>) -> Self {
-            let x_resolution: u8 = console_type.borrow_mut().get_x_resolution();
-            let y_resolution: u8 = console_type.borrow_mut().get_y_resolution();
+        pub fn new(console_type: Arc<Mutex<VcsConsoleType>>) -> Self {
+            let v_blank: u8 = console_type.lock().unwrap().get_v_blank_lines();
+            let x_resolution: u8 = console_type.lock().unwrap().get_x_resolution();
+            let y_resolution: u8 = console_type.lock().unwrap().get_y_resolution();
             Self {
                 registers: MemoryRam::new(String::from("TIA Registers"), 0x7f),
-                vcs_console_type: Rc::clone(&console_type),
                 cycle: 0,
                 scan_line: 0,
-                screen: vec![0u8; (x_resolution as u32 * y_resolution as u32 * 4) as usize],
-                screen_display: vec![0u8; (x_resolution as u32 * y_resolution as u32 * 4) as usize],
-                vcs_palette: VcsPalette::new(Rc::clone(&console_type)),
+                screen: vec![Color32::default(); (x_resolution as u32 * y_resolution as u32) as usize],
+                screen_display: vec![Color32::default(); (x_resolution as u32 * y_resolution as u32) as usize],
+                vcs_palette: VcsPalette::new(Arc::clone(&console_type)),
                 w_sync_set: false,
                 res_p0_cycle: 0,
                 res_p1_cycle: 0,
@@ -122,14 +122,14 @@ pub mod vcs {
                 grp_0_delay: 0,
                 grp_1_delay: 0,
                 enable_delay: 0,
-                v_blank: console_type.borrow().get_v_blank_lines(),
-                x_resolution: console_type.borrow().get_x_resolution(),
-                y_resolution: console_type.borrow().get_y_resolution(),
-                debug: 0
+                v_blank: v_blank,
+                x_resolution: x_resolution,
+                y_resolution: y_resolution,
+                _debug: 0
             }
         }
 
-        pub fn get_screen(&self) -> Vec<u8> {
+        pub fn get_screen(&self) -> Vec<Color32> {
             self.screen_display.clone()
         }
 
@@ -362,11 +362,11 @@ pub mod vcs {
             }
             let (mut new_value, _overflow) = object_cycle.overflowing_sub(move_value as u16);
 
-            if new_value > 71 + self.vcs_console_type.borrow().get_x_resolution() as u16 {
-                new_value = 71;
+            if new_value > 68 + self.x_resolution as u16 {
+                new_value = 68;
             }
             if new_value < 68 {
-                new_value = 68 + self.vcs_console_type.borrow().get_x_resolution() as u16;
+                new_value = 68 + self.x_resolution as u16;
             }
             new_value
         }
@@ -688,11 +688,8 @@ pub mod vcs {
                 current_color = background as i16;
             }
 
-            let color: u32 = self.vcs_palette.get_color(current_color as u8);
-            self.screen[current_pixel as usize * 4] = ((color & 0xff0000) >> 16) as u8;
-            self.screen[current_pixel as usize * 4 + 1] = ((color & 0x00ff00) >> 8) as u8;
-            self.screen[current_pixel as usize * 4 + 2] = ((color & 0x0000ff)) as u8;
-            self.screen[current_pixel as usize * 4 + 3] = 255;
+            let color: Color32 = self.vcs_palette.get_color(current_color as u8);
+            self.screen[current_pixel as usize] = color;
 
             self.check_collisions(playfield_pixel, p0_pixel, p1_pixel, m0_pixel, m1_pixel, ball_pixel);
         }

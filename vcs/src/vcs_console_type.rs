@@ -28,7 +28,7 @@ pub mod vcs {
             let mut result = 228;
 
             if self.console_type == ConsoleType::NTSC {
-                result = 192;
+                result = 210; // Should be 192
             }
 
             result
