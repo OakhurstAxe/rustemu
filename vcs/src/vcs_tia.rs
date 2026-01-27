@@ -1,9 +1,7 @@
 
 pub mod vcs {
 
-    use std::sync::{ Arc, Mutex };
-
-    use egui::Color32;
+    use std::sync::{ Arc, RwLock };
 
     use emumemory::{base_memory::emu_memory::BaseMemory, memory_ram::emu_memory::MemoryRam};
     use crate::{vcs_console_type::{vcs::VcsConsoleType}, vcs_palette::vcs::VcsPalette};
@@ -82,8 +80,8 @@ pub mod vcs {
         registers: MemoryRam,
         cycle: u16,
         scan_line: u16,
-        screen: Vec<Color32>,
-        screen_display: Vec<Color32>,
+        screen: Vec<u8>,
+        screen_display: Vec<u8>,
         vcs_palette: VcsPalette,
         w_sync_set: bool,
         res_p0_cycle: u16,
@@ -102,16 +100,16 @@ pub mod vcs {
 
     impl VcsTia {
 
-        pub fn new(console_type: Arc<Mutex<VcsConsoleType>>) -> Self {
-            let v_blank: u8 = console_type.lock().unwrap().get_v_blank_lines();
-            let x_resolution: u8 = console_type.lock().unwrap().get_x_resolution();
-            let y_resolution: u8 = console_type.lock().unwrap().get_y_resolution();
+        pub fn new(console_type: Arc<RwLock<VcsConsoleType>>) -> Self {
+            let v_blank: u8 = console_type.read().unwrap().get_v_blank_lines();
+            let x_resolution: u8 = console_type.read().unwrap().get_x_resolution();
+            let y_resolution: u8 = console_type.read().unwrap().get_y_resolution();
             Self {
                 registers: MemoryRam::new(String::from("TIA Registers"), 0x7f),
                 cycle: 0,
                 scan_line: 0,
-                screen: vec![Color32::default(); (x_resolution as u32 * y_resolution as u32) as usize],
-                screen_display: vec![Color32::default(); (x_resolution as u32 * y_resolution as u32) as usize],
+                screen: vec![0u8; (x_resolution as u32 * y_resolution as u32 * 3) as usize],
+                screen_display: vec![0u8; (x_resolution as u32 * y_resolution as u32 * 3) as usize],
                 vcs_palette: VcsPalette::new(Arc::clone(&console_type)),
                 w_sync_set: false,
                 res_p0_cycle: 0,
@@ -129,7 +127,7 @@ pub mod vcs {
             }
         }
 
-        pub fn get_screen(&self) -> Vec<Color32> {
+        pub fn get_screen(&self) -> Vec<u8> {
             self.screen_display.clone()
         }
 
@@ -349,7 +347,7 @@ pub mod vcs {
 
         pub fn repaint(&mut self) -> bool {
             if self.cycle == 0 && self.scan_line == 3 {
-                self.screen_display = self.screen.clone();
+                self.screen_display.copy_from_slice(&self.screen[..]);
             }
             self.cycle == 0 && self.scan_line == 3
         }
@@ -643,7 +641,7 @@ pub mod vcs {
             let m1_pixel: i16 = self.get_missle_pixel(self.registers.read(REG_ENAM1), self.registers.read(REG_RESM1), self.registers.read(REG_NUSIZ1), self.registers.read(REG_COLUP1), self.res_m1_cycle);
             let ball_pixel: i16 = self.get_ball_pixel();
             
-            let current_pixel: u32 = (screen_y * self.x_resolution as u16 + screen_x) as u32;
+            let current_pixel: usize = (screen_y * self.x_resolution as u16 + screen_x) as usize;
 
             // Don't display pixel if PF has priority and is set
             if pf_above {                
@@ -688,8 +686,10 @@ pub mod vcs {
                 current_color = background as i16;
             }
 
-            let color: Color32 = self.vcs_palette.get_color(current_color as u8);
-            self.screen[current_pixel as usize] = color;
+            let (color_r, color_g, color_b) = self.vcs_palette.get_color(current_color as usize);
+            self.screen[current_pixel * 3]     = color_r;
+            self.screen[current_pixel * 3 + 1] = color_g;
+            self.screen[current_pixel * 3 + 2] = color_b;
 
             self.check_collisions(playfield_pixel, p0_pixel, p1_pixel, m0_pixel, m1_pixel, ball_pixel);
         }

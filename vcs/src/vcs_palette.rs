@@ -1,13 +1,10 @@
 
 pub mod vcs {
 
-    use std::sync::{ Arc, Mutex };
-
-    use egui::Color32;
+    use std::sync::{ Arc, RwLock };
 
     use crate::vcs_console_type::vcs::VcsConsoleType;
     use crate::vcs_console_type::vcs::ConsoleType;
-
 
     const ENTRIES_NTSC: [u32; 128] = [
         0x000000, 0x404040, 0x6C6C6C, 0x909090, 0xB0B0B0, 0xC8C8C8, 0xDCDCDC, 0xECECEC,
@@ -67,29 +64,28 @@ pub mod vcs {
     ];
         
     pub struct VcsPalette {
-        palette: [[Color32; 128]; 3],
+        palette: [[u8; 128 * 3]; 3],
         video_type: ConsoleType
     }
 
     impl VcsPalette {
 
-        pub fn new(console_type: Arc<Mutex<VcsConsoleType>>) -> Self {
+        pub fn new(console_type: Arc<RwLock<VcsConsoleType>>) -> Self {
             let mut temp_instance: VcsPalette;
             
-            let video_type = console_type.lock().unwrap().get_video_type();
+            let video_type = console_type.read().unwrap().get_video_type();
 
             temp_instance = VcsPalette { 
-                palette: [[Color32::default(); 128]; 3],
+                palette: [[0u8; 128 * 3]; 3],
                 video_type: video_type,
-
             };
             temp_instance.setup_palettes();
 
             temp_instance
         }
 
-        pub fn get_color(&self, mut position: u8) -> Color32 {
-            let mut pallette_choice: u32 = 0; // default NTSC
+        pub fn get_color(&self, mut position: usize) -> (u8, u8, u8) {
+            let mut pallette_choice: usize = 0; // default NTSC
             if self.video_type == ConsoleType::PAL {
                 pallette_choice = 1;
             }
@@ -97,7 +93,9 @@ pub mod vcs {
                 pallette_choice = 2;
             }
             position = position >> 1;
-            self.palette[pallette_choice as usize][position as usize]
+            (self.palette[pallette_choice][position],
+             self.palette[pallette_choice][position + 1],
+             self.palette[pallette_choice][position + 2])
         }
 
         fn setup_palettes(&mut self) {
@@ -106,19 +104,17 @@ pub mod vcs {
             self.setup_palette(ENTRIES_SECAM, 2);
         }
 
-        fn setup_palette(&mut self, entries: [u32; 128], palette: u8) {
-            for index in 0..127 {
+        fn setup_palette(&mut self, entries: [u32; 128], palette: usize) {
+            for index in 0..128 {
                 let entry: u32 = entries[index];
-                self.set_color(entry, index, palette);
+                self.set_color(entry, index * 3, palette);
             }
         }
         
-        fn set_color(&mut self, color_byte: u32, position: usize, palette: u8) {
-
-            let color = Color32::from_rgb(((color_byte & 0xff0000) >> 16) as u8,
-                 ((color_byte & 0x00ff00) >> 8) as u8,
-                  ((color_byte & 0x0000ff)) as u8) ;
-            self.palette[palette as usize][position] = color;
+        fn set_color(&mut self, color_byte: u32, position: usize, palette: usize) {
+            self.palette[palette][position]     = ((color_byte & 0xff0000) >> 16) as u8;
+            self.palette[palette][position + 1] = ((color_byte & 0x00ff00) >> 8) as u8;
+            self.palette[palette][position + 2] =  (color_byte & 0x0000ff) as u8;
         }
     }
 
