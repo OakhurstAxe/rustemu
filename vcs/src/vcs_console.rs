@@ -24,9 +24,8 @@ pub mod vcs {
 
     pub struct VcsConsole {
         vcs_riot: Arc<RwLock<VcsRiot>>,
-        vcs_console_type: Arc<RwLock<VcsConsoleType>>,
         vcs_tia: Arc<RwLock<VcsTia>>,
-        vcs_audio: VcsAudio,
+        vcs_audio: Arc<RwLock<VcsAudio>>,
         cpu: M6502,
         total_ticks: u32,
         ticks_per_frame: u32,
@@ -55,9 +54,8 @@ pub mod vcs {
 
             let mut temp_instance = Self {
                 vcs_riot: Arc::clone(&riot),
-                vcs_console_type: Arc::clone(&console_type),
                 vcs_tia: Arc::clone(&tia),
-                vcs_audio: VcsAudio::new(Arc::clone(&tia)),
+                vcs_audio: Arc::new(RwLock::new(VcsAudio::new(Arc::clone(&tia)))),
                 cpu: cpu,
                 total_ticks: 0,
                 ticks_per_frame: (ticks_per_second / frames_per_second as i32) as u32,
@@ -94,7 +92,7 @@ pub mod vcs {
         pub fn start_next_frame (&mut self) {
             let mut frame_ticks: u32 = 0;
 
-            self.vcs_audio.execute_tick();
+            self.vcs_audio.write().unwrap().execute_tick();
             while frame_ticks < self.ticks_per_frame {
                 if self.total_ticks % 3 == 0 {
 
@@ -131,7 +129,6 @@ pub mod vcs {
                 Message::P0Trigger => {
                     self.vcs_tia.write().unwrap().left_controller_trigger(value != 0);
                 },
-                _ => ()
             }
         }
 

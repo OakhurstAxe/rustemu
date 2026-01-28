@@ -26,7 +26,7 @@ pub mod vcs {
     impl emumemory::memory_mapper::emu_memory::MemoryMapper for VcsMemory {
         
         fn cpu_read(&self, mut location: u16) -> u8 {
-            let mut result: u8 = 0;
+            let result: u8;
             location = location & 0x1FFF;
             
             if location & 0x1080 == 0 {
