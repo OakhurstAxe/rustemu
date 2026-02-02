@@ -3,6 +3,9 @@ pub mod vcs {
 
     use std::fs;
     use std::sync::{ Arc, RwLock };
+
+    use sdl2::event::{ EventSender };
+
     use emumemory::memory_mapper::emu_memory::MemoryMapper;
     use emucpu::base_cpu::emu_cpu::BaseCpu;
     use emucpu::m6502::emu_cpu::M6502;
@@ -12,6 +15,11 @@ pub mod vcs {
     use crate::vcs_riot::vcs::VcsRiot;
     use crate::vcs_tia::vcs::VcsTia;
     use crate::vcs_audio::vcs::VcsAudio;
+
+    pub struct VcsAudioEvent {
+        pub channel0: Vec<u8>,
+        pub channel1: Vec<u8>,
+    }
 
     #[derive(Clone)]
     pub enum Message {
@@ -31,11 +39,12 @@ pub mod vcs {
         ticks_per_frame: u32,
         image: Vec<u8>,
         frame_rendered: bool,
+        event_sender: EventSender,
     }
 
     impl VcsConsole {
 
-        pub fn new () -> VcsConsole{
+        pub fn new (sender: EventSender) -> VcsConsole{
 
             let rom = fs::read("/home/dmax/projects/rust/roms/Combat (NA).a26");
             let parameters: Arc<RwLock<VcsParameters>>;
@@ -46,7 +55,7 @@ pub mod vcs {
             let tia: Arc<RwLock<VcsTia>> = Arc::new(RwLock::new(VcsTia::new(Arc::clone(&console_type))));
             let memory: Box<dyn MemoryMapper + Send> = Box::new(VcsMemory::new (Arc::clone(&parameters), Arc::clone(&tia), Arc::clone(&riot)));
             let cpu: M6502 = M6502::new(memory);
-
+            let audio: Arc<RwLock<VcsAudio>> = Arc::new(RwLock::new(VcsAudio::new(Arc::clone(&tia))));
             let ticks_per_second = console_type.read().unwrap().ticks_per_second();
             let frames_per_second = console_type.read().unwrap().get_frames_per_second();
             let x_resolution = console_type.read().unwrap().get_x_resolution();
@@ -55,12 +64,13 @@ pub mod vcs {
             let mut temp_instance = Self {
                 vcs_riot: Arc::clone(&riot),
                 vcs_tia: Arc::clone(&tia),
-                vcs_audio: Arc::new(RwLock::new(VcsAudio::new(Arc::clone(&tia)))),
+                vcs_audio: Arc::clone(&audio),
                 cpu: cpu,
                 total_ticks: 0,
                 ticks_per_frame: (ticks_per_second / frames_per_second as i32) as u32,
                 image: Vec::with_capacity(0),
                 frame_rendered: false,
+                event_sender: sender,
             };
 
             temp_instance.image = Vec::with_capacity(x_resolution as usize * y_resolution as usize * 4);
@@ -82,6 +92,7 @@ pub mod vcs {
         }
 
         fn start_up(&mut self) {
+            //self.vcs_audio.write().unwrap().setup();
             self.cpu.reset();
             self.vcs_riot.write().unwrap().reset();
             self.vcs_tia.write().unwrap().reset();
@@ -89,10 +100,23 @@ pub mod vcs {
             self.total_ticks = 0;
         }
 
+        fn send_audio_event(&mut self) {
+            let mut audio = self.vcs_audio.write().unwrap();
+
+            let audio_event:VcsAudioEvent = VcsAudioEvent {
+                channel0: audio.get_audio_buffer(0),
+                channel1: audio.get_audio_buffer(1)
+            };
+
+            self.event_sender.push_custom_event(audio_event).unwrap();
+        }
+
         pub fn start_next_frame (&mut self) {
             let mut frame_ticks: u32 = 0;
 
             self.vcs_audio.write().unwrap().execute_tick();
+            self.send_audio_event();
+
             while frame_ticks < self.ticks_per_frame {
                 if self.total_ticks % 3 == 0 {
 

@@ -1,19 +1,21 @@
 
-
 use std::{sync::Arc, sync::Mutex, time::Duration};
 
-use sdl2::timer::TimerCallback;
-use sdl2::pixels::PixelFormatEnum;
+use sdl2::controller::Button;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
-use sdl2::controller::Button;
+use sdl2::mixer::Chunk;
+use sdl2::pixels::PixelFormatEnum;
+use sdl2::timer::TimerCallback;
 
-use vcs::vcs_console::vcs::{ VcsConsole, Message };
+use vcs::vcs_console::vcs::{ VcsConsole, Message, VcsAudioEvent };
+use vcs::vcs_audio_channel::vcs::{ DATA_SAMPLE_RATE_HZ, SAMPLES_PER_FRAME };
 
 pub fn main() -> Result<(), String> {
 
     let sdl_context = sdl2::init().unwrap();
     
+    // Video
     let video_subsystem = sdl_context.video().unwrap();
     let window = video_subsystem.window("rust-sdl3 demo", 800, 600)
         .position_centered()
@@ -22,11 +24,39 @@ pub fn main() -> Result<(), String> {
     let mut canvas = window.into_canvas().build().unwrap();
     let mut event_pump = sdl_context.event_pump().unwrap();
     let mut surface = sdl2::surface::Surface::new(160, 210, PixelFormatEnum::RGB24);
-    
-    let vcs_console: Arc<Mutex<VcsConsole>> = Arc::new(Mutex::new(VcsConsole::new()));
+
+    // Controller (buttons)
+    let controller_subsystem = sdl_context.game_controller().unwrap();
+    let _controller = controller_subsystem.open(0).unwrap();
+    println!("controller {:?}", controller_subsystem.name_for_index(0));
+    controller_subsystem.set_event_state(true);
+
+    // Joystick (Direction pushed)
+    let joystick_subsystem = sdl_context.joystick().unwrap();
+    let _joystick = joystick_subsystem.open(0).unwrap();
+    joystick_subsystem.set_event_state(true);
+
+    // Events
+    let event_subsystem = sdl_context.event().unwrap();
+    event_subsystem.register_custom_event::<VcsAudioEvent>()?;
+    let event_sender = event_subsystem.event_sender();
+
+    // Audio
+    let frequency = DATA_SAMPLE_RATE_HZ;
+    let format = sdl2::mixer::AUDIO_U8;
+    let channels = 2;
+    let chunk_size = SAMPLES_PER_FRAME;
+    _ = sdl2::mixer::open_audio(frequency as i32, format, channels, chunk_size as i32).unwrap();
+    sdl2::mixer::allocate_channels(2);
+    let mut chunk0: Chunk;
+    let mut chunk1: Chunk;
+
+    // VCS Console
+    let vcs_console: Arc<Mutex<VcsConsole>> = Arc::new(Mutex::new(VcsConsole::new(event_sender)));
     let vcs_console_clone = Arc::clone(&vcs_console);
     let vcs_console_clone2 = Arc::clone(&vcs_console);
 
+    // Frame timer
     let timer_subsystem= sdl_context.timer().unwrap();
     let callback: TimerCallback = Box::new(move || {
             let mut vcs = vcs_console.lock().unwrap();
@@ -35,15 +65,6 @@ pub fn main() -> Result<(), String> {
         });
     let delay = 17;
     let _timer = timer_subsystem.add_timer(delay, callback);
- 
-    let controller_subsystem = sdl_context.game_controller().unwrap();
-    let _controller = controller_subsystem.open(0).unwrap();
-    println!("controller {:?}", controller_subsystem.name_for_index(0));
-    controller_subsystem.set_event_state(true);
-
-    let joystick_subsystem = sdl_context.joystick().unwrap();
-    let _joystick = joystick_subsystem.open(0).unwrap();
-    joystick_subsystem.set_event_state(true);
 
     'running: loop {
         let new_screen = vcs_console_clone.lock().unwrap().is_frame_rendered();
@@ -65,6 +86,18 @@ pub fn main() -> Result<(), String> {
         for event in event_pump.poll_iter() {
 
             match event {
+                Event::User { type_: _u32, .. } => {
+                    if let Some(custom_event) = event.as_user_event_type::<VcsAudioEvent>() {
+                        let data0:[u8; SAMPLES_PER_FRAME] = custom_event.channel0.try_into().unwrap();
+                        let boxdata0: Box<[u8; SAMPLES_PER_FRAME]> = Box::new(data0);
+                        chunk0 = Chunk::from_raw_buffer(boxdata0.clone()).unwrap();
+                        _ = sdl2::mixer::Channel::all().play(&chunk0, 1);
+                        let data1:[u8; SAMPLES_PER_FRAME] = custom_event.channel1.try_into().unwrap();
+                        let boxdata1: Box<[u8; SAMPLES_PER_FRAME]> = Box::new(data1);
+                        chunk1 = Chunk::from_raw_buffer(boxdata1.clone()).unwrap();
+                        _ = sdl2::mixer::Channel::all().play(&chunk1, 1);
+                    }
+                },
                 Event::Quit {..} |
                 Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
                     break 'running
