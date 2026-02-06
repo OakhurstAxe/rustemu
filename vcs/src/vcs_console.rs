@@ -16,9 +16,10 @@ pub mod vcs {
     use crate::vcs_tia::vcs::VcsTia;
     use crate::vcs_audio::vcs::VcsAudio;
 
+    use crate::vcs_audio_channel::vcs::SAMPLES_PER_FRAME;
+
     pub struct VcsAudioEvent {
-        pub channel0: Vec<u8>,
-        pub channel1: Vec<u8>,
+        pub channel_mix: Vec<u16>,
     }
 
     #[derive(Clone)]
@@ -103,9 +104,16 @@ pub mod vcs {
         fn send_audio_event(&mut self) {
             let mut audio = self.vcs_audio.write().unwrap();
 
+            let channel0 = audio.get_audio_buffer(0);
+            let channel1 = audio.get_audio_buffer(1);
+            let mut mix:Vec<u16> = Vec::with_capacity(SAMPLES_PER_FRAME);
+
+            for i in 0..SAMPLES_PER_FRAME {
+                mix.push((channel0[i] >> 1) + (channel1[i] >> 1));
+            }
+
             let audio_event:VcsAudioEvent = VcsAudioEvent {
-                channel0: audio.get_audio_buffer(0),
-                channel1: audio.get_audio_buffer(1)
+                channel_mix: mix,
             };
 
             self.event_sender.push_custom_event(audio_event).unwrap();

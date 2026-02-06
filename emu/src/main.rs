@@ -43,13 +43,12 @@ pub fn main() -> Result<(), String> {
 
     // Audio
     let frequency = DATA_SAMPLE_RATE_HZ;
-    let format = sdl2::mixer::AUDIO_U8;
-    let channels = 2;
+    let format = sdl2::mixer::AUDIO_U16;
+    let channels = 1;
     let chunk_size = SAMPLES_PER_FRAME;
     _ = sdl2::mixer::open_audio(frequency as i32, format, channels, chunk_size as i32).unwrap();
-    sdl2::mixer::allocate_channels(2);
+    sdl2::mixer::allocate_channels(1);
     let mut chunk0: Chunk;
-    let mut chunk1: Chunk;
 
     // VCS Console
     let vcs_console: Arc<Mutex<VcsConsole>> = Arc::new(Mutex::new(VcsConsole::new(event_sender)));
@@ -88,14 +87,10 @@ pub fn main() -> Result<(), String> {
             match event {
                 Event::User { type_: _u32, .. } => {
                     if let Some(custom_event) = event.as_user_event_type::<VcsAudioEvent>() {
-                        let data0:[u8; SAMPLES_PER_FRAME] = custom_event.channel0.try_into().unwrap();
-                        let boxdata0: Box<[u8; SAMPLES_PER_FRAME]> = Box::new(data0);
+                        let data0:[u16; SAMPLES_PER_FRAME] = custom_event.channel_mix.try_into().unwrap();
+                        let boxdata0: Box<[u16; SAMPLES_PER_FRAME]> = Box::new(data0);
                         chunk0 = Chunk::from_raw_buffer(boxdata0.clone()).unwrap();
                         _ = sdl2::mixer::Channel::all().play(&chunk0, 1);
-                        let data1:[u8; SAMPLES_PER_FRAME] = custom_event.channel1.try_into().unwrap();
-                        let boxdata1: Box<[u8; SAMPLES_PER_FRAME]> = Box::new(data1);
-                        chunk1 = Chunk::from_raw_buffer(boxdata1.clone()).unwrap();
-                        _ = sdl2::mixer::Channel::all().play(&chunk1, 1);
                     }
                 },
                 Event::Quit {..} |
@@ -187,4 +182,3 @@ pub fn main() -> Result<(), String> {
 
     Ok(())
 }
-

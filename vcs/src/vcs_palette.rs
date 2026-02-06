@@ -93,6 +93,7 @@ pub mod vcs {
                 pallette_choice = 2;
             }
             position = position >> 1;
+            position = position * 3;
             (self.palette[pallette_choice][position],
              self.palette[pallette_choice][position + 1],
              self.palette[pallette_choice][position + 2])

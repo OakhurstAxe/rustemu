@@ -37,8 +37,8 @@ pub mod vcs {
             self.channels[1].write().unwrap().set_channel_settings(register1, register2, register3);
         }
 
-        pub fn get_audio_buffer(&mut self, channel: usize) -> Vec<u8> {
-            let buffer: Vec<u8> = self.channels[channel].write().unwrap().callback(SAMPLES_PER_FRAME);
+        pub fn get_audio_buffer(&mut self, channel: usize) -> Vec<u16> {
+            let buffer: Vec<u16> = self.channels[channel].write().unwrap().callback(SAMPLES_PER_FRAME);
 
             buffer
         }
