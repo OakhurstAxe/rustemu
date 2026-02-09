@@ -25,16 +25,22 @@ pub fn main() -> Result<(), String> {
     let mut event_pump = sdl_context.event_pump().unwrap();
     let mut surface = sdl2::surface::Surface::new(160, 210, PixelFormatEnum::RGB24);
 
-    // Controller (buttons)
-    let controller_subsystem = sdl_context.game_controller().unwrap();
-    let _controller = controller_subsystem.open(0).unwrap();
-    println!("controller {:?}", controller_subsystem.name_for_index(0));
-    controller_subsystem.set_event_state(true);
-
     // Joystick (Direction pushed)
     let joystick_subsystem = sdl_context.joystick().unwrap();
-    let _joystick = joystick_subsystem.open(0).unwrap();
+    let joystick_count = joystick_subsystem.num_joysticks().unwrap();
+    for i in 0..joystick_count {
+        let _joystick = joystick_subsystem.open(i).unwrap();
+        println!("joystick {:?}", joystick_subsystem.name_for_index(i));
+    }
     joystick_subsystem.set_event_state(true);
+
+    // Controller (buttons)
+    let controller_subsystem = sdl_context.game_controller().unwrap();
+    //for j in 0..joystick_count {
+        let _controller = controller_subsystem.open(0).unwrap();
+        println!("controller {:?}", controller_subsystem.name_for_index(0));
+    //}
+    controller_subsystem.set_event_state(true);
 
     // Events
     let event_subsystem = sdl_context.event().unwrap();

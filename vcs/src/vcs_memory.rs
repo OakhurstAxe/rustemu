@@ -3,14 +3,15 @@ pub mod vcs {
         
     use std::sync::{ Arc, RwLock };
 
-    use emumemory::base_memory::emu_memory::BaseMemory;
-    use crate::{vcs_cartridge::vcs::VcsCartridge, vcs_cartridge2k::vcs::VcsCartridge2k, vcs_parameters::vcs::VcsParameters, vcs_riot::vcs::VcsRiot};
+    use emumemory::memory_mapper::emu_memory::MemoryMapper;
+    use crate::{vcs_cartridge::vcs::VcsCartridge, vcs_parameters::vcs::VcsParameters, vcs_riot::vcs::VcsRiot};
     use crate::vcs_tia::vcs::VcsTia;
+    use crate::vcs_cartridge::vcs::VcsCartridgeDetector;
 
     pub struct VcsMemory {
         vcs_tia: Arc<RwLock<VcsTia>>,
         vcs_riot: Arc<RwLock<VcsRiot>>,
-        vcs_cartridge: Arc<RwLock<VcsCartridge2k>>
+        vcs_cartridge: Arc<RwLock<Box<dyn VcsCartridge>>>
     }
 
     impl VcsMemory {
@@ -18,12 +19,14 @@ pub mod vcs {
             Self {
                 vcs_tia: tia,
                 vcs_riot: riot,
-                vcs_cartridge: Arc::new(RwLock::new(<VcsCartridge2k as VcsCartridge>::get_cartridge(Arc::clone(&vcs_parameters)))),
+                vcs_cartridge: Arc::new(RwLock::new(VcsCartridgeDetector::detect_cartridge(Arc::clone(&vcs_parameters)))),
             }
         }
     }
 
-    impl emumemory::memory_mapper::emu_memory::MemoryMapper for VcsMemory {
+    unsafe impl Send for VcsMemory {}
+
+    impl MemoryMapper for VcsMemory {
         
         fn cpu_read(&self, mut location: u16) -> u8 {
             let result: u8;
