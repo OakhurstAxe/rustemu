@@ -34,7 +34,7 @@ pub mod vcs {
     pub struct VcsConsole {
         vcs_riot: Arc<RwLock<VcsRiot>>,
         vcs_tia: Arc<RwLock<VcsTia>>,
-        vcs_audio: Arc<RwLock<VcsAudio>>,
+        vcs_audio: VcsAudio,
         cpu: M6502,
         total_ticks: u32,
         ticks_per_frame: u32,
@@ -56,7 +56,7 @@ pub mod vcs {
             let tia: Arc<RwLock<VcsTia>> = Arc::new(RwLock::new(VcsTia::new(Arc::clone(&console_type))));
             let memory: Box<dyn MemoryMapper + Send> = Box::new(VcsMemory::new (Arc::clone(&parameters), Arc::clone(&tia), Arc::clone(&riot)));
             let cpu: M6502 = M6502::new(memory);
-            let audio: Arc<RwLock<VcsAudio>> = Arc::new(RwLock::new(VcsAudio::new(Arc::clone(&tia))));
+            let audio: VcsAudio = VcsAudio::new(Arc::clone(&tia));
             let ticks_per_second = console_type.read().unwrap().ticks_per_second();
             let frames_per_second = console_type.read().unwrap().get_frames_per_second();
             let x_resolution = console_type.read().unwrap().get_x_resolution();
@@ -65,7 +65,7 @@ pub mod vcs {
             let mut temp_instance = Self {
                 vcs_riot: Arc::clone(&riot),
                 vcs_tia: Arc::clone(&tia),
-                vcs_audio: Arc::clone(&audio),
+                vcs_audio: audio,
                 cpu: cpu,
                 total_ticks: 0,
                 ticks_per_frame: (ticks_per_second / frames_per_second as i32) as u32,
@@ -102,10 +102,8 @@ pub mod vcs {
         }
 
         fn send_audio_event(&mut self) {
-            let mut audio = self.vcs_audio.write().unwrap();
-
-            let channel0 = audio.get_audio_buffer(0);
-            let channel1 = audio.get_audio_buffer(1);
+            let channel0 = self.vcs_audio.get_audio_buffer(0);
+            let channel1 = self.vcs_audio.get_audio_buffer(1);
             let mut mix:Vec<u16> = Vec::with_capacity(SAMPLES_PER_FRAME);
 
             for i in 0..SAMPLES_PER_FRAME {
@@ -113,16 +111,16 @@ pub mod vcs {
             }
 
             let audio_event:VcsAudioEvent = VcsAudioEvent {
-                channel_mix: mix,
+                channel_mix: mix.clone(),
             };
 
-            self.event_sender.push_custom_event(audio_event).unwrap();
+            _ = self.event_sender.push_custom_event(audio_event);
         }
 
         pub fn start_next_frame (&mut self) {
             let mut frame_ticks: u32 = 0;
 
-            self.vcs_audio.write().unwrap().execute_tick();
+            self.vcs_audio.execute_tick();
             self.send_audio_event();
 
             while frame_ticks < self.ticks_per_frame {

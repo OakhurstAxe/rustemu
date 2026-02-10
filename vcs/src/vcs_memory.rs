@@ -11,7 +11,7 @@ pub mod vcs {
     pub struct VcsMemory {
         vcs_tia: Arc<RwLock<VcsTia>>,
         vcs_riot: Arc<RwLock<VcsRiot>>,
-        vcs_cartridge: Arc<RwLock<Box<dyn VcsCartridge>>>
+        vcs_cartridge: Box<dyn VcsCartridge>
     }
 
     impl VcsMemory {
@@ -19,7 +19,7 @@ pub mod vcs {
             Self {
                 vcs_tia: tia,
                 vcs_riot: riot,
-                vcs_cartridge: Arc::new(RwLock::new(VcsCartridgeDetector::detect_cartridge(Arc::clone(&vcs_parameters)))),
+                vcs_cartridge: VcsCartridgeDetector::detect_cartridge(Arc::clone(&vcs_parameters)),
             }
         }
     }
@@ -51,7 +51,7 @@ pub mod vcs {
             else if location >= 0x1000 && location < 0x2000 {
                 location -= 0x1000;
                 let a_13_set = (0x2000 & location) > 0;
-                result = self.vcs_cartridge.read().unwrap().read_a13(location, a_13_set)
+                result = self.vcs_cartridge.read_a13(location, a_13_set)
             }
             else {
                 panic!()
@@ -89,7 +89,7 @@ pub mod vcs {
             // Cartridge ROM
             else if location >= 0x1000 && location < 0x2000 {
                 location -= 0x1000;
-                self.vcs_cartridge.write().unwrap().write(location, byte);
+                self.vcs_cartridge.write(location, byte);
             }              
             else {
                 panic!();
