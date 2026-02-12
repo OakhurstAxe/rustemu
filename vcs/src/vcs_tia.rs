@@ -294,6 +294,13 @@ pub mod vcs {
             self.registers.write(REG_INPT3, 255);
             self.registers.write(REG_INPT4, 255);
             self.registers.write(REG_INPT5, 255);
+
+            self.registers.write(REG_AUDC0, 0);
+            self.registers.write(REG_AUDC1, 0);
+            self.registers.write(REG_AUDF0, 0);
+            self.registers.write(REG_AUDF1, 0);
+            self.registers.write(REG_AUDV0, 0);
+            self.registers.write(REG_AUDV1, 0);
         }
 
         pub fn execute_tick(&mut self) {

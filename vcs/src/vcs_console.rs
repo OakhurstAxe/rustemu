@@ -47,8 +47,8 @@ pub mod vcs {
 
         pub fn new (sender: EventSender) -> VcsConsole{
 
-            let rom = fs::read("/home/dmax/projects/rust/roms/Combat (NA).a26");
-            //let rom = fs::read("/home/dmax/projects/rust/roms/Adventure (1980) (Atari, Warren Robinett - Sears) (CX2613 - 49-75154) ~.bin");
+            //let rom = fs::read("/home/dmax/projects/rust/roms/Combat (NA).a26");
+            let rom = fs::read("/home/dmax/projects/rust/roms/Adventure (1980) (Atari, Warren Robinett - Sears) (CX2613 - 49-75154) ~.bin");
             let parameters: Arc<RwLock<VcsParameters>>;
             parameters = Arc::new(RwLock::new(VcsParameters::new(rom.unwrap())));
 

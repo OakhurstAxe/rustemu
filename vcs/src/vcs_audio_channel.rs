@@ -224,46 +224,46 @@ pub mod vcs {
                     || self.shift_register == ShiftRegister::FiveToFour {
 
                         if self.shift_4_register & 0x0001 == 1 {
-                            self.m_buffer[sample_index as usize] = self.volume + 32640;
+                            self.m_buffer[sample_index as usize] = self.volume;
                         }
                         else {
-                            self.m_buffer[sample_index as usize] = self.volume;
+                            self.m_buffer[sample_index as usize] = 0;
                         }
                     }
                     else if self.shift_register == ShiftRegister::Five {
 
                         if self.shift_5_register & 0x0001 == 1 {
-                            self.m_buffer[sample_index as usize] = self.volume + 32640;
+                            self.m_buffer[sample_index as usize] = self.volume;
                         }
                         else {
-                            self.m_buffer[sample_index as usize] = self.volume;
+                            self.m_buffer[sample_index as usize] = 0;
                         }
                     }
                     else if self.shift_register == ShiftRegister::Nine {
 
                         if self.shift_9_register & 0x0001 == 1 {
-                            self.m_buffer[sample_index as usize] = self.volume + 32640;
+                            self.m_buffer[sample_index as usize] = self.volume;
                         }
                         else {
-                            self.m_buffer[sample_index as usize] = self.volume;
+                            self.m_buffer[sample_index as usize] = 0;
                         }
                     }
                     else if self.shift_register == ShiftRegister::Div2 {
 
                         if self.div2_count == 1 {
-                            self.m_buffer[sample_index as usize] = self.volume + 32640;
+                            self.m_buffer[sample_index as usize] = self.volume;
                         }
                         else {
-                            self.m_buffer[sample_index as usize] = self.volume;
+                            self.m_buffer[sample_index as usize] = 0;
                         }
                     }
                     else if self.shift_register == ShiftRegister::Div31 {
 
                         if self.div31_count < 18 {
-                            self.m_buffer[sample_index as usize] = self.volume + 32640;
+                            self.m_buffer[sample_index as usize] = self.volume;
                         }
                         else {
-                            self.m_buffer[sample_index as usize] = self.volume;
+                            self.m_buffer[sample_index as usize] = 0;
                         }
                     }
 
