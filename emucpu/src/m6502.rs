@@ -32,7 +32,7 @@ pub mod emu_cpu {
         register_x: u8,
         register_y: u8,
         status_register: u8,
-        _debug: u8,
+        debug: u8,
 
         op_code_lookup: [OperationStruct; 0x100],
         operation: OperationStruct,
@@ -46,10 +46,9 @@ pub mod emu_cpu {
                 self.overflow_ticks -= 1;
                 return;
             }
-            self.overflow_ticks -= 1;
             
             self.call_op_method(self.operation.operation, self.operation.address_method);
-
+            self.overflow_ticks -= 1;
             self.get_next_operation();
         }   
 
@@ -88,7 +87,7 @@ pub mod emu_cpu {
                     op_code_lookup: op_code_lookup,
                     operation: operation,
                     instruction: 0,
-                    _debug: 0
+                    debug: 0
             }
         }
 
@@ -388,18 +387,19 @@ pub mod emu_cpu {
         fn set_overflow_for_operation(&mut self)
         {
             // If branch operaion takes a branch it causes extra tick
-            if (fn_addr_eq(self.operation.operation, M6502::op_bcc as fn(&mut M6502, fn(&mut M6502) -> u16)) && self.get_status_flag(CARRY_FLAG) != 0) 
+            if (fn_addr_eq(self.operation.operation, M6502::op_bcc as fn(&mut M6502, fn(&mut M6502) -> u16)) && self.get_status_flag(CARRY_FLAG) == 0) 
                 || (fn_addr_eq(self.operation.operation, M6502::op_bcs as fn(&mut M6502, fn(&mut M6502) -> u16)) && self.get_status_flag(CARRY_FLAG) != 0) 
                 || (fn_addr_eq(self.operation.operation, M6502::op_beq as fn(&mut M6502, fn(&mut M6502) -> u16)) && self.get_status_flag(ZERO_FLAG) != 0) 
                 || (fn_addr_eq(self.operation.operation, M6502::op_bmi as fn(&mut M6502, fn(&mut M6502) -> u16)) && self.get_status_flag(NEGATIVE_FLAG) != 0) 
-                || (fn_addr_eq(self.operation.operation, M6502::op_bne as fn(&mut M6502, fn(&mut M6502) -> u16)) && self.get_status_flag(ZERO_FLAG) != 0) 
-                || (fn_addr_eq(self.operation.operation, M6502::op_bpl as fn(&mut M6502, fn(&mut M6502) -> u16)) && self.get_status_flag(NEGATIVE_FLAG) != 0) 
-                || (fn_addr_eq(self.operation.operation, M6502::op_bvc as fn(&mut M6502, fn(&mut M6502) -> u16)) && self.get_status_flag(OVERFLOW_FLAG) != 0) 
+                || (fn_addr_eq(self.operation.operation, M6502::op_bne as fn(&mut M6502, fn(&mut M6502) -> u16)) && self.get_status_flag(ZERO_FLAG) == 0) 
+                || (fn_addr_eq(self.operation.operation, M6502::op_bpl as fn(&mut M6502, fn(&mut M6502) -> u16)) && self.get_status_flag(NEGATIVE_FLAG) == 0) 
+                || (fn_addr_eq(self.operation.operation, M6502::op_bvc as fn(&mut M6502, fn(&mut M6502) -> u16)) && self.get_status_flag(OVERFLOW_FLAG) == 0) 
                 || (fn_addr_eq(self.operation.operation, M6502::op_bvs as fn(&mut M6502, fn(&mut M6502) -> u16)) && self.get_status_flag(OVERFLOW_FLAG) != 0) {
                 self.overflow_ticks += 1;
                 let address_met = self.operation.address_method;
                 let relative_address: u16 = address_met(self);
-                if ((self.program_counter & 0x00FF) + relative_address) > 0x00FF {
+                let diff = self.program_counter.abs_diff(relative_address);
+                if (diff & 0xFF00) > 0 {
                     self.overflow_ticks += 1;
                 }
                 self.program_counter -= 1;
@@ -554,10 +554,6 @@ pub mod emu_cpu {
 
         fn indirect_y_address_no_overflow(&mut self) -> u16 {
             self.indirect_y_address()
-        }
-
-        pub fn get_overflow_ticks(&self) -> i32 {
-            self.overflow_ticks
         }
 
         pub fn get_accumulator(&self) -> u8 {
@@ -901,7 +897,7 @@ pub mod emu_cpu {
 
             let mut carry: u8 = 0;
             if self.get_status_flag(CARRY_FLAG) != 0 {
-                carry = 1;
+                carry = 0x01;
             }
 
             if fn_addr_eq(address_method, M6502::accumulator_address as for<'a, 'b> fn(&'a mut M6502) -> u16) {
@@ -911,8 +907,8 @@ pub mod emu_cpu {
                 address = address_method(self);
                 byte = self.memory.cpu_read(address);
             }
-            let temp: u8 = (byte << 1) + carry;
             self.set_status_flag(CARRY_FLAG, (byte & 0x80) != 0);
+            let temp: u8 = (byte << 1) | carry;
             byte = temp;
             self.set_negative_zero(byte);
             if fn_addr_eq(address_method, M6502::accumulator_address as for<'a, 'b> fn(&'a mut M6502) -> u16) {
@@ -929,7 +925,7 @@ pub mod emu_cpu {
 
             let mut carry: u8 = 0;
             if self.get_status_flag(CARRY_FLAG) != 0 {
-                carry = 1;
+                carry = 0x80;
             }
 
             if fn_addr_eq(address_method, M6502::accumulator_address as for<'a, 'b> fn(&'a mut M6502) -> u16) {
@@ -939,8 +935,8 @@ pub mod emu_cpu {
                 address = address_method(self);
                 byte = self.memory.cpu_read(address);
             }
-            let temp: u8 = (byte >> 1) + carry;
             self.set_status_flag(CARRY_FLAG, byte & 0x01 != 0);
+            let temp: u8 = (byte >> 1) | carry;
             byte = temp;
             self.set_negative_zero(byte);
             if fn_addr_eq(address_method, M6502::accumulator_address as for<'a, 'b> fn(&'a mut M6502) -> u16) {

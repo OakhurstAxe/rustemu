@@ -17,7 +17,7 @@ pub fn main() -> Result<(), String> {
     
     // Video
     let video_subsystem = sdl_context.video().unwrap();
-    let window = video_subsystem.window("rust-sdl3 demo", 800, 600)
+    let window = video_subsystem.window("VCS", 800, 600)
         .position_centered()
         .build()
         .unwrap();

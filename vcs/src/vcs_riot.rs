@@ -116,7 +116,7 @@ pub mod vcs {
             let (new_timer, overflow) = timer.overflowing_sub(1);
             timer = new_timer;
             if overflow {
-                //timer = 0;
+                timer = 0;
                 let mut status_byte: u8 = self.system_ram.read(REG_INSTAT);
                 status_byte = status_byte | 0xFF;
                 self.riot_ram.write(REG_INSTAT, status_byte);
