@@ -6,7 +6,7 @@ pub mod vcs {
     use emumemory::memory_mapper::emu_memory::MemoryMapper;
     use crate::{vcs_cartridge::vcs::VcsCartridge, vcs_parameters::vcs::VcsParameters, vcs_riot::vcs::VcsRiot};
     use crate::vcs_tia::vcs::VcsTia;
-    use crate::vcs_cartridge::vcs::VcsCartridgeDetector;
+    use crate::vcs_cartridge_detector::vcs::VcsCartridgeDetector;
 
     pub struct VcsMemory {
         vcs_tia: Arc<RwLock<VcsTia>>,

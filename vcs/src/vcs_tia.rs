@@ -93,8 +93,8 @@ pub mod vcs {
         grp_1_delay: u8,
         enable_delay: u8,
         v_blank: u8,
-        x_resolution: u8,
-        y_resolution: u8,
+        x_resolution: u32,
+        y_resolution: u32,
         _debug: u8
     }
 
@@ -102,8 +102,8 @@ pub mod vcs {
 
         pub fn new(console_type: Arc<RwLock<VcsConsoleType>>) -> Self {
             let v_blank: u8 = console_type.read().unwrap().get_v_blank_lines();
-            let x_resolution: u8 = console_type.read().unwrap().get_x_resolution();
-            let y_resolution: u8 = console_type.read().unwrap().get_y_resolution();
+            let x_resolution: u32 = console_type.read().unwrap().get_x_resolution();
+            let y_resolution: u32 = console_type.read().unwrap().get_y_resolution();
             Self {
                 registers: MemoryRam::new(String::from("TIA Registers"), 0x7f),
                 cycle: 0,

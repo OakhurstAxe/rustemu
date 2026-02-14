@@ -7,6 +7,19 @@ edition = "2024"
 vcs = { path = "../vcs" }
 tracing-subscriber = "0.3.22"
 sdl2 = { version = "0.38.0"  }
+egui = "0.33.0"
+eframe = { version = "0.33.0", default-features = false, features = [
+    "accesskit",     # Make egui compatible with screen readers. NOTE: adds a lot of dependencies.
+    "default_fonts", # Embed the default egui fonts.
+    "glow",          # Use the glow rendering backend. Alternative: "wgpu".
+    "persistence",   # Enable restoring app state when restarting the app.
+    "wayland",       # To support Linux (and CI)
+    "x11",           # To support older Linux distributions (restores one of the default features)
+] }
+env_logger = "0.11.9"
+
+serde = { version = "1.0.219", features = ["derive"] }
+egui-file-dialog = "0.12.0"
 
 [profile.release]
 debug = true

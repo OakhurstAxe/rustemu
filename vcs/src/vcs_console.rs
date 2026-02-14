@@ -9,14 +9,14 @@ pub mod vcs {
     use emumemory::memory_mapper::emu_memory::MemoryMapper;
     use emucpu::base_cpu::emu_cpu::BaseCpu;
     use emucpu::m6502::emu_cpu::M6502;
+    use crate::vcs_audio_channel::vcs::{NTSC_SAMPLES_PER_FRAME, PAL_SAMPLES_PER_FRAME};
     use crate::vcs_memory::vcs::VcsMemory;
     use crate::vcs_parameters::vcs::VcsParameters;
     use crate::vcs_console_type::vcs::VcsConsoleType;
     use crate::vcs_riot::vcs::VcsRiot;
     use crate::vcs_tia::vcs::VcsTia;
     use crate::vcs_audio::vcs::VcsAudio;
-
-    use crate::vcs_audio_channel::vcs::SAMPLES_PER_FRAME;
+    use crate::vcs_console_type::vcs::ConsoleType;
 
     pub struct VcsAudioEvent {
         pub channel_mix: Vec<u16>,
@@ -34,10 +34,10 @@ pub mod vcs {
     pub struct VcsConsole {
         vcs_riot: Arc<RwLock<VcsRiot>>,
         vcs_tia: Arc<RwLock<VcsTia>>,
+        console_type: Arc<RwLock<VcsConsoleType>>,
         vcs_audio: VcsAudio,
         cpu: M6502,
         total_ticks: u32,
-        ticks_per_frame: u32,
         image: Vec<u8>,
         frame_rendered: bool,
         event_sender: EventSender,
@@ -45,10 +45,9 @@ pub mod vcs {
 
     impl VcsConsole {
 
-        pub fn new (sender: EventSender) -> VcsConsole{
+        pub fn new (rom_file: &str, sender: EventSender) -> VcsConsole{
 
-            //let rom = fs::read("/home/dmax/projects/rust/roms/Combat (NA).a26");
-            let rom = fs::read("/home/dmax/projects/rust/roms/Adventure (1980) (Atari, Warren Robinett - Sears) (CX2613 - 49-75154) ~.bin");
+            let rom = fs::read(rom_file);
             let parameters: Arc<RwLock<VcsParameters>>;
             parameters = Arc::new(RwLock::new(VcsParameters::new(rom.unwrap())));
 
@@ -57,32 +56,34 @@ pub mod vcs {
             let tia: Arc<RwLock<VcsTia>> = Arc::new(RwLock::new(VcsTia::new(Arc::clone(&console_type))));
             let memory: Box<dyn MemoryMapper + Send> = Box::new(VcsMemory::new (Arc::clone(&parameters), Arc::clone(&tia), Arc::clone(&riot)));
             let cpu: M6502 = M6502::new(memory);
-            let audio: VcsAudio = VcsAudio::new(Arc::clone(&tia));
-            let ticks_per_second = console_type.read().unwrap().ticks_per_second();
             let frames_per_second = console_type.read().unwrap().get_frames_per_second();
             let x_resolution = console_type.read().unwrap().get_x_resolution();
             let y_resolution = console_type.read().unwrap().get_y_resolution();
+            let audio: VcsAudio = VcsAudio::new(Arc::clone(&tia), frames_per_second);
 
             let mut temp_instance = Self {
                 vcs_riot: Arc::clone(&riot),
                 vcs_tia: Arc::clone(&tia),
+                console_type: Arc::clone(&console_type),
                 vcs_audio: audio,
                 cpu: cpu,
                 total_ticks: 0,
-                ticks_per_frame: (ticks_per_second / frames_per_second as i32) as u32,
                 image: Vec::with_capacity(0),
                 frame_rendered: false,
                 event_sender: sender,
             };
 
             temp_instance.image = Vec::with_capacity(x_resolution as usize * y_resolution as usize * 4);
-            temp_instance.ticks_per_frame = ticks_per_second as u32 / frames_per_second as u32;
             temp_instance.start_up();
 
             temp_instance
 
         }
 
+        pub fn get_console_type(&self) -> Arc<RwLock<VcsConsoleType>> {
+            Arc::clone(&self.console_type)
+        }
+    
         pub fn is_frame_rendered(&mut self) -> (bool, Vec<u8>) {
             let result = self.frame_rendered;
             self.frame_rendered = false;
@@ -105,9 +106,18 @@ pub mod vcs {
         fn send_audio_event(&mut self) {
             let channel0 = self.vcs_audio.get_audio_buffer(0);
             let channel1 = self.vcs_audio.get_audio_buffer(1);
-            let mut mix:Vec<u16> = Vec::with_capacity(SAMPLES_PER_FRAME);
+            let samples_per_frame: usize;
+            
+            if self.console_type.read().unwrap().get_console_type() == ConsoleType::PAL {
+                samples_per_frame = PAL_SAMPLES_PER_FRAME;
+            }
+            else {
+                samples_per_frame = NTSC_SAMPLES_PER_FRAME;
+            }
 
-            for i in 0..SAMPLES_PER_FRAME {
+            let mut mix:Vec<u16> = Vec::with_capacity(samples_per_frame);
+
+            for i in 0..samples_per_frame {
                 mix.push((channel0[i] >> 1) + (channel1[i] >> 1));
             }
 
@@ -124,7 +134,7 @@ pub mod vcs {
             self.vcs_audio.execute_tick();
             self.send_audio_event();
 
-            while frame_ticks < self.ticks_per_frame {
+            while frame_ticks < self.console_type.read().unwrap().get_ticks_per_frame() as u32 {
                 if self.total_ticks % 3 == 0 {
 
                     if !self.vcs_tia.read().unwrap().is_cpu_blocked() {

@@ -13,8 +13,8 @@ pub mod vcs {
     }
 
     pub const DATA_SAMPLE_RATE_HZ:usize       = 44100;
-    pub const SAMPLES_PER_FRAME:usize         = DATA_SAMPLE_RATE_HZ / 60;
-    pub const BUFFER_SIZE:usize               = SAMPLES_PER_FRAME;
+    pub const NTSC_SAMPLES_PER_FRAME:usize    = DATA_SAMPLE_RATE_HZ / 60;
+    pub const PAL_SAMPLES_PER_FRAME:usize    = DATA_SAMPLE_RATE_HZ / 50;
 
     pub struct VcsAudioChannel {
         total_sample: u64,
@@ -31,11 +31,12 @@ pub mod vcs {
         shift_4_register: u16,
         shift_5_register: u16,
         shift_9_register: u16,
+        frames_per_second: u32,
     }
 
     impl VcsAudioChannel {
 
-        pub fn new () -> VcsAudioChannel {
+        pub fn new (frames_per_second: u32) -> VcsAudioChannel {
 
             Self {
                 total_sample: 0,
@@ -43,7 +44,7 @@ pub mod vcs {
                 frequency: 0,
 
                 volume_steps: vec![0, 2295, 4335, 6630, 8670, 10965, 13005, 15300, 17340, 19635, 21675, 23970, 26265, 28305, 30600, 32640],
-                m_buffer: vec![0u16; BUFFER_SIZE as usize],
+                m_buffer: vec![0u16; DATA_SAMPLE_RATE_HZ / frames_per_second as usize],
                 is_shutdown: false,
                 shift_register: ShiftRegister::Four,
                 apply_third: false,
@@ -53,6 +54,7 @@ pub mod vcs {
                 shift_4_register: 0xFFFF,
                 shift_5_register: 0xFFFF,
                 shift_9_register: 0xFFFF,
+                frames_per_second: frames_per_second
             }
         }
 
@@ -203,7 +205,7 @@ pub mod vcs {
         fn generate_buffer_data(&mut self, sample_count: usize) -> &[u16] {
 
             if self.frequency == 0 {
-                if sample_count > BUFFER_SIZE as usize {
+                if sample_count > DATA_SAMPLE_RATE_HZ / self.frames_per_second as usize {
                     panic!("Audio Sample larger than buffer size");
                 }
                 self.m_buffer[0..sample_count as usize].fill(0);
@@ -270,7 +272,7 @@ pub mod vcs {
                     sample_index += 1;
                     self.total_sample += 1;
 
-                    if sample_index > BUFFER_SIZE as u32 {
+                    if sample_index > (DATA_SAMPLE_RATE_HZ / self.frames_per_second as usize) as u32 {
                         panic!("Audio sample index larger than buffer size");
                     }
 
