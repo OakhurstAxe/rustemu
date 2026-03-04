@@ -17,7 +17,7 @@ pub mod vcs {
 
     impl emumemory::base_memory::emu_memory::BaseMemory for VcsCartridge2k {
 
-        fn read(&self, mut location: u16) -> u8 {
+        fn read(&mut self, mut location: u16) -> u8 {
             if location > 0x800 {
                 location -= 0x800;
             }
@@ -53,7 +53,7 @@ pub mod vcs {
 
     impl crate::vcs_cartridge::vcs::VcsCartridge for VcsCartridge2k {
 
-        fn read_a13(&self, location: u16, _a13set: bool) -> u8 {            
+        fn read_a13(&mut self, location: u16, _a13set: bool) -> u8 {            
             <Self as BaseMemory>::read(self, location)
         }
 

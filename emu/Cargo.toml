@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 vcs = { path = "../vcs" }
+nes = { path = "../nes" }
 tracing-subscriber = "0.3.22"
 sdl2 = { version = "0.38.0"  }
 egui = "0.33.0"

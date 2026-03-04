@@ -3,7 +3,7 @@ pub mod vcs {
     use std::{sync::Arc, sync::Mutex, time::Duration};
 
     use sdl2::Sdl;
-    use sdl2::controller::Button;
+    use sdl2::controller::{Button, GameController};
     use sdl2::event::Event;
     use sdl2::keyboard::Keycode;
     use sdl2::mixer::Chunk;
@@ -22,20 +22,20 @@ pub mod vcs {
 
         pub fn new() -> VcsSdlMain {
             Self {
-                sdl_context: sdl2::init().unwrap()
+                sdl_context: sdl2::init().unwrap(),
             }
         }
 
         pub fn vcs_sdl_main(&mut self, rom_file: &str) -> Result<(), String> {
 
-
             // Controller (buttons)
             let controller_subsystem = self.sdl_context.game_controller().unwrap();
             let controller_count = controller_subsystem.num_joysticks().unwrap();
-            //for j in 0..controller_count {
-                let _controller = controller_subsystem.open(0).unwrap();
-                println!("controller {:?}", controller_subsystem.name_for_index(0));
-            //}
+            let mut controller: GameController;
+            for j in 0..controller_count {
+                controller = controller_subsystem.open(j).unwrap();
+                println!("controller {:?}", controller_subsystem.name_for_index(j));
+            }
             _ = controller_subsystem.add_mapping("030000005e0400000700000000010000,Microsoft® SideWinder® Game Pad USB,platform:Linux,crc:4119,a:b0,b:b1,x:b3,y:b4,guide:b8,start:b9,leftshoulder:b6,rightshoulder:b7,dpup:-a1,dpdown:+a1,dpleft:-a0,dpright:+a0,");
             controller_subsystem.set_event_state(true);
 

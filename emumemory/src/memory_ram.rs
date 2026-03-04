@@ -20,7 +20,7 @@ pub mod emu_memory {
             self.name.clone()
         }
 
-        fn read(&self, _location: u16) -> u8 {
+        fn read(&mut self, _location: u16) -> u8 {
             self.memory[_location as usize]
         }
 

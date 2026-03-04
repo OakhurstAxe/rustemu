@@ -1,12 +1,11 @@
 
 use emumemory::base_memory::emu_memory::BaseMemory;
 use emumemory::memory_ram::emu_memory::MemoryRam;
-use emumemory::memory_rom::emu_memory::MemoryRom;
 
 #[test]
 fn test_ram_load_read() {
     let mut memory = MemoryRam::new(
-        String::from("RAM Test")
+        String::from("RAM Test"), 10
     );
 
     memory.load_data(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
@@ -17,7 +16,7 @@ fn test_ram_load_read() {
 #[test]
 fn test_ram_write() {
     let mut memory = MemoryRam::new(
-        String::from("RAM Test")
+        String::from("RAM Test"), 10
     );
 
     memory.load_data(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
@@ -32,7 +31,7 @@ fn test_ram_write() {
 #[test]
 fn test_ram_name() {
     let memory = MemoryRam::new(
-        String::from("RAM Test")
+        String::from("RAM Test"), 10
     );
 
     assert_eq!(memory.get_name(), String::from("RAM Test"));

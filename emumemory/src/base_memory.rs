@@ -4,7 +4,7 @@ pub mod emu_memory
     pub trait BaseMemory {
         fn load_data(&mut self, data: &[u8]);
 
-        fn read(&self, location: u16) -> u8;
+        fn read(&mut self, location: u16) -> u8;
 
         fn write(&mut self, location: u16, byte: u8);
 

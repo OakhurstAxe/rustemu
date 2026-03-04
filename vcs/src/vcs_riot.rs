@@ -24,7 +24,8 @@ pub mod vcs {
         step_count: u16,
         overflow_tick: bool,
         select_pressed: bool,
-        reset_pressed: bool
+        reset_pressed: bool,
+        _debug: u8,
     }
 
     impl VcsRiot {
@@ -37,7 +38,8 @@ pub mod vcs {
                 step_count: 0,
                 overflow_tick: false,
                 select_pressed: false,
-                reset_pressed: false
+                reset_pressed: false,
+                _debug: 0,
             }
         }
 
@@ -176,10 +178,11 @@ pub mod vcs {
                 self.step = 1024;
                 self.step_count = 0;
             }
+
             self.riot_ram.write(location, byte);
         }
 
-        pub fn read_ram(&self, location: u16) -> u8 {
+        pub fn read_ram(&mut self, location: u16) -> u8 {
             self.system_ram.read(location)
         }
         

@@ -11,7 +11,8 @@ pub mod vcs {
     pub struct VcsMemory {
         vcs_tia: Arc<RwLock<VcsTia>>,
         vcs_riot: Arc<RwLock<VcsRiot>>,
-        vcs_cartridge: Box<dyn VcsCartridge>
+        vcs_cartridge: Box<dyn VcsCartridge>,
+        _debug: u8,
     }
 
     impl VcsMemory {
@@ -20,6 +21,7 @@ pub mod vcs {
                 vcs_tia: tia,
                 vcs_riot: riot,
                 vcs_cartridge: VcsCartridgeDetector::detect_cartridge(Arc::clone(&vcs_parameters)),
+                _debug: 0,
             }
         }
     }
@@ -28,18 +30,18 @@ pub mod vcs {
 
     impl MemoryMapper for VcsMemory {
         
-        fn cpu_read(&self, mut location: u16) -> u8 {
+        fn cpu_read(&mut self, mut location: u16) -> u8 {
             let result: u8;
             location = location & 0x1FFF;
             
             if location & 0x1080 == 0 {
                 location &= 0x0F;
                 location += 0x30;
-                result = self.vcs_tia.read().unwrap().read(location);
+                result = self.vcs_tia.write().unwrap().read(location);
             }
             else if location & 0x1280 == 0x0080 {
                 location &= 0x7F;
-                result = self.vcs_riot.read().unwrap().read_ram(location)
+                result = self.vcs_riot.write().unwrap().read_ram(location)
             }
             else if location & 0x1280 == 0x0280 {
                 location &= 0x1F;
@@ -61,6 +63,12 @@ pub mod vcs {
         }
 
         fn cpu_write(&mut self, mut location: u16, byte: u8) {
+
+            location = location & 0x1FFF;
+            
+            if location == 0xA6 {
+                self._debug = 1;
+            }
 
             if location & 0x1080 == 0 {
                 location &= 0xFF;
@@ -92,7 +100,7 @@ pub mod vcs {
                 self.vcs_cartridge.write(location, byte);
             }              
             else {
-                panic!();
+                panic!("Invalid VCS memory location for write");
             }
 
         }

@@ -3,22 +3,27 @@
 use std::path::PathBuf;
 
 use vcs::vcs_sdlmain::vcs::VcsSdlMain;
+use nes::nes_sdlmain::nes::NesSdlMain;
 use egui_file_dialog::FileDialog;
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 
 pub struct TemplateApp {
-    file_dialog: FileDialog,
+    vcs_file_dialog: FileDialog,
+    nes_file_dialog: FileDialog,
     picked_file: Option<PathBuf>,
     vcs: VcsSdlMain,
+    nes: NesSdlMain,
 }
 
 impl Default for TemplateApp {
     fn default() -> Self {
         Self {
-            file_dialog: FileDialog::new(),
+            vcs_file_dialog: FileDialog::new(),
+            nes_file_dialog: FileDialog::new(),
             picked_file: None,
             vcs: VcsSdlMain::new(),
+            nes: NesSdlMain::new(),
         }
     }
 }
@@ -36,14 +41,23 @@ impl eframe::App for TemplateApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
 
         // Update the dialog
-        self.file_dialog.update(ctx);
-        let path= self.file_dialog.take_picked();
+        self.vcs_file_dialog.update(ctx);
+        self.nes_file_dialog.update(ctx);
+        let mut path= self.vcs_file_dialog.take_picked();
         if let Some(x) = path {
             self.vcs.vcs_sdl_main(&x.into_os_string().into_string().unwrap());
         };
 
+        path= self.nes_file_dialog.take_picked();
+        if let Some(x) = path {
+            self.nes.nes_sdl_main(&x.into_os_string().into_string().unwrap());
+        };
+
         // Check if the user picked a file.
-        if let Some(path) = self.file_dialog.take_picked() {
+        if let Some(path) = self.vcs_file_dialog.take_picked() {
+            self.picked_file = Some(path.to_path_buf());
+        }
+        if let Some(path) = self.nes_file_dialog.take_picked() {
             self.picked_file = Some(path.to_path_buf());
         }
 
@@ -56,7 +70,10 @@ impl eframe::App for TemplateApp {
                 if !is_web {
                     ui.menu_button("File", |ui| {
                         if ui.button("Atari VCS Rom").clicked() {
-                            self.file_dialog.pick_file();
+                            self.vcs_file_dialog.pick_file();
+                        }
+                        if ui.button("NES Rom").clicked() {
+                            self.nes_file_dialog.pick_file();
                         }
                         if ui.button("Quit").clicked() {
                             ctx.send_viewport_cmd(egui::ViewportCommand::Close);

@@ -142,7 +142,7 @@ pub mod vcs {
             self.registers.write(REG_INPT4, reg_input_4);
         }
 
-        pub fn read(&self, location: u16) -> u8 {
+        pub fn read(&mut self, location: u16) -> u8 {
             
             if location < 0x30 || location > 0x3D {
                 // Undefined TIA read returns address 0x30
@@ -202,7 +202,8 @@ pub mod vcs {
             else if location == REG_VSYNC {
                 if (byte & 0x02 == 0) && (self.registers.read(REG_VSYNC) & 0x02) > 0 {
                     self.scan_line = 2;
-                    self.registers.write(REG_VBLANK, self.registers.read(REG_VBLANK) | 0x02);
+                    let byte = self.registers.read(REG_VBLANK) | 0x02;
+                    self.registers.write(REG_VBLANK, byte);
                 }
 
                 self.registers.write(REG_VSYNC, byte);
@@ -377,11 +378,16 @@ pub mod vcs {
         }
 
         fn apply_movement(&mut self) {
-            self.res_p0_cycle = self.move_object(self.registers.read(REG_HMP0), self.res_p0_cycle);
-            self.res_p1_cycle = self.move_object(self.registers.read(REG_HMP1), self.res_p1_cycle);
-            self.res_m0_cycle = self.move_object(self.registers.read(REG_HMM0), self.res_m0_cycle);
-            self.res_m1_cycle = self.move_object(self.registers.read(REG_HMM1), self.res_m1_cycle);
-            self.res_bl_cycle = self.move_object(self.registers.read(REG_HMBL), self.res_bl_cycle);
+            let mut mov = self.registers.read(REG_HMP0);
+            self.res_p0_cycle = self.move_object(mov, self.res_p0_cycle);
+            mov = self.registers.read(REG_HMP1);
+            self.res_p1_cycle = self.move_object(mov, self.res_p1_cycle);
+            mov = self.registers.read(REG_HMM0);
+            self.res_m0_cycle = self.move_object(mov, self.res_m0_cycle);
+            mov = self.registers.read(REG_HMM1);
+            self.res_m1_cycle = self.move_object(mov, self.res_m1_cycle);
+            mov = self.registers.read(REG_HMBL);
+            self.res_bl_cycle = self.move_object(mov, self.res_bl_cycle);
         }
         
         fn clear_move_registers(&mut self) {
@@ -456,7 +462,7 @@ pub mod vcs {
             result
         }
 
-        fn get_playfield_pixel(&self) -> i16 {
+        fn get_playfield_pixel(&mut self) -> i16 {
             let screen_x: u16 = self.cycle - 68;
             let control_playfield: u8 = self.registers.read(REG_CTRLPF);
             let mut playfield_color: u8 = self.registers.read(REG_COLUPF);
@@ -642,10 +648,26 @@ pub mod vcs {
             }
             
             // Get each pixel for collision detection
-            let p0_pixel: i16 = self.get_player_pixel(self.registers.read(REG_GRP0), self.registers.read(REG_NUSIZ0), self.registers.read(REG_REFP0), self.registers.read(REG_COLUP0), self.res_p0_cycle);
-            let p1_pixel: i16 = self.get_player_pixel(self.registers.read(REG_GRP1), self.registers.read(REG_NUSIZ1), self.registers.read(REG_REFP1), self.registers.read(REG_COLUP1), self.res_p1_cycle);
-            let m0_pixel: i16 = self.get_missle_pixel(self.registers.read(REG_ENAM0), self.registers.read(REG_RESM0), self.registers.read(REG_NUSIZ0), self.registers.read(REG_COLUP0), self.res_m0_cycle);
-            let m1_pixel: i16 = self.get_missle_pixel(self.registers.read(REG_ENAM1), self.registers.read(REG_RESM1), self.registers.read(REG_NUSIZ1), self.registers.read(REG_COLUP1), self.res_m1_cycle);
+            let mut graphics_player = self.registers.read(REG_GRP0);
+            let mut player_size = self.registers.read(REG_NUSIZ0);
+            let mut reflect_player = self.registers.read(REG_REFP0);
+            let mut color = self.registers.read(REG_COLUP0);
+            let p0_pixel: i16 = self.get_player_pixel(graphics_player, player_size, reflect_player, color, self.res_p0_cycle);
+            graphics_player = self.registers.read(REG_GRP1);
+            player_size = self.registers.read(REG_NUSIZ1);
+            reflect_player = self.registers.read(REG_REFP1);
+            color = self.registers.read(REG_COLUP1);
+            let p1_pixel: i16 = self.get_player_pixel(graphics_player, player_size, reflect_player, color, self.res_p1_cycle);
+            let mut enable = self.registers.read(REG_ENAM0);
+            let mut missle_reset = self.registers.read(REG_RESM0);
+            let mut missle_size = self.registers.read(REG_NUSIZ0);
+            let mut missle_color = self.registers.read(REG_COLUP0);
+            let m0_pixel: i16 = self.get_missle_pixel(enable, missle_reset, missle_size, missle_color, self.res_m0_cycle);
+            enable = self.registers.read(REG_ENAM1);
+            missle_reset = self.registers.read(REG_RESM1);
+            missle_size = self.registers.read(REG_NUSIZ1);
+            missle_color = self.registers.read(REG_COLUP1);
+            let m1_pixel: i16 = self.get_missle_pixel(enable, missle_reset, missle_size, missle_color, self.res_m1_cycle);
             let ball_pixel: i16 = self.get_ball_pixel();
             
             let current_pixel: usize = (screen_y * self.x_resolution as u16 + screen_x) as usize;
@@ -785,22 +807,22 @@ pub mod vcs {
             result
         }
 
-        pub fn get_audio_c0(&self) -> u8 {
+        pub fn get_audio_c0(&mut self) -> u8 {
             self.registers.read(REG_AUDC0)
         }
-        pub fn get_audio_c1(&self) -> u8 {
+        pub fn get_audio_c1(&mut self) -> u8 {
             self.registers.read(REG_AUDC1)
         }
-        pub fn get_audio_f0(&self) -> u8 {
+        pub fn get_audio_f0(&mut self) -> u8 {
             self.registers.read(REG_AUDF0)
         }
-        pub fn get_audio_f1(&self) -> u8 {
+        pub fn get_audio_f1(&mut self) -> u8 {
             self.registers.read(REG_AUDF1)
         }
-        pub fn get_audio_v0(&self) -> u8 {
+        pub fn get_audio_v0(&mut self) -> u8 {
             self.registers.read(REG_AUDV0)
         }
-        pub fn get_audio_v1(&self) -> u8 {
+        pub fn get_audio_v1(&mut self) -> u8 {
             self.registers.read(REG_AUDV1)
         }
 

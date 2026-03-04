@@ -1,4 +1,5 @@
-
+   
+pub mod emu_cpu {
 
 use emucpu::base_cpu::emu_cpu::BaseCpu;
 use emucpu::m6502::emu_cpu::M6502;
@@ -9,7 +10,9 @@ fn test_opcode_0x01() {
     let mut cpu = M6502::new(Box::new(M6502TestMemory::new()));
 
     cpu.reset();
-    cpu.op_0x01();
+    let operation = cpu.op_code_lookup[0x01];
+
+    cpu.call_op_method(operation.operation, operation.address_method);
 
     assert_eq!(cpu.get_overflow_ticks(), 6);
     assert_eq!(cpu.get_accumulator(), 1);
@@ -54,4 +57,4 @@ impl emumemory::memory_mapper::emu_memory::MemoryMapper for M6502TestMemory {
         }
 }
 
-
+}

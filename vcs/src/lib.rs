@@ -4,6 +4,7 @@ pub mod vcs_cartridge;
 pub mod vcs_cartridge_detector;
 pub mod vcs_cartridge2k;
 pub mod vcs_cartridge4k;
+pub mod vcs_cartridgef8;
 pub mod vcs_console;
 pub mod vcs_console_type;
 pub mod vcs_parameters;
