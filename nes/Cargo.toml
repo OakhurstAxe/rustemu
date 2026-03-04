@@ -1,0 +1,20 @@
+[package]
+name = "nes"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "nes"
+path = "src/lib.rs"
+
+[dependencies]
+emumemory = { path = "../emumemory" }
+emucpu = { path = "../emucpu" }
+
+[dependencies.sdl2]
+version = "0.38" # Use the current version
+default-features = false
+features = ["mixer"]
+
+[profile.release]
+debug = true
