@@ -63,7 +63,7 @@ pub mod nes {
         }
     
         fn ppu_write(&self, _location: u16, _byte: u8) {
-            panic!("This cartridge does not support ppu write");
+            //panic!("This cartridge does not support ppu write");
         }
 
         fn load_prog_rom(&mut self, data: Vec<u8>) {
@@ -80,13 +80,13 @@ pub mod nes {
     
         fn load_char_rom(&mut self, data: Vec<u8>) {
             
-            if data.len() == 0x4000 {
-                self.ppu_char_rom_0 = data[0..0x4000].to_vec();
-                self.ppu_char_rom_1 = data[0..0x4000].to_vec();
+            if data.len() == 0x2000 {
+                self.ppu_char_rom_0 = data[0..0x2000].to_vec();
+                self.ppu_char_rom_1 = data[0..0x2000].to_vec();
             }
-            if data.len() == 0x8000 {
-                self.ppu_char_rom_0 = data[0..0x4000].to_vec();
-                self.ppu_char_rom_1 = data[0x4000..0x8000].to_vec();
+            if data.len() == 0x4000 {
+                self.ppu_char_rom_0 = data[0..0x2000].to_vec();
+                self.ppu_char_rom_1 = data[0x2000..0x4000].to_vec();
             }
         }
 

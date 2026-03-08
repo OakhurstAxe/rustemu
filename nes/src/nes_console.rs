@@ -54,6 +54,7 @@ pub mod nes {
         fn start_up(&mut self)
         {
             self.cpu.reset();
+            self.ppu.write().unwrap().reset();
         }
 
         pub fn start_next_frame(&mut self) {

@@ -86,15 +86,13 @@ pub mod nes {
                 });
             let delay = 17;
             let _timer = timer_subsystem.add_timer(delay, callback);
-
             
             'running: loop {
-
                 let new_screen = nes_console_clone.lock().unwrap().is_frame_rendered();
                 if new_screen.0 {
                     let sur = surface.as_mut().unwrap();
                     let pixels = sur.without_lock_mut();
-/*
+
                     if let Some(pixels) = pixels {
                         pixels.copy_from_slice(&new_screen.1[..]);
                     }
@@ -104,91 +102,78 @@ pub mod nes {
                     canvas.clear();
                     _ = canvas.copy(&texture, None, None);
                     canvas.present();
- */
+
                 }
 
-                /*
+                
                 for event in event_pump.poll_iter() {
 
                     match event {
-                        Event::User { type_: _u32, .. } => {
-                            if let Some(custom_event) = event.as_user_event_type::<VcsAudioEvent>() {
-                                if console_type.read().unwrap().get_console_type() == ConsoleType::PAL {
-                                    let boxdata0: Box<[u16; PAL_SAMPLES_PER_FRAME]> = Box::new(custom_event.channel_mix.try_into().unwrap());
-                                    chunk0 = Chunk::from_raw_buffer(boxdata0.clone()).unwrap();
-                                }
-                                else {
-                                    let boxdata0: Box<[u16; NTSC_SAMPLES_PER_FRAME]> = Box::new(custom_event.channel_mix.try_into().unwrap());
-                                    chunk0 = Chunk::from_raw_buffer(boxdata0.clone()).unwrap();
-                                }
-                                let _result = sdl2::mixer::Channel::all().play(&chunk0, 1);
-                            }
-                        },
                         Event::Quit {..} |
                         Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
                             break 'running
                         },
                         Event::ControllerButtonDown { button: Button::Guide, .. } |
                         Event::KeyDown { keycode: Some(Keycode::A), .. } => {
-                            vcs_console_clone.lock().unwrap().handle_input(Message::Select, 1);
+                            //vcs_console_clone.lock().unwrap().handle_input(Message::Select, 1);
                         },
                         Event::ControllerButtonUp { button: Button::Guide, .. } |
                         Event::KeyUp { keycode: Some(Keycode::A), .. } => {
-                            vcs_console_clone.lock().unwrap().handle_input(Message::Select, 0);
+                            //vcs_console_clone.lock().unwrap().handle_input(Message::Select, 0);
                         },
                         Event::ControllerButtonDown { button: Button::Start, .. } |
                         Event::KeyDown { keycode: Some(Keycode::S), .. } => {
-                            vcs_console_clone.lock().unwrap().handle_input(Message::Reset, 1);
+                            //vcs_console_clone.lock().unwrap().handle_input(Message::Reset, 1);
                         },
                         Event::ControllerButtonUp { button: Button::Start, .. } |
                         Event::KeyUp { keycode: Some(Keycode::S), .. } => {
-                            vcs_console_clone.lock().unwrap().handle_input(Message::Reset, 0);
+                            //vcs_console_clone.lock().unwrap().handle_input(Message::Reset, 0);
                         },
                         Event::ControllerButtonDown { button: Button::DPadUp, .. } |
                         Event::KeyDown { keycode: Some(Keycode::Up), .. } => {
-                            vcs_console_clone.lock().unwrap().handle_input(Message::P0UpDown, 1);
+                            //vcs_console_clone.lock().unwrap().handle_input(Message::P0UpDown, 1);
                         },
                         Event::ControllerButtonUp { button: Button::DPadUp, .. } |
                         Event::KeyUp { keycode: Some(Keycode::Up), .. } => {
-                            vcs_console_clone.lock().unwrap().handle_input(Message::P0UpDown, 0);
+                            //vcs_console_clone.lock().unwrap().handle_input(Message::P0UpDown, 0);
                         },
                         Event::ControllerButtonDown { button: Button::DPadDown, .. } |
                         Event::KeyDown { keycode: Some(Keycode::Down), .. } => {
-                            vcs_console_clone.lock().unwrap().handle_input(Message::P0UpDown, -1);
+                            //vcs_console_clone.lock().unwrap().handle_input(Message::P0UpDown, -1);
                         },
                         Event::ControllerButtonUp { button: Button::DPadDown, .. } |
                         Event::KeyUp { keycode: Some(Keycode::Down), .. } => {
-                            vcs_console_clone.lock().unwrap().handle_input(Message::P0UpDown, 0);
+                            //vcs_console_clone.lock().unwrap().handle_input(Message::P0UpDown, 0);
                         },
                         Event::ControllerButtonDown { button: Button::DPadLeft, .. } |
                         Event::KeyDown { keycode: Some(Keycode::Left), .. } => {
-                            vcs_console_clone.lock().unwrap().handle_input(Message::P0LeftRight, -1);
+                            //vcs_console_clone.lock().unwrap().handle_input(Message::P0LeftRight, -1);
                         },
                         Event::ControllerButtonUp { button: Button::DPadLeft, .. } |
                         Event::KeyUp { keycode: Some(Keycode::Left), .. } => {
-                            vcs_console_clone.lock().unwrap().handle_input(Message::P0LeftRight, 0);
+                            //vcs_console_clone.lock().unwrap().handle_input(Message::P0LeftRight, 0);
                         },
                         Event::ControllerButtonDown { button: Button::DPadRight, .. } |
                         Event::KeyDown { keycode: Some(Keycode::Right), .. } => {
-                            vcs_console_clone.lock().unwrap().handle_input(Message::P0LeftRight, 1);
+                            //vcs_console_clone.lock().unwrap().handle_input(Message::P0LeftRight, 1);
                         },
                         Event::ControllerButtonUp { button: Button::DPadRight, .. } |
                         Event::KeyUp { keycode: Some(Keycode::Right), .. } => {
-                            vcs_console_clone.lock().unwrap().handle_input(Message::P0LeftRight, 0);
+                            //vcs_console_clone.lock().unwrap().handle_input(Message::P0LeftRight, 0);
                         },
                         Event::ControllerButtonDown { button: Button::A, .. } |
                         Event::KeyDown { keycode: Some(Keycode::Space), .. } => {
-                            vcs_console_clone.lock().unwrap().handle_input(Message::P0Trigger, 1);
+                            //vcs_console_clone.lock().unwrap().handle_input(Message::P0Trigger, 1);
                         },
                         Event::ControllerButtonUp { button: Button::A, .. } |
                         Event::KeyUp { keycode: Some(Keycode::Space), .. } => {
-                            vcs_console_clone.lock().unwrap().handle_input(Message::P0Trigger, 0);
+                            //vcs_console_clone.lock().unwrap().handle_input(Message::P0Trigger, 0);
                         },
                         _ => {}
                     }
                     
                 }
-                */
+                
                 // The rest of the game loop goes here...
                 std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
             }    

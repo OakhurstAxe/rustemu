@@ -22,6 +22,7 @@ pub mod nes {
         ppu_addr_l: u8,
         ppu_addr: u16,
         ppu_oam_addr: u8,
+        dma_suspend: u8,
     }   
 
     impl NesMemory { 
@@ -38,6 +39,7 @@ pub mod nes {
                 ppu_addr_l: 0,
                 ppu_addr: 0,
                 ppu_oam_addr: 0,
+                dma_suspend: 0,
             }
         }
 
@@ -196,6 +198,7 @@ pub mod nes {
             else if location < 0x4020 {
 
                 if location == 0x4014 {
+                    self.dma_suspend = 154;
 //                    self.cpu.DmaSuspend();
                     let cpu_addr: u16 = (byte as u16) << 8;
 
