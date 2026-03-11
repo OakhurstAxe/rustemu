@@ -20,9 +20,10 @@ pub mod nes {
         ppu_addr_count: i32,
         ppu_addr_h: u8,
         ppu_addr_l: u8,
-        ppu_addr: u16,
+        //ppu_addr: u16,
         ppu_oam_addr: u8,
         dma_suspend: u8,
+        debug: u8,
     }   
 
     impl NesMemory { 
@@ -37,9 +38,10 @@ pub mod nes {
                 ppu_addr_count: 0,
                 ppu_addr_h: 0,
                 ppu_addr_l: 0,
-                ppu_addr: 0,
+                //ppu_addr: 0,
                 ppu_oam_addr: 0,
                 dma_suspend: 0,
+                debug: 0,
             }
         }
 
@@ -94,23 +96,7 @@ pub mod nes {
 
             // PPU Registers
             else if location < 0x4000 {
-                // Mirroring, and bring to zero
-                location = location % 8;
-                
-                if location == 0x02 {
-                    let byte: u8 = self.ppu.write().unwrap().cpu_ppu_registers.read(2);
-                    self.ppu.write().unwrap().cpu_ppu_registers.write(2, byte & 0x60);
-                    self.ppu_addr_count = 0;
-                    return byte;
-                }
-
-                if location == 0x05 {
-                    
-                    return self.ppu.write().unwrap().ppu_scroll_read();
-                }
-
-                return self.ppu.write().unwrap().cpu_ppu_registers.read(location);
-
+                return self.ppu.write().unwrap().ppu_register_read(location);
             }
 
             // APU and IO Registers
@@ -150,47 +136,7 @@ pub mod nes {
             
             // PPU Registers
             else if location < 0x4000 {
-                // Mirroring, and bring to zero
-                location = location % 8;
-                self.ppu.write().unwrap().cpu_ppu_registers.write(location, byte);
-
-                if location == 0x03 {
-                    self.ppu_oam_addr = byte;
-                }
-
-                if location == 0x04 {
-                    self.ppu.write().unwrap().oam_write(self.ppu_oam_addr as u16, byte);
-                    self.ppu_oam_addr += 1;
-                }
-
-                if location == 0x05 {
-                    self.ppu.write().unwrap().ppu_scroll_write(byte);
-                }
-
-                if location == 0x06 {
-                    self.ppu_addr_count += 1;
-                    
-                    if self.ppu_addr_count == 1 {
-                        self.ppu_addr_h = byte;
-                    }
-
-                    if self.ppu_addr_count == 2 {
-                        self.ppu_addr_l = byte;
-                        self.ppu_addr = (((self.ppu_addr_h as u16) << 8) + self.ppu_addr_l as u16) as u16;
-                        self.ppu_addr_count = 0;
-                    }
-                }
-                
-                if location == 0x07 { // && ppuAddr_ != 0)
-                    self.ppu.write().unwrap().write(self.ppu_addr, byte);
-                    let controller: u8 = self.cpu_read(0x2000);
-                    if controller & 0x04 > 0 {
-                        self.ppu_addr += 32;
-                    }
-                    else {
-                        self.ppu_addr += 1;
-                    }
-                }
+                self.ppu.write().unwrap().ppu_register_write(location, byte);
                 return;
             }
             
@@ -199,6 +145,7 @@ pub mod nes {
 
                 if location == 0x4014 {
                     self.dma_suspend = 154;
+                    self.ppu.write().unwrap().dma_suspend += 154;
 //                    self.cpu.DmaSuspend();
                     let cpu_addr: u16 = (byte as u16) << 8;
 

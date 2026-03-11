@@ -65,7 +65,12 @@ pub mod nes {
             while ticks < TICKS_PER_FRAME as i32 {
               
                 if (ticks % 3) == 0 {
-                    self.cpu.execute_tick();
+                    if self.ppu.read().unwrap().dma_suspend == 0 {
+                        self.cpu.execute_tick();
+                    }
+                    else {
+                        self.ppu.write().unwrap().dma_suspend -= 1;
+                    }
                 }
 
                 self.ppu.write().unwrap().execute_tick();

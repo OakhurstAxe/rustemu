@@ -23,13 +23,13 @@ pub mod nes {
     const PPU_OAM_DMA_ADDR: u16 =  0x4014;
 
     const PPU_ATTRIBUTE_ADDR: u16 = 0x23c0;
-    const PPU_ATTRIBUTE_SIZE: u16 = 0x23c0;
+    const PPU_ATTRIBUTE_SIZE: u16 = 0x0040;
     const PPU_NAMETABLE_ADDR: u16 = 0x2000;
     const PPU_NAMETABLE_SIZE: u16 = 0x0400;
     const PPU_PATTERN_SIZE: u16 =   0x1000;
     const PPU_PALETTE_ADDR: u16 =   0x3F00;
 
-    const PPU_SPRITE_SIZE: i16 =         0x0004;
+    const PPU_SPRITE_SIZE: i32 =         0x0004;
     const PPU_SPRITE_PATTERN_SIZE: u16 = 0x0008;
 
     pub struct PpuControlRegister {
@@ -178,6 +178,12 @@ pub mod nes {
         pub ppu_x_scroll_read: bool,
         pub ppu_x_scroll: u8,
         pub ppu_y_scroll: u8,
+        pub ppu_addr: u16,
+        ppu_addr_h: u8,
+        ppu_addr_l: u8,
+        ppu_addr_count: u8,
+        ppu_oam_addr: u8,
+        pub dma_suspend: u16,
     }
 
     impl NesPpu {
@@ -205,6 +211,12 @@ pub mod nes {
                 ppu_x_scroll_read: true,
                 ppu_x_scroll: 0,
                 ppu_y_scroll: 0,
+                ppu_addr: 0,
+                ppu_addr_h: 0,
+                ppu_addr_l: 0,
+                ppu_addr_count: 0,
+                ppu_oam_addr: 0,
+                dma_suspend: 0,
             }
         }
         
@@ -262,6 +274,75 @@ pub mod nes {
 
         }
 
+        pub fn ppu_register_read(&mut self, mut location: u16) -> u8 {
+            // Mirroring, and bring to zero
+            location = location % 8;
+            
+            if location == 0x02 {
+                let byte: u8 = self.cpu_ppu_registers.read(2);
+                self.cpu_ppu_registers.write(2, byte & 0x7f);
+                self.ppu_addr_count = 0;
+                return byte;
+            }
+
+            if location == 0x05 {
+                
+                return self.ppu_scroll_read();
+            }
+
+            return self.cpu_ppu_registers.read(location);
+        }
+
+        pub fn ppu_register_write(&mut self, mut location: u16, byte: u8) {
+
+            location = location % 8;
+            self.cpu_ppu_registers.write(location, byte);
+
+            if location == 0x03 {
+                self.ppu_oam_addr = byte;
+            }
+
+            if location == 0x04 {
+                self.oam_write(self.ppu_oam_addr as u16, byte);
+                self.ppu_oam_addr += 1;
+            }
+
+            if location == 0x05 {
+                self.ppu_scroll_write(byte);
+            }
+
+            if location == 0x06 {
+                self.ppu_addr_count += 1;
+                
+                if self.ppu_addr_count == 1 {
+                    self.ppu_addr_h = byte;
+                }
+
+                if self.ppu_addr_count == 2 {
+                    self.ppu_addr_l = byte;
+                    self.ppu_addr = (((self.ppu_addr_h as u16) << 8) + self.ppu_addr_l as u16) as u16;
+                    //self.ppu_addr = (((self.ppu_addr_h as u16) << 8) + self.ppu_addr_l as u16) as u16;
+                    self.ppu_addr_count = 0;
+                }
+            }
+            
+            if location == 0x07 { // && ppuAddr_ != 0)
+                let addr = self.ppu_addr;
+                self.write(addr, byte);
+                //self.ppu.write().unwrap().write(self.ppu_addr, byte);
+                let controller: u8 = self.cpu_ppu_registers.read(0x0000);
+                if controller & 0x04 > 0 {
+                    self.ppu_addr += 32;
+                    //self.ppu_addr += 32;
+                }
+                else {
+                    self.ppu_addr += 1;
+                    //self.ppu_addr += 1;
+                }
+            }
+            return;
+        }
+        
         pub fn oam_read(&mut self, location: u16) -> u8 {
 
             if location < 256 {
@@ -373,22 +454,23 @@ pub mod nes {
 
                 for i in (0..=7).rev() {
                     let mut sprite_attribute: PpuSpriteAttributeRegister = PpuSpriteAttributeRegister::new();
-                    let sprite_pos: i16 = self.render_sprites[i] as i16;
+                    let sprite_pos: i32 = self.render_sprites[i] as i32;
 
                     if sprite_pos == -1 {
                         continue;
                     }
 
-                    let y_pos: u8 = self.oam_read((sprite_pos * PPU_SPRITE_SIZE) as u16) + 1;
-                    let pattern_address: u16 = (self.oam_read((sprite_pos * PPU_SPRITE_SIZE + 1) as u16) << 4) as u16;
+                    let y_pos: i32 = (self.oam_read((sprite_pos * PPU_SPRITE_SIZE) as u16) + 1) as i32;
+                    let mut pattern_address: u16 = self.oam_read((sprite_pos * PPU_SPRITE_SIZE + 1) as u16) as u16;
+                    pattern_address = (pattern_address) << 4;
                     sprite_attribute.reg(self.oam_read((sprite_pos * PPU_SPRITE_SIZE + 2) as u16));
                     let x_pos: u16 = self.oam_read((sprite_pos * PPU_SPRITE_SIZE + 3) as u16) as u16;
                     let mut sprite_lsb: u8 = 0;
                     let mut sprite_msb: u8 = 0;
-                    let mut sprite_pattern_address: u16 = pattern_address + ((screen_scan_line - y_pos as i32) & 0x07) as u16;
+                    let mut sprite_pattern_address: u16 = pattern_address + ((screen_scan_line - y_pos) & 0x07) as u16;
 
                     if sprite_attribute.flip_vertically > 0 {// flip verticle
-                        sprite_pattern_address = pattern_address + ((7 - screen_scan_line - y_pos as i32) & 0x07) as u16;
+                        sprite_pattern_address = pattern_address + ((7 - screen_scan_line - y_pos) & 0x07) as u16;
                     }
 
                     sprite_lsb = self.read(sprite_pattern_address);
@@ -412,16 +494,15 @@ pub mod nes {
                                     self.set_ppu_sprite_zero_hit(1);
                                 }
 
-                                if sprite_attribute.priority == 0 || self.screen[(screen_scan_line * 256 + j as i32) as usize] == background {
-                                    //self.screen[(screen_scan_line * 256 + j as i32) as usize] = color;
+                                //if sprite_attribute.priority == 0 || self.screen[(screen_scan_line * 256 + j as i32) as usize] == background {
+                                    self.screen[(screen_scan_line * 256 + j as i32) as usize] = color;
 
                                     let (red, green, blue) = self.palette.get_color(color as usize, 0);
 
-                                    self.screen[((screen_scan_line * 256 + screen_cycle) * 3) as usize] = red;
-                                    self.screen[(((screen_scan_line * 256 + screen_cycle) * 3) + 1) as usize] = green;
-                                    self.screen[(((screen_scan_line * 256 + screen_cycle) * 3) + 2) as usize] = blue;
- 
-                                }
+                                    self.screen[((screen_scan_line * 256 + j as i32) * 3) as usize] = red;
+                                    self.screen[(((screen_scan_line * 256 + j as i32) * 3) + 1) as usize] = green;
+                                    self.screen[(((screen_scan_line * 256 + j as i32) * 3) + 2) as usize] = blue;
+                                //}
                             }
                         }
                         sprite_lsb = sprite_lsb << 1;
@@ -430,7 +511,7 @@ pub mod nes {
                 }
             }
  
-            let mut background_pixel: u8 = self.get_background_pixel(screen_scan_line as u16, screen_cycle as i16);
+            let background_pixel: u8 = self.get_background_pixel(screen_scan_line as u16, screen_cycle as i16);
 
             if self.cycle >= 0  && self.cycle < 256 {
 
@@ -445,7 +526,7 @@ pub mod nes {
         fn get_background_pixel(&mut self, mut screen_row: u16, mut screen_column: i16) -> u8 {
             let mut attribute_value: u16 = 0;
             let mut attribute_shift: u8 = 0;
-            let ppu_control_addr: u8 = self.read(PPU_CONTROL_ADDR); 
+            let ppu_control_addr: u8 = self.cpu_ppu_registers.read(PPU_CONTROL_ADDR % 8); 
             self.control_register.reg(ppu_control_addr);
             let x_scroll: u8 = self.ppu_x_scroll;
             let y_scroll: u8 = self.ppu_y_scroll;
@@ -508,8 +589,8 @@ pub mod nes {
             let addr: u16 = self.read(self.nametable_address) as u16;
             let addr2 = addr << 4;
             let pattering: u16 = self.control_register.get_pattern_background() as u16;
-            self.pattern_entry_address = ((addr2  + (screen_row % 8)) + 
-                (PPU_PATTERN_SIZE * (pattering)));
+            self.pattern_entry_address = (addr2  + (screen_row % 8)) + 
+                (PPU_PATTERN_SIZE * pattering);
             //self.pattern_entry_address = (((self.read(self.nametable_address) << 4)  + (screen_row % 8) as u8) + 
             //    PPU_PATTERN_SIZE as u8 * self.control_register.pattern_background as u8) as u16;
             let char1 = self.read(self.pattern_entry_address);
@@ -553,16 +634,18 @@ pub mod nes {
             
             if self.scan_line == 241 && self.cycle == 1 {                
                 self.cpu_set_vblank(1);
-                self.nmi_set = true;
-                let ppu_control_addr: u8 = self.read(PPU_CONTROL_ADDR); 
+                let ppu_control_addr: u8 = self.cpu_ppu_registers.read(PPU_CONTROL_ADDR % 8); 
                 self.control_register.reg(ppu_control_addr);
                 if self.control_register.get_enable_nmi() > 0 {
+                    // store ppu_addr
+                    self.nmi_set = true;
                     self.ppu_x_scroll_read = true;
                     self.ppu_x_scroll_write = true;
                 }
             }
 
             if self.scan_line == 261 && self.cycle == 1 {
+                // restore ppu_addr
                 self.cpu_set_vblank(0);
                 self.set_ppu_sprite_overflow(0);
                 self.set_ppu_sprite_zero_hit(0);

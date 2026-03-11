@@ -401,6 +401,11 @@ pub mod emu_cpu {
         }
 
         pub fn get_next_operation(&mut self) {
+            if self.program_counter == 49816 {
+                self.debug = 0;
+            }
+
+                
             self.instruction = self.memory.cpu_read(self.program_counter);
             self.operation = self.op_code_lookup[self.memory.cpu_read(self.program_counter) as usize];
             self.program_counter += 1;
@@ -648,9 +653,6 @@ pub mod emu_cpu {
         // Load Store operations
         fn op_lda(&mut self, address_method: fn(&mut M6502) -> u16) {
             let address: u16 = address_method(self);
-            if address == 0xA7 {
-                self.debug = 1;
-            }
             self.accumulator = self.memory.cpu_read(address);
             self.set_negative_zero(self.accumulator);
         }
@@ -794,7 +796,8 @@ pub mod emu_cpu {
                 }
             }
             // set overflow if highest bit of accumulator and byte are same 
-            self.set_status_flag(OVERFLOW_FLAG, ((self.accumulator ^ value) & (byte ^ value) & 0x80) != 0);
+            //self.set_status_flag(OVERFLOW_FLAG, ((self.accumulator ^ value) & (byte ^ value) & 0x80) != 0);
+            self.set_status_flag(OVERFLOW_FLAG, ((self.accumulator & byte) & 0x80) != 0);
             self.accumulator = value as u8;
             self.set_negative_zero(self.accumulator);
         }
