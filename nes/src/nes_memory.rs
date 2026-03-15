@@ -6,78 +6,30 @@ pub mod nes {
 
     use emumemory::{memory_mapper::emu_memory::MemoryMapper, memory_ram::emu_memory::MemoryRam};
     use emumemory::base_memory::emu_memory::BaseMemory;
-    use emumemory::memory_ram_flagged::emu_memory::MemoryRamFlagged;
     use crate::nes_cartridge::nes::NesCartridge;
     use crate::nes_ppu::nes::NesPpu;
+    use crate::nes_apu::nes::NesApu;
 
     pub struct NesMemory {
         cartridge: Arc<RwLock<dyn NesCartridge>>,
         cpu_work_ram: MemoryRam,
-        cpu_apu_io_registers: MemoryRamFlagged,
-        left_controller: u8,
-        right_controller: u8,
         ppu: Arc<RwLock<NesPpu>>,
-        ppu_addr_count: i32,
-        ppu_addr_h: u8,
-        ppu_addr_l: u8,
-        //ppu_addr: u16,
-        ppu_oam_addr: u8,
+        apu: Arc<RwLock<NesApu>>,
         dma_suspend: u8,
-        debug: u8,
+        _debug: u8,
     }   
 
     impl NesMemory { 
-        pub fn new(cartridge: Arc<RwLock<dyn NesCartridge>>, ppu: Arc<RwLock<NesPpu>>) -> NesMemory {
+        pub fn new(cartridge: Arc<RwLock<dyn NesCartridge>>, ppu: Arc<RwLock<NesPpu>>, apu: Arc<RwLock<NesApu>>) -> NesMemory {
             Self {
                 cartridge: cartridge,
                 cpu_work_ram: MemoryRam::new(String::from("CPU Work RAM"), 0x0800),
-                cpu_apu_io_registers: MemoryRamFlagged::new(0x001f, String::from("APU IO Registers")),
                 ppu: ppu,
-                left_controller: 0,
-                right_controller: 0,
-                ppu_addr_count: 0,
-                ppu_addr_h: 0,
-                ppu_addr_l: 0,
-                //ppu_addr: 0,
-                ppu_oam_addr: 0,
+                apu: apu,
                 dma_suspend: 0,
-                debug: 0,
+                _debug: 0,
             }
         }
-
-        pub fn cpu_read_flagged(&mut self, mut location: u16) -> bool {
-
-            if location < 0x4000 {
-                panic!("Bad location address {} for read flag", location);
-            }            
-            else if location < 0x4020 {
-                location -= 0x4000;
-                return self.cpu_apu_io_registers.is_read_flag_set(location);
-            }
-            panic!("Bad location address {} for read flag", location);
-        }
-
-        pub fn cpu_write_flagged(&mut self, mut location: u16) -> bool {
-
-            if location < 0x4000 {
-                panic!("Bad location address {} for write flag", location);
-            }            
-            else if location < 0x4020 {
-                location -= 0x4000;
-                return self.cpu_apu_io_registers.is_write_flag_set(location);
-            }
-
-            panic!("Bad location address {} for write flag", location);
-        }
-
-        fn set_left_controller(&mut self, byte: u8) {
-            self.left_controller = byte;
-        }
-
-        fn set_right_controller(&mut self, byte: u8) {
-            self.right_controller = byte;
-        }
-    
     }
 
     unsafe impl Send for NesMemory {}
@@ -86,8 +38,6 @@ pub mod nes {
 
         fn cpu_read(&mut self, mut location: u16) -> u8 {
 
-            let original_location: u16 = location;
-            
             // Working RAM
             if location < 0x2000 {
                 location = location % 0x800;  // mirroring
@@ -104,18 +54,14 @@ pub mod nes {
                 location -= 0x4000;
 
                 if location == 0x16 {
-                    let result: u8 = ((self.left_controller & 0x01));
-                    self.left_controller >>= 1;
-                    return result;
+                    return self.apu.write().unwrap().get_left_controller();
                 }
 
                 if location == 0x17 {
-                    let result: u8 = ((self.right_controller & 0x01));
-                    self.right_controller >>= 1;
-                    return result;
+                    return self.apu.write().unwrap().get_right_controller();
                 }
 
-                return self.cpu_apu_io_registers.read(location);
+                return self.apu.write().unwrap().read(location);
             }
 
             // Cartridge RAM/ROM
@@ -124,8 +70,6 @@ pub mod nes {
         }
 
         fn cpu_write(&mut self, mut location: u16, byte: u8) {
-            
-            let original_location: u16 = location;
             
             // Working RAM
             if location < 0x2000 {
@@ -158,7 +102,7 @@ pub mod nes {
                 }
                 
                 location -= 0x4000;
-                self.cpu_apu_io_registers.write(location, byte);
+                self.apu.write().unwrap().write(location, byte);
                 return;
             }
             

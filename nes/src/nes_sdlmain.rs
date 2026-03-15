@@ -32,10 +32,10 @@ pub mod nes {
             let controller_subsystem = self.sdl_context.game_controller().unwrap();
             let controller_count = controller_subsystem.num_joysticks().unwrap();
             let mut controller: GameController;
-            for j in 0..controller_count {
-                controller = controller_subsystem.open(j).unwrap();
-                println!("controller {:?}", controller_subsystem.name_for_index(j));
-            }
+            //for j in 0..controller_count {
+                controller = controller_subsystem.open(0).unwrap();
+                println!("controller {:?}", controller_subsystem.name_for_index(0));
+            //}
             _ = controller_subsystem.add_mapping("030000005e0400000700000000010000,Microsoft® SideWinder® Game Pad USB,platform:Linux,crc:4119,a:b0,b:b1,x:b3,y:b4,guide:b8,start:b9,leftshoulder:b6,rightshoulder:b7,dpup:-a1,dpdown:+a1,dpleft:-a0,dpright:+a0,");
             controller_subsystem.set_event_state(true);
 
@@ -115,59 +115,67 @@ pub mod nes {
                         },
                         Event::ControllerButtonDown { button: Button::Guide, .. } |
                         Event::KeyDown { keycode: Some(Keycode::A), .. } => {
-                            //vcs_console_clone.lock().unwrap().handle_input(Message::Select, 1);
+                            nes_console_clone.lock().unwrap().left_controler_select(true);
                         },
                         Event::ControllerButtonUp { button: Button::Guide, .. } |
                         Event::KeyUp { keycode: Some(Keycode::A), .. } => {
-                            //vcs_console_clone.lock().unwrap().handle_input(Message::Select, 0);
+                            nes_console_clone.lock().unwrap().left_controler_select(false);
                         },
                         Event::ControllerButtonDown { button: Button::Start, .. } |
                         Event::KeyDown { keycode: Some(Keycode::S), .. } => {
-                            //vcs_console_clone.lock().unwrap().handle_input(Message::Reset, 1);
+                            nes_console_clone.lock().unwrap().left_controler_start(true);
                         },
                         Event::ControllerButtonUp { button: Button::Start, .. } |
                         Event::KeyUp { keycode: Some(Keycode::S), .. } => {
-                            //vcs_console_clone.lock().unwrap().handle_input(Message::Reset, 0);
+                            nes_console_clone.lock().unwrap().left_controler_start(false);
                         },
                         Event::ControllerButtonDown { button: Button::DPadUp, .. } |
                         Event::KeyDown { keycode: Some(Keycode::Up), .. } => {
-                            //vcs_console_clone.lock().unwrap().handle_input(Message::P0UpDown, 1);
+                            nes_console_clone.lock().unwrap().left_controler_up_down(-1);
                         },
                         Event::ControllerButtonUp { button: Button::DPadUp, .. } |
                         Event::KeyUp { keycode: Some(Keycode::Up), .. } => {
-                            //vcs_console_clone.lock().unwrap().handle_input(Message::P0UpDown, 0);
+                            nes_console_clone.lock().unwrap().left_controler_up_down(0);
                         },
                         Event::ControllerButtonDown { button: Button::DPadDown, .. } |
                         Event::KeyDown { keycode: Some(Keycode::Down), .. } => {
-                            //vcs_console_clone.lock().unwrap().handle_input(Message::P0UpDown, -1);
+                            nes_console_clone.lock().unwrap().left_controler_up_down(1);
                         },
                         Event::ControllerButtonUp { button: Button::DPadDown, .. } |
                         Event::KeyUp { keycode: Some(Keycode::Down), .. } => {
-                            //vcs_console_clone.lock().unwrap().handle_input(Message::P0UpDown, 0);
+                            nes_console_clone.lock().unwrap().left_controler_up_down(0);
                         },
                         Event::ControllerButtonDown { button: Button::DPadLeft, .. } |
                         Event::KeyDown { keycode: Some(Keycode::Left), .. } => {
-                            //vcs_console_clone.lock().unwrap().handle_input(Message::P0LeftRight, -1);
+                            nes_console_clone.lock().unwrap().left_controler_left_right(-1);
                         },
                         Event::ControllerButtonUp { button: Button::DPadLeft, .. } |
                         Event::KeyUp { keycode: Some(Keycode::Left), .. } => {
-                            //vcs_console_clone.lock().unwrap().handle_input(Message::P0LeftRight, 0);
+                            nes_console_clone.lock().unwrap().left_controler_left_right(0);
                         },
                         Event::ControllerButtonDown { button: Button::DPadRight, .. } |
                         Event::KeyDown { keycode: Some(Keycode::Right), .. } => {
-                            //vcs_console_clone.lock().unwrap().handle_input(Message::P0LeftRight, 1);
+                            nes_console_clone.lock().unwrap().left_controler_left_right(1);
                         },
                         Event::ControllerButtonUp { button: Button::DPadRight, .. } |
                         Event::KeyUp { keycode: Some(Keycode::Right), .. } => {
-                            //vcs_console_clone.lock().unwrap().handle_input(Message::P0LeftRight, 0);
+                            nes_console_clone.lock().unwrap().left_controler_left_right(0);
                         },
                         Event::ControllerButtonDown { button: Button::A, .. } |
                         Event::KeyDown { keycode: Some(Keycode::Space), .. } => {
-                            //vcs_console_clone.lock().unwrap().handle_input(Message::P0Trigger, 1);
+                            nes_console_clone.lock().unwrap().left_controler_a(true);
                         },
                         Event::ControllerButtonUp { button: Button::A, .. } |
                         Event::KeyUp { keycode: Some(Keycode::Space), .. } => {
-                            //vcs_console_clone.lock().unwrap().handle_input(Message::P0Trigger, 0);
+                            nes_console_clone.lock().unwrap().left_controler_a(false);
+                        },
+                        Event::ControllerButtonDown { button: Button::B, .. } |
+                        Event::KeyDown { keycode: Some(Keycode::Space), .. } => {
+                            nes_console_clone.lock().unwrap().left_controler_b(true);
+                        },
+                        Event::ControllerButtonUp { button: Button::B, .. } |
+                        Event::KeyUp { keycode: Some(Keycode::Space), .. } => {
+                            nes_console_clone.lock().unwrap().left_controler_b(false);
                         },
                         _ => {}
                     }

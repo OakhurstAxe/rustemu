@@ -37,6 +37,7 @@ pub mod emu_cpu {
         operation: OperationStruct,
         instruction: u8,
         is_nmi_set: bool,
+        left_controller: u8,
     }
 
     impl BaseCpu for M6502 {
@@ -106,6 +107,7 @@ pub mod emu_cpu {
                     instruction: 0,
                     debug: 0,
                     is_nmi_set: false,
+                    left_controller: 0,
             }
         }
 
@@ -537,7 +539,9 @@ pub mod emu_cpu {
             self.program_counter += 1;
             let loadh: u8 = self.memory.cpu_read(self.program_counter);
             self.program_counter += 1;
-            let address: u16 = ((loadh as u16) << 8) + loadl as u16 + self.register_y as u16;
+            let (addr1, _overflow1) = ((loadh as u16) << 8).overflowing_add(loadl as u16);
+            let (addr2, _overflow1) = addr1.overflowing_add(self.register_y as u16);
+            let address: u16 = addr2;
             address
         }
 
@@ -579,7 +583,9 @@ pub mod emu_cpu {
             let loadl: u8 = self.memory.cpu_read(indirect & 0xff);
             indirect += 1;
             let loadh: u8 = self.memory.cpu_read(indirect & 0xff);
-            let address: u16 = ((loadh as u16) << 8) + loadl as u16 + self.register_y as u16;
+            let (addr1, _overflow1) = ((loadh as u16) << 8).overflowing_add(loadl as u16);
+            let (addr2, _overflow1) = addr1.overflowing_add(self.register_y as u16);
+            let address: u16 = addr2;
             address 
         }
 
