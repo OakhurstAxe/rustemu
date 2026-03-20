@@ -6,7 +6,7 @@ pub mod nes {
     pub struct NesApuTriangleChannel {
         timer: u16,
         frequency: u16,
-        counter: f32,
+        counter: u16,
         reverse: bool,
         load_counter: u16,
         control_register: u8,
@@ -22,7 +22,7 @@ pub mod nes {
             Self {
                 timer: 0,
                 frequency: 0,
-                counter: 0.0,
+                counter: 32000,
                 reverse: false,
                 load_counter: 0,
                 control_register: 0,
@@ -64,7 +64,7 @@ pub mod nes {
                 return 0;
             }
 
-            return (111860 * (timer + 1) as u32) as u32;
+            return (111860 / (timer + 1) as u32) as u32;
         }
 
         fn generate_buffer_data(&mut self, sample_count: u32) -> Vec<u16> {
@@ -75,25 +75,27 @@ pub mod nes {
                 return buffer;
             }
             
-            let wave_length_step: f32 = (DataSampleRateHz / self.frequency as usize) as f32;
-            let step: f32 =  4.0 / wave_length_step;
+            let mut wave_length_step: u16 = (DataSampleRateHz / self.frequency as usize) as u16;
+            wave_length_step = wave_length_step * 4;
+            let step: u16 =  65535 / wave_length_step;
 
             while sample_index < sample_count {
 
-                if self.counter >= 1.0 {
-                    self.counter = 1.0;
+                if self.counter as u32 + step as u32 >= 65535 && self.reverse {
+                    self.counter = 65535;
                     self.reverse = false;
                 }
-                else if self.counter <= -1.0 {
-                    self.counter = -1.0;
+                else if step >= self.counter && self.reverse == false {
+                    self.counter = 0;
                     self.reverse = true;
                 }
 
                 if self.load_counter == 0 && self.halt_flag == false {
-                    buffer[sample_index as usize] = 0;
+                    buffer[sample_index as usize] = 32000;
                 }                
                 else {
-                    buffer[sample_index as usize] = (self.counter / 2.0) as u16;
+                    buffer[sample_index as usize] = self.counter;
+                    //buffer[sample_index as usize] = (((self.counter / 2.0) * 32000.0) as u16) + 32000;
                 }
                 
                 if self.reverse {

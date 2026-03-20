@@ -573,7 +573,8 @@ pub mod emu_cpu {
             let loadl: u8 = self.memory.cpu_read(indirect & 0xff);
             indirect += 1;
             let loadh: u8 = self.memory.cpu_read(indirect & 0xff);
-            let address: u16 = ((loadh as u16) << 8) + loadl as u16 + self.register_x as u16;
+            let (addr1, _overflow1) = ((loadh as u16) << 8).overflowing_add(loadl as u16);
+            let address: u16 = addr1;
             address
         }
 
@@ -782,74 +783,51 @@ pub mod emu_cpu {
                 carry = 1;
             }
 
+            let(value1, overflow1) = self.accumulator.overflowing_add(byte);
+            let(value2, overflow2) = value1.overflowing_add(carry);
+            value = value2;
+
             if self.get_status_flag(DECIMAL_MODE) != 0 {
-                byte = (((byte & 0xF0) >> 4) * 10) + (byte & 0x0F) + carry;
-                let temp_accumulator: u8 = (((self.accumulator & 0xF0) >> 4) * 10) + (self.accumulator & 0x0F);
-                value = temp_accumulator + byte + self.get_status_flag(CARRY_FLAG);
-                self.set_status_flag(CARRY_FLAG, value > 99);
-                if value > 99 {
-                    value -= 100;
+                if ((self.accumulator ^ byte ^ value) & 0x10) == 0x10 {
+                    value += 0x06;
                 }
-                value = ((value / 10) << 4) + (value % 10);
-            }
-            else {
-                self.set_status_flag(CARRY_FLAG, false);
-                let (value1, overflow1) = self.accumulator.overflowing_add(byte);
-                let (value2, overflow2) = value1.overflowing_add(carry);
-                value = value2;
-                if overflow1 || overflow2 {
-                    self.set_status_flag(CARRY_FLAG, true);
+                if (value & 0xf0) > 0x90 {
+                    value += 0x60;
                 }
             }
-            // set overflow if highest bit of accumulator and byte are same 
-            //self.set_status_flag(OVERFLOW_FLAG, ((self.accumulator ^ value) & (byte ^ value) & 0x80) != 0);
-            self.set_status_flag(OVERFLOW_FLAG, ((self.accumulator & byte) & 0x80) != 0);
-            self.accumulator = value as u8;
-            self.set_negative_zero(self.accumulator);
+            self.set_status_flag(OVERFLOW_FLAG, ((self.accumulator ^ value) & (byte ^ value) & 0x080) == 0x80);
+            self.set_status_flag(CARRY_FLAG, (overflow1 || overflow2));
+            self.set_negative_zero(value);
+            self.accumulator = value;
         }
 
         // Same as ADC, except switch input byte to 1s-Compliment
         fn op_sbc(&mut self, address_method: fn(&mut M6502) -> u16) {
             let address: u16 = address_method(self);
-            let mut byte: u8 = self.memory.cpu_read(address);
-            let mut value: u8 = 0;
+            let mut byte: u8 = !self.memory.cpu_read(address);
+            let mut value: u8;
 
             let mut carry: u8 = 0;
             if self.get_status_flag(CARRY_FLAG) != 0 {
                 carry = 1;
             }
 
+            let(value1, overflow1) = self.accumulator.overflowing_add(byte);
+            let(value2, overflow2) = value1.overflowing_add(carry);
+            value = value2;
+
             if self.get_status_flag(DECIMAL_MODE) != 0 {
-                byte = (((byte & 0xF0) >> 4) * 10) + (byte & 0x0F);
-                let temp_accumulator: u8 = (((self.accumulator & 0xF0) >> 4) * 10) + (self.accumulator & 0x0F);
-                let (result, mut _overflowed) = temp_accumulator.overflowing_sub(byte);
-                // Only subtract extra if carry is clear on SBC
-                if self.get_status_flag(CARRY_FLAG) != 0 {
-                    carry = 0;
+                if ((self.accumulator ^ byte ^ value) & 0x10) == 0x10 {
+                    value += 0x06;
                 }
-                else {
-                    carry = 1;
+                if (value & 0xf0) > 0x90 {
+                    value += 0x60;
                 }
-                let (value1, _overflowed) = result.overflowing_sub(carry);
-                value = value1;
-                self.set_status_flag(CARRY_FLAG, (value as i8) > 0);
-                if (value1 as i8) < 0 {
-                    let (value2, _overflowed) = value1.overflowing_add(100);
-                    value = value2;
-                }
-                value = ((value / 10) << 4) + (value % 10);
             }
-            else
-            {
-                byte = !byte;
-                let (tmp_value, overflow1) = byte.overflowing_add(carry);
-                let (value1, overflow2) = self.accumulator.overflowing_add(tmp_value);
-                self.set_status_flag(CARRY_FLAG, overflow1 || overflow2);
-                value = value1;
-            }
-            self.set_status_flag(OVERFLOW_FLAG, ((self.accumulator ^ value) & ((byte ^ value) & 0x80)) != 0);
+            self.set_status_flag(OVERFLOW_FLAG, ((self.accumulator ^ value) & (byte ^ value) & 0x080) == 0x80);
+            self.set_status_flag(CARRY_FLAG, (overflow1 || overflow2));
+            self.set_negative_zero(value);
             self.accumulator = value;
-            self.set_negative_zero(self.accumulator);
         }
 
         fn op_cmp(&mut self, address_method: fn(&mut M6502) -> u16) {

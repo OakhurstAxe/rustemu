@@ -18,6 +18,10 @@ pub mod nes {
 
     const TICKS_PER_FRAME: u16 =  59736;
 
+    pub struct NesAudioEvent {
+        pub channel_mix: Vec<u16>,
+    }
+
     pub struct NesConsole {
         cpu: M6502,
         ppu: Arc<RwLock<NesPpu>>,
@@ -25,6 +29,7 @@ pub mod nes {
         frame_rendered: bool,
         left_controller: u8,
         right_controller: u8,
+        event_sender: EventSender,
         debug: u8,
     }
 
@@ -51,6 +56,7 @@ pub mod nes {
                 frame_rendered: false,
                 left_controller: 0,
                 right_controller: 0,
+                event_sender: sender,
                 debug: 0,
             };
 
@@ -66,11 +72,34 @@ pub mod nes {
             self.ppu.write().unwrap().reset();
         }
 
+        fn send_audio_event(&mut self) {
+            let channel0 = self.apu.write().unwrap().get_audio_buffer(0);
+            let channel1 = self.apu.write().unwrap().get_audio_buffer(1);
+            let channel2 = self.apu.write().unwrap().get_audio_buffer(2);
+            let channel3 = self.apu.write().unwrap().get_audio_buffer(3);
+            let samples_per_frame: usize;
+            
+            samples_per_frame = 735;
+
+            let mut mix:Vec<u16> = Vec::with_capacity(samples_per_frame);
+
+            for i in 0..samples_per_frame {
+                mix.push((channel0[i] >> 2) + (channel1[i] >> 2) + (channel2[i] >> 2) + (channel3[i] >> 2));
+            }
+
+            let audio_event:NesAudioEvent = NesAudioEvent {
+                channel_mix: mix.clone(),
+            };
+
+            _ = self.event_sender.push_custom_event(audio_event);
+        }
+
         pub fn start_next_frame(&mut self) {
 
             let mut ticks: i32 = 0;
             self.apu.write().unwrap().execute_tick();
-            
+            self.send_audio_event();
+
             while ticks < TICKS_PER_FRAME as i32 {
               
                 if (ticks % 3) == 0 {

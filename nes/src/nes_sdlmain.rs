@@ -10,7 +10,7 @@ pub mod nes {
     use sdl2::pixels::PixelFormatEnum;
     use sdl2::timer::TimerCallback;
 
-    use crate::nes_console::nes::NesConsole;
+    use crate::nes_console::nes::{ NesConsole, NesAudioEvent };
     //use crate::vcs_audio_channel::vcs::{ DATA_SAMPLE_RATE_HZ, PAL_SAMPLES_PER_FRAME, NTSC_SAMPLES_PER_FRAME };
     //use crate::vcs_console_type::vcs::ConsoleType;
 
@@ -41,7 +41,7 @@ pub mod nes {
 
             // Events
             let event_subsystem = self.sdl_context.event().unwrap();
-            //event_subsystem.register_custom_event::<VcsAudioEvent>()?;
+            event_subsystem.register_custom_event::<NesAudioEvent>()?;
             let event_sender = event_subsystem.event_sender();
 
             // VCS Console
@@ -49,18 +49,11 @@ pub mod nes {
             let nes_console_clone = Arc::clone(&nes_console);
 
             // Audio
-            //let frequency = DATA_SAMPLE_RATE_HZ;
+            let frequency = 44100;
             let format = sdl2::mixer::AUDIO_U16;
             let channels = 1;
-            //let console_type = vcs_console.lock().unwrap().get_console_type();
-            let mut chunk_size: usize = 1;
-            //if console_type.read().unwrap().get_console_type() == ConsoleType::PAL {
-            //    chunk_size = PAL_SAMPLES_PER_FRAME;
-            //}
-            //else {
-            //    chunk_size = NTSC_SAMPLES_PER_FRAME;
-            //}
-            //_ = sdl2::mixer::open_audio(frequency as i32, format, channels, chunk_size as i32).unwrap();
+            let chunk_size: usize = 735;
+            _ = sdl2::mixer::open_audio(frequency as i32, format, channels, chunk_size as i32).unwrap();
             sdl2::mixer::allocate_channels(1);
             let mut chunk0: Chunk;
 
@@ -104,11 +97,17 @@ pub mod nes {
                     canvas.present();
 
                 }
-
                 
                 for event in event_pump.poll_iter() {
 
                     match event {
+                        Event::User { type_: _u32, .. } => {
+                            if let Some(custom_event) = event.as_user_event_type::<NesAudioEvent>() {
+                                let boxdata0: Box<[u16; 735]> = Box::new(custom_event.channel_mix.try_into().unwrap());
+                                chunk0 = Chunk::from_raw_buffer(boxdata0.clone()).unwrap();
+                                let _result = sdl2::mixer::Channel::all().play(&chunk0, 1);
+                            }
+                        },
                         Event::Quit {..} |
                         Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
                             break 'running

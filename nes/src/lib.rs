@@ -10,4 +10,5 @@ pub mod nes_console;
 pub mod nes_apu;
 pub mod nes_apuchannel;
 pub mod nes_aputrianglechannel;
+pub mod nes_apupulsechannel;
 
