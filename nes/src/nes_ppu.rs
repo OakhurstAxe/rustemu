@@ -10,6 +10,7 @@ pub mod nes {
 
     use crate::nes_memory::nes::NesMemory;
     use crate::nes_cartridge::nes::NesCartridge;
+    use crate::nes_cartridge_000::nes::NesCartridge000;
     use crate::nes_palette::nes::NesPalette;
 
     const PPU_CONTROL_ADDR: u16 =  0x2000;
@@ -162,7 +163,7 @@ pub mod nes {
         ppu_palette: MemoryRam,
         ppu_oam: MemoryRam,
         pub cpu_ppu_registers: MemoryRam,
-        cartridge: Arc<RwLock<dyn NesCartridge>>,
+        cartridge: Arc<RwLock<NesCartridge000>>,
         control_register: PpuControlRegister,
         scan_line: i32,
         cycle: i32,
@@ -188,7 +189,7 @@ pub mod nes {
 
     impl NesPpu {
 
-        pub fn new (cartridge: Arc<RwLock<dyn NesCartridge>>) -> NesPpu {
+        pub fn new (cartridge: Arc<RwLock<NesCartridge000>>) -> NesPpu {
             Self {
                 palette: NesPalette::new(),
                 ppu_name_table: MemoryRam::new(String::from("PPU Name Table RAM"), 0x1f00),

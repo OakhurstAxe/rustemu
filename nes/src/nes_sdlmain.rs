@@ -45,7 +45,7 @@ pub mod nes {
             let event_sender = event_subsystem.event_sender();
 
             // VCS Console
-            let nes_console: Arc<Mutex<NesConsole>> = Arc::new(Mutex::new(NesConsole::new(rom_file, event_sender)));
+            let nes_console: Arc<Mutex<NesConsole>> = Arc::new(Mutex::new(NesConsole::new(rom_file.to_string())));//, event_sender)));
             let nes_console_clone = Arc::clone(&nes_console);
 
             // Audio

@@ -1,41 +1,43 @@
 
 pub mod nes {
     use crate::nes_apuchannel::nes::NesApuChannel;
-    use crate::nes_apuchannel::nes::{ SamplesPerFrame, DataSampleRateHz, SamplesPerHalfFrame, VOLUMESTEPS };
+    use crate::nes_apuchannel::nes::{ SAMPLES_PER_FRAME, DATA_SAMPLE_RATE_HZ, SAMPLES_PER_HALF_FRAME, VOLUME_STEPS };
     
     pub struct NesApuPulseChannel {
+        duty: u8,
+        halt: bool,
+        constant_volume: bool,
+        volume: u16,
+        sweep_enabled: bool,
+        sweep_period: u8,
+        sweep_negate: bool,
+        sweep_shift: u8,
+        timer_low: u16,
+        timer_high: u16,
+        load_counter: u8,
         timer: u16,
         frequency: u16,
-        load_counter: u8,
-        duty_register: u8,
-        timer_register: u8,
-        length_counter_register: u8,
-        constant_volume: bool,
-        sweep_register: u8,
-        duty_value: u8,
         total_samples: u64,
-        halt_flag: bool,
-        volume_counter: u8,
-        volume: u16,
     }
 
     impl NesApuPulseChannel {
 
         pub fn new() -> NesApuPulseChannel {
             Self {
+                duty: 0,
+                halt: true,
+                constant_volume: true,
+                volume: 0,
+                sweep_enabled: false,
+                sweep_period: 0,
+                sweep_negate: false,
+                sweep_shift: 0,
+                timer_low: 0,
+                timer_high: 0,
+                load_counter: 0,
                 timer: 0,
                 frequency: 0,
-                load_counter: 0,
-                duty_register: 0,
-                timer_register: 0,
-                length_counter_register: 0,
-                constant_volume: false,
-                sweep_register: 0,
-                duty_value: 0,
                 total_samples: 0,
-                halt_flag: true,
-                volume_counter: 0,
-                volume: 0,
             }
         }
     }
@@ -45,37 +47,32 @@ pub mod nes {
                 register1: u8, register1_flag: bool,
                 register2: u8, register2_flag: bool,
                 register3: u8, register3_flag: bool,
-                register4: u8, _register4_flag: bool) {
-            
-            self.duty_register = register1;
-            self.timer_register = register3;
-            self.length_counter_register = register4;
-
-            self.constant_volume = self.duty_register & 0x10 > 0;
-            self.duty_value = (self.duty_register & 0xC0) >> 6;
-            self.halt_flag = self.duty_register & 0x20 > 0;
-
-            if self.constant_volume == false {
-                self.volume = VOLUMESTEPS[(self.duty_register & 0x0F) as usize];
-            }
+                register4: u8, register4_flag: bool) {
             
             if register1_flag {
-                self.volume_counter = self.duty_register & 0x0F;
-            }
-            
-            if register3_flag {
-                self.load_counter = self.length_counter_register & 0xF8;
-
-                if self.load_counter == 1 {
-                    self.load_counter = 255;
-                }
+                self.duty = (register1 & 0xC0) >> 6;
+                self.halt = (register1 & 0x20) != 0;
+                self.constant_volume = (register1 & 0x10) != 0;
+                self.volume = VOLUME_STEPS[(register1 & 0x0F) as usize];
             }
 
             if register2_flag {
-                self.sweep_register = register2;
+                self.sweep_enabled = register2 & 0x80 != 0;
+                self.sweep_period = (register2 & 0x70) >> 4;
+                self.sweep_negate = register2 & 0x80 != 0;
+                self.sweep_shift = register2 & 0x70;
             }
 
-            self.timer = ((self.length_counter_register) as u16 & 0x07 << 8) + (self.timer_register) as u16;
+            if register3_flag {
+                self.timer_low = register3 as u16;
+            }
+
+            if register4_flag {
+                self.load_counter = (register4 & 0xF8) >> 3;
+                self.timer_high = (register4 & 0x07) as u16;
+            }
+
+            self.timer = (self.timer_high << 8) + (self.timer_low);
             self.frequency = self.frequency_from_timer(self.timer) as u16;
         }
 
@@ -90,20 +87,20 @@ pub mod nes {
 
         fn generate_buffer_data(&mut self, sample_count: u32) -> Vec<u16> {
             let mut sample_index: u32 = 0;
-            let mut buffer: Vec<u16> = vec![0; SamplesPerFrame];
+            let mut buffer: Vec<u16> = vec![0; SAMPLES_PER_FRAME];
 
             if self.frequency == 0 {
                 return buffer;
             }
             
-            let wavelength: u32 = (DataSampleRateHz / self.frequency as usize) as u32;
+            let wavelength: u32 = (DATA_SAMPLE_RATE_HZ / self.frequency as usize) as u32;
             let wavelength_eigth: u32 = wavelength / 8;
 
             while sample_index < sample_count {
-                if self.load_counter == 0 && self.halt_flag == false {
+                if self.load_counter == 0 && self.halt == false {
                     buffer[sample_index as usize] = 32767; // zero
                 }
-                else if (self.total_samples % wavelength as u64) < (wavelength_eigth * (self.duty_value + 1) as u32) as u64 {
+                else if (self.total_samples % wavelength as u64) < (wavelength_eigth * (self.duty + 1) as u32) as u64 {
                     buffer[sample_index as usize] = self.volume + 32767;
                 }
                 else 
@@ -111,7 +108,7 @@ pub mod nes {
                     buffer[sample_index as usize] = 32767 - self.volume;
                 }
                 
-                if self.total_samples % SamplesPerHalfFrame as u64 == 0 {// 120 Hz timer
+                if self.total_samples % SAMPLES_PER_HALF_FRAME as u64 == 0 {// 120 Hz timer
                     /*
                     if (constantVolume_)
                     {
@@ -125,7 +122,7 @@ pub mod nes {
                         }
                     }*/
 
-                    if self.load_counter > 0 && self.halt_flag == false {
+                    if self.load_counter > 0 && self.halt == false {
                         self.load_counter -= 1;
                     }
                 }

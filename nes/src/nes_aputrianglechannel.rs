@@ -1,7 +1,7 @@
 
 pub mod nes {
     use crate::nes_apuchannel::nes::NesApuChannel;
-    use crate::nes_apuchannel::nes::{ SamplesPerFrame, DataSampleRateHz, SamplesPerQuarterFrame };
+    use crate::nes_apuchannel::nes::{ SAMPLES_PER_FRAME, DATA_SAMPLE_RATE_HZ, SAMPLES_PER_QUARTER_FRAME };
         
     pub struct NesApuTriangleChannel {
         timer: u16,
@@ -54,8 +54,10 @@ pub mod nes {
                 self.halt_flag = false;
             }
             
-            self.timer = ((self.length_counter_register as u16 & 0x07 << 8) + self.timer_register as u16) as u16;
-            self.frequency = self.frequency_from_timer(self.timer) as u16;
+            if self.halt_flag == false {
+                self.timer = ((self.length_counter_register as u16 & 0x07 << 8) + self.timer_register as u16) as u16;
+                self.frequency = self.frequency_from_timer(self.timer) as u16;
+            }
         }
 
         fn frequency_from_timer(& self, timer: u16) -> u32 {
@@ -69,15 +71,14 @@ pub mod nes {
 
         fn generate_buffer_data(&mut self, sample_count: u32) -> Vec<u16> {
             let mut sample_index: u32 = 0;
-            let mut buffer: Vec<u16> = vec![0; SamplesPerFrame];
+            let mut buffer: Vec<u16> = vec![0; SAMPLES_PER_FRAME];
 
             if self.frequency == 0 {
                 return buffer;
             }
             
-            let mut wave_length_step: u16 = (DataSampleRateHz / self.frequency as usize) as u16;
-            wave_length_step = wave_length_step * 4;
-            let step: u16 =  65535 / wave_length_step;
+            let wavelength: u32 = (DATA_SAMPLE_RATE_HZ / self.frequency as usize) as u32;
+            let step: u16 =  65535 / wavelength as u16;
 
             while sample_index < sample_count {
 
@@ -107,7 +108,7 @@ pub mod nes {
                     
                 self.total_samples += 1;
 
-                if self.total_samples % SamplesPerQuarterFrame as u64 == 0 { // 240 Hz counter
+                if self.total_samples % SAMPLES_PER_QUARTER_FRAME as u64 == 0 { // 240 Hz counter
                     if self.load_counter > 0 && self.halt_flag == false {
                         self.load_counter -= 1;
                     }

@@ -36,7 +36,7 @@ pub mod vcs {
         vcs_tia: Arc<RwLock<VcsTia>>,
         console_type: Arc<RwLock<VcsConsoleType>>,
         vcs_audio: VcsAudio,
-        cpu: M6502,
+        cpu: M6502<VcsMemory>,
         total_ticks: u32,
         image: Vec<u8>,
         frame_rendered: bool,
@@ -54,8 +54,8 @@ pub mod vcs {
             let console_type: Arc<RwLock<VcsConsoleType>> = Arc::new(RwLock::new(VcsConsoleType::new(parameters.read().unwrap().console_type)));
             let riot: Arc<RwLock<VcsRiot>> = Arc::new(RwLock::new(VcsRiot::new()));
             let tia: Arc<RwLock<VcsTia>> = Arc::new(RwLock::new(VcsTia::new(Arc::clone(&console_type))));
-            let memory: Box<dyn MemoryMapper + Send> = Box::new(VcsMemory::new (Arc::clone(&parameters), Arc::clone(&tia), Arc::clone(&riot)));
-            let cpu: M6502 = M6502::new(memory);
+            let memory: VcsMemory = VcsMemory::new (Arc::clone(&parameters), Arc::clone(&tia), Arc::clone(&riot));
+            let cpu: M6502<VcsMemory> = M6502::new(memory);
             let frames_per_second = console_type.read().unwrap().get_frames_per_second();
             let x_resolution = console_type.read().unwrap().get_x_resolution();
             let y_resolution = console_type.read().unwrap().get_y_resolution();

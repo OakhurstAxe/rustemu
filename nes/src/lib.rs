@@ -11,4 +11,6 @@ pub mod nes_apu;
 pub mod nes_apuchannel;
 pub mod nes_aputrianglechannel;
 pub mod nes_apupulsechannel;
+pub mod nes_apunoisechannel;
+pub mod nes_bevy;
 

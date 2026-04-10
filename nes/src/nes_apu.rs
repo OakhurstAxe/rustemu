@@ -6,12 +6,16 @@ pub mod nes {
     use crate::nes_apuchannel::nes::NesApuChannel;
     use crate::nes_apupulsechannel::nes::NesApuPulseChannel;
     use crate::nes_aputrianglechannel::nes::NesApuTriangleChannel;
+    use crate::nes_apunoisechannel::nes::NesApuNoiseChannel;
 
     pub struct NesApu {
         apu_io_registers: MemoryRamFlagged,
         left_controller: u8,
         right_controller: u8,
-        channels: [Box<dyn NesApuChannel>; 4],
+        channel0: NesApuPulseChannel,
+        channel1: NesApuPulseChannel,
+        channel2: NesApuTriangleChannel,
+        channel3: NesApuNoiseChannel,
     }
 
     impl NesApu {
@@ -21,10 +25,10 @@ pub mod nes {
                 apu_io_registers: MemoryRamFlagged::new(0x001f, String::from("APU IO Registers")),
                 left_controller: 0,
                 right_controller: 0,
-                channels: [Box::new(NesApuPulseChannel::new()),
-                    Box::new(NesApuPulseChannel::new()),
-                    Box::new(NesApuTriangleChannel::new()),
-                    Box::new(NesApuTriangleChannel::new())],
+                channel0: NesApuPulseChannel::new(),
+                channel1: NesApuPulseChannel::new(),
+                channel2: NesApuTriangleChannel::new(),
+                channel3: NesApuNoiseChannel::new(),
             }
         }
         
@@ -76,7 +80,7 @@ pub mod nes {
                 let register4: u8 = self.apu_io_registers.read(i*4 + 3);
                 let register4_flag = self.apu_io_registers.is_write_flag_set(i*4 + 3); 
 
-                self.channels[i as usize].set_channel_settings(register1, register1_flag,
+                self.channel0.set_channel_settings(register1, register1_flag,
                                                 register2, register2_flag,
                                                 register3, register3_flag,
                                                 register4, register4_flag);
@@ -84,7 +88,7 @@ pub mod nes {
         }
 
         pub fn get_audio_buffer(&mut self, channel: usize) -> Vec<u16> {
-            let buffer = self.channels[channel].generate_buffer_data(735).clone();
+            let buffer = self.channel0.generate_buffer_data(735).clone();
 
             buffer
         }

@@ -1,12 +1,12 @@
 
 pub mod nes {
         
-    pub const DataSampleRateHz: usize        = 44100;
-    pub const SamplesPerFrame: usize         = 736;
-    pub const SamplesPerHalfFrame: usize     = 366;
-    pub const SamplesPerQuarterFrame: usize  = 183;
+    pub const DATA_SAMPLE_RATE_HZ: usize       = 44100;
+    pub const SAMPLES_PER_FRAME: usize         = 736;
+    pub const SAMPLES_PER_HALF_FRAME: usize    = 366;
+    pub const SAMPLES_PER_QUARTER_FRAME: usize = 183;
 
-    pub const VOLUMESTEPS: [u16; 16] = [0, 2194, 4390, 6584, 8778, 10972, 13166, 15360, 
+    pub const VOLUME_STEPS: [u16; 16] = [0, 2194, 4390, 6584, 8778, 10972, 13166, 15360, 
                                        17554, 19748, 21942, 24136, 26330, 28524, 30718, 32767];
     pub trait NesApuChannel {
 

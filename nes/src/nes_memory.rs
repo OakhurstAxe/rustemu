@@ -7,11 +7,12 @@ pub mod nes {
     use emumemory::{memory_mapper::emu_memory::MemoryMapper, memory_ram::emu_memory::MemoryRam};
     use emumemory::base_memory::emu_memory::BaseMemory;
     use crate::nes_cartridge::nes::NesCartridge;
+    use crate::nes_cartridge_000::nes::NesCartridge000;
     use crate::nes_ppu::nes::NesPpu;
     use crate::nes_apu::nes::NesApu;
 
     pub struct NesMemory {
-        cartridge: Arc<RwLock<dyn NesCartridge>>,
+        cartridge: Arc<RwLock<NesCartridge000>>,
         cpu_work_ram: MemoryRam,
         ppu: Arc<RwLock<NesPpu>>,
         apu: Arc<RwLock<NesApu>>,
@@ -20,7 +21,7 @@ pub mod nes {
     }   
 
     impl NesMemory { 
-        pub fn new(cartridge: Arc<RwLock<dyn NesCartridge>>, ppu: Arc<RwLock<NesPpu>>, apu: Arc<RwLock<NesApu>>) -> NesMemory {
+        pub fn new(cartridge: Arc<RwLock<NesCartridge000>>, ppu: Arc<RwLock<NesPpu>>, apu: Arc<RwLock<NesApu>>) -> NesMemory {
             Self {
                 cartridge: cartridge,
                 cpu_work_ram: MemoryRam::new(String::from("CPU Work RAM"), 0x0800),

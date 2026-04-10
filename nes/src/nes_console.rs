@@ -23,13 +23,13 @@ pub mod nes {
     }
 
     pub struct NesConsole {
-        cpu: M6502,
+        cpu: M6502<NesMemory>,
         ppu: Arc<RwLock<NesPpu>>,
         apu: Arc<RwLock<NesApu>>,
         frame_rendered: bool,
         left_controller: u8,
         right_controller: u8,
-        event_sender: EventSender,
+        //event_sender: EventSender,
         debug: u8,
     }
 
@@ -37,17 +37,17 @@ pub mod nes {
 
     impl NesConsole {
 
-        pub fn new (rom_file: &str, sender: EventSender) -> NesConsole {
+        pub fn new (rom_file: String/* , sender: EventSender*/) -> NesConsole {
             let mut ines_file: INesFile = INesFile::new();
             ines_file.load_file(rom_file);
-            let mut cartridge: Arc<RwLock<dyn NesCartridge>> = Arc::new(RwLock::new(NesCartridge000::new()));
+            let mut cartridge: Arc<RwLock<NesCartridge000>> = Arc::new(RwLock::new(NesCartridge000::new()));
             cartridge.write().unwrap().load_prog_rom(ines_file.get_prog_rom_data());
             cartridge.write().unwrap().load_char_rom(ines_file.get_char_rom_data());
 
             let ppu: Arc<RwLock<NesPpu>> = Arc::new(RwLock::new(NesPpu::new(Arc::clone(&cartridge))));
             let apu: Arc<RwLock<NesApu>> = Arc::new(RwLock::new(NesApu::new()));
-            let memory: Box<dyn MemoryMapper + Send> = Box::new(NesMemory::new (Arc::clone(&cartridge), Arc::clone(&ppu), Arc::clone(&apu)));
-            let cpu: M6502 = M6502::new(memory);
+            let memory = NesMemory::new (Arc::clone(&cartridge), Arc::clone(&ppu), Arc::clone(&apu));
+            let cpu: M6502<NesMemory> = M6502::new(memory);
 
             let mut temp_instance = Self {
                 cpu: cpu,
@@ -56,7 +56,7 @@ pub mod nes {
                 frame_rendered: false,
                 left_controller: 0,
                 right_controller: 0,
-                event_sender: sender,
+                //event_sender: sender,
                 debug: 0,
             };
 
@@ -91,7 +91,7 @@ pub mod nes {
                 channel_mix: mix.clone(),
             };
 
-            _ = self.event_sender.push_custom_event(audio_event);
+            //_ = self.event_sender.push_custom_event(audio_event);
         }
 
         pub fn start_next_frame(&mut self) {

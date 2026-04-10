@@ -66,7 +66,7 @@ pub mod nes {
             self.memory_mapper
         }
 
-        pub fn load_file(&mut self, file_name: &str) {            
+        pub fn load_file(&mut self, file_name: String) {            
             let file_data: Vec<u8> = fs::read(file_name).unwrap();
 
             let mut position = 0;
