@@ -7,7 +7,7 @@ pub mod nes {
         duty: u8,
         halt: bool,
         constant_volume: bool,
-        volume: u16,
+        volume: f32,
         sweep_enabled: bool,
         sweep_period: u8,
         sweep_negate: bool,
@@ -27,7 +27,7 @@ pub mod nes {
                 duty: 0,
                 halt: true,
                 constant_volume: true,
-                volume: 0,
+                volume: 0.0,
                 sweep_enabled: false,
                 sweep_period: 0,
                 sweep_negate: false,
@@ -85,9 +85,9 @@ pub mod nes {
             return (111860 / (timer + 1) as u32) as u32;
         }
 
-        fn generate_buffer_data(&mut self, sample_count: u32) -> Vec<u16> {
+        fn generate_buffer_data(&mut self, sample_count: u32) -> Vec<f32> {
             let mut sample_index: u32 = 0;
-            let mut buffer: Vec<u16> = vec![0; SAMPLES_PER_FRAME];
+            let mut buffer: Vec<f32> = vec![0.0; SAMPLES_PER_FRAME];
 
             if self.frequency == 0 {
                 return buffer;
@@ -98,14 +98,14 @@ pub mod nes {
 
             while sample_index < sample_count {
                 if self.load_counter == 0 && self.halt == false {
-                    buffer[sample_index as usize] = 32767; // zero
+                    buffer[sample_index as usize] = 0.0; // zero
                 }
                 else if (self.total_samples % wavelength as u64) < (wavelength_eigth * (self.duty + 1) as u32) as u64 {
-                    buffer[sample_index as usize] = self.volume + 32767;
+                    buffer[sample_index as usize] = self.volume;
                 }
                 else 
                 {
-                    buffer[sample_index as usize] = 32767 - self.volume;
+                    buffer[sample_index as usize] = - self.volume;
                 }
                 
                 if self.total_samples % SAMPLES_PER_HALF_FRAME as u64 == 0 {// 120 Hz timer

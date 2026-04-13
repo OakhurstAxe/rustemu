@@ -2,11 +2,11 @@
 // When compiling natively:
 use std::time::Duration;
 
-use bevy::{ prelude::*};
+use bevy::{ audio::{AddAudioSource, AudioPlugin, Source, Volume}, prelude::*};
 use bevy_file_dialog::prelude::*;
 
 use ui::*;
-use nes::nes_bevy::nes::{NesBevy, NesRomFile};
+use nes::nes_bevy::nes::{NesBevy, NesRomFile, NesAudio};
 
 #[derive(Debug, Clone, Copy, Default, Eq, PartialEq, Hash, States)]
 enum EmuAppState {
@@ -25,6 +25,7 @@ impl<S: States> Plugin for NesPlugin<S> {
         app
         .insert_resource(NesRomFile::new("roms/Donkey_kong.nes".to_string()))
         .insert_resource(Time::<Fixed>::from_duration(Duration::from_millis(17)))
+        .add_audio_source::<NesAudio>()
         .add_systems(OnEnter(EmuAppState::NesGame), NesBevy::setup.run_if(in_state(EmuAppState::NesGame)))
         .add_systems(FixedUpdate, NesBevy::draw.run_if(in_state(EmuAppState::NesGame)))
         .add_systems(Update, NesBevy::gamepad_system.run_if(in_state(EmuAppState::NesGame)));

@@ -71,9 +71,9 @@ pub mod nes {
             return (111860 / (timer + 1) as u32) as u32;
         }
 
-        fn generate_buffer_data(&mut self, sample_count: u32) -> Vec<u16> {
+        fn generate_buffer_data(&mut self, sample_count: u32) -> Vec<f32> {
             let mut sample_index: u32 = 0;
-            let mut buffer: Vec<u16> = vec![0; SAMPLES_PER_FRAME];
+            let mut buffer: Vec<f32> = vec![0.0; SAMPLES_PER_FRAME];
             self.frequency = self.frequency_from_timer(self.noise_timer) as u16;
 
             if self.frequency == 0
@@ -86,13 +86,13 @@ pub mod nes {
             while sample_index < sample_count {
 
                 if self.length_counter == 0 && self.halt_flag == false {
-                    buffer[sample_index as usize] = 32767;
+                    buffer[sample_index as usize] = 0.5;
                 }
                 else if (self.total_samples % wavelength as u64) < (wavelength >> 1) as u64 {
-                    buffer[sample_index as usize] = 65534;
+                    buffer[sample_index as usize] = 1.0;
                 }
                 else {
-                    buffer[sample_index as usize] = 32767;
+                    buffer[sample_index as usize] = 0.5;
                 }
 
                 if self.total_samples % SAMPLES_PER_HALF_FRAME as u64 == 0 { // 120 Hz timer

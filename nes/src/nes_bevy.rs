@@ -2,7 +2,11 @@
 pub mod nes {
 
     use std::time::Duration;
+    use std::ops::DerefMut;
 
+    use bevy::audio::AddAudioSource;
+    use bevy::audio::AudioPlugin;
+    use bevy::audio::Source;
     use bevy::asset::RenderAssetUsages;
     use bevy::color::{palettes::css};
     use bevy::prelude::*;
@@ -16,6 +20,9 @@ pub mod nes {
     /// Store the image handle that we will draw to, here.
     #[derive(Resource)]
     pub struct MyProcGenImage(Handle<Image>);
+
+    #[derive(Resource)]
+    pub struct MyProcGenAudio(Handle<NesAudio>);
 
     #[derive(Resource)]
     pub struct Nes(NesConsole);
@@ -32,19 +39,90 @@ pub mod nes {
         }
     }
 
+    #[derive(Asset, TypePath)]
+    pub struct NesAudio {
+        pub buffer: Vec<f32>,
+        pub current_position: u32,
+    }
+
+    impl NesAudio {
+        pub fn new(audio: Vec<f32>) -> NesAudio {
+            Self {
+                buffer: audio,
+                current_position: 0,
+            }
+        }
+
+        pub fn set_buffer(&mut self, audio: Vec<f32>) {
+            self.buffer = audio;
+            self.current_position = 0;
+        }
+    }
+
+    impl Iterator for NesAudio {
+        type Item = f32;
+
+        fn next(&mut self) -> Option<Self::Item> {
+            
+            if self.current_position > 734 {
+                self.current_position = 0;
+            }
+
+            let mut val = self.buffer[self.current_position as usize];
+            //val = 0.7;
+            //if self.current_position %100 < 50 {
+            //    val = -0.7;
+           //}
+
+            self.current_position += 1;
+
+            Some(val)
+        }
+    }
+
+    impl Source for NesAudio {
+        fn current_frame_len(&self) -> Option<usize> {
+            None
+        }
+
+        fn channels(&self) -> u16 {
+            1
+        }
+
+        fn sample_rate(&self) -> u32 {
+            44100
+        }
+
+        fn total_duration(&self) -> Option<Duration> {
+            None
+        }
+    }
+
+    impl Decodable for NesAudio {
+        type DecoderItem = <NesAudio as Iterator>::Item;
+
+        type Decoder = NesAudio;
+
+        fn decoder(&self) -> Self::Decoder {
+            NesAudio::new(self.buffer.clone())
+        }
+    }
+
     pub struct NesBevy {
     }
 
     impl NesBevy {
     
-        pub fn new () -> NesBevy {
-            Self {
-            }
-        }
-
-        pub fn setup(mut commands: Commands, 
+        pub fn setup(
+            mut commands: Commands, 
+            mut assets: ResMut<Assets<NesAudio>>,
             mut images: ResMut<Assets<Image>>,
             rom_file:  ResMut<NesRomFile>) {
+
+            let audio_handle = assets.add(NesAudio::new(vec![0.0; 736]));
+            commands.spawn(AudioPlayer(audio_handle.clone()));
+            commands.insert_resource(MyProcGenAudio(audio_handle));
+
             commands.spawn(Camera2d);
 
             let nes_console = NesConsole::new(rom_file.0.clone());//"roms/Donkey_kong.nes");
@@ -70,6 +148,9 @@ pub mod nes {
         }
 
         pub fn draw(
+            mut commands: Commands, 
+            mut assets: ResMut<Assets<NesAudio>>,
+            audio_handle: Res<MyProcGenAudio>,
             my_handle: Res<MyProcGenImage>,
             mut images: ResMut<Assets<Image>>,
             mut nes_console: ResMut<Nes>
@@ -93,6 +174,10 @@ pub mod nes {
                 }
             }
 
+            let audio = nes_console.0.get_audio();
+            let nes_audio = assets.get_mut(&audio_handle.0).expect("Audio not found");
+            nes_audio.buffer = audio;
+            commands.spawn(AudioPlayer(audio_handle.0.clone()));
         }
 
         pub fn gamepad_system(gamepads: Query<(Entity, &Gamepad)>,

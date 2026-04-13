@@ -87,7 +87,7 @@ pub mod nes {
             }
         }
 
-        pub fn get_audio_buffer(&mut self, channel: usize) -> Vec<u16> {
+        pub fn get_audio_buffer(&mut self, channel: usize) -> Vec<f32> {
             let buffer = self.channel0.generate_buffer_data(735).clone();
 
             buffer
