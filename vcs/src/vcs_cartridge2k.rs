@@ -2,6 +2,7 @@
 
 pub mod vcs {
     use emumemory::base_memory::emu_memory::BaseMemory;
+    use emumemory::memory_rom::emu_memory::MemoryRom;
 
     use crate::vcs_cartridge::vcs::VcsCartridge;
 
@@ -15,7 +16,7 @@ pub mod vcs {
     impl VcsCartridge2k {
     }
 
-    impl emumemory::base_memory::emu_memory::BaseMemory for VcsCartridge2k {
+    impl BaseMemory for VcsCartridge2k {
 
         fn read(&mut self, mut location: u16) -> u8 {
             if location > 0x800 {
@@ -49,9 +50,9 @@ pub mod vcs {
 
     }
 
-    impl emumemory::memory_rom::emu_memory::MemoryRom for VcsCartridge2k { }
+    impl MemoryRom for VcsCartridge2k { }
 
-    impl crate::vcs_cartridge::vcs::VcsCartridge for VcsCartridge2k {
+    impl VcsCartridge for VcsCartridge2k {
 
         fn read_a13(&mut self, location: u16, _a13set: bool) -> u8 {            
             <Self as BaseMemory>::read(self, location)

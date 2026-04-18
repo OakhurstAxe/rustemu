@@ -2,11 +2,12 @@
 // When compiling natively:
 use std::time::Duration;
 
-use bevy::{ audio::{AddAudioSource, AudioPlugin, Source, Volume}, prelude::*};
+use bevy::prelude::*;
 use bevy_file_dialog::prelude::*;
 
 use ui::*;
-use nes::nes_bevy::nes::{NesBevy, NesRomFile, NesAudio};
+use nes::nes_bevy::nes::{NesBevy, NesRomFile};
+use vcs::vcs_bevy::vcs::{VcsBevy, VcsRomFile};
 
 #[derive(Debug, Clone, Copy, Default, Eq, PartialEq, Hash, States)]
 enum EmuAppState {
@@ -16,7 +17,18 @@ enum EmuAppState {
     VcsGame,
 }
 
+#[derive(Component)]
+struct NesButton;
+
+
 pub struct NesPlugin<S: States> {
+    pub state: S,
+}
+
+#[derive(Component)]
+struct VcsButton;
+
+pub struct VcsPlugin<S: States> {
     pub state: S,
 }
 
@@ -25,10 +37,20 @@ impl<S: States> Plugin for NesPlugin<S> {
         app
         .insert_resource(NesRomFile::new("roms/Donkey_kong.nes".to_string()))
         .insert_resource(Time::<Fixed>::from_duration(Duration::from_millis(17)))
-        .add_audio_source::<NesAudio>()
         .add_systems(OnEnter(EmuAppState::NesGame), NesBevy::setup.run_if(in_state(EmuAppState::NesGame)))
-        .add_systems(FixedUpdate, NesBevy::draw.run_if(in_state(EmuAppState::NesGame)))
+        .add_systems(FixedUpdate, NesBevy::frame.run_if(in_state(EmuAppState::NesGame)))
         .add_systems(Update, NesBevy::gamepad_system.run_if(in_state(EmuAppState::NesGame)));
+    }
+}
+
+impl<S: States> Plugin for VcsPlugin<S> {
+    fn build(&self, app: &mut App) {
+        app
+        .insert_resource(VcsRomFile::new("roms/Donkey_kong.nes".to_string()))
+        .insert_resource(Time::<Fixed>::from_duration(Duration::from_millis(17)))
+        .add_systems(OnEnter(EmuAppState::VcsGame), VcsBevy::setup.run_if(in_state(EmuAppState::VcsGame)))
+        .add_systems(FixedUpdate, VcsBevy::frame.run_if(in_state(EmuAppState::VcsGame)))
+        .add_systems(Update, VcsBevy::gamepad_system.run_if(in_state(EmuAppState::VcsGame)));
     }
 }
 
@@ -36,35 +58,36 @@ fn main() {
 
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_plugins(FileDialogPlugin::new().with_pick_file::<NesRomFile>())
+        .add_plugins(FileDialogPlugin::new().with_pick_file::<NesRomFile>().with_pick_file::<VcsRomFile>())
         .add_plugins(NesPlugin {state: EmuAppState::NesGame})
+        .add_plugins(VcsPlugin {state: EmuAppState::VcsGame})
         .init_state::<EmuAppState>()
         .add_systems(Startup, setup)
         .add_systems(OnEnter(EmuAppState::Menu), setup_menu)
-        .add_systems(Update, menu.run_if(in_state(EmuAppState::Menu)))
-        .add_systems(Update, file_picked)
+        .add_systems(Update, nes_menu.run_if(in_state(EmuAppState::Menu)))
+        .add_systems(Update, nes_file_picked)
+        .add_systems(Update, vcs_menu.run_if(in_state(EmuAppState::Menu)))
+        .add_systems(Update, vcs_file_picked)
         .add_systems(OnExit(EmuAppState::Menu), cleanup_menu)
         .run();
 }
 
-fn file_picked(
+fn nes_file_picked(
     mut ev_picked: MessageReader<DialogFilePicked<NesRomFile>>,
     mut commands: Commands,
     mut next_state: ResMut<NextState<EmuAppState>>) {
 
-
     for ev in ev_picked.read() {
-        //eprintln!("File picked, path {:?}", ev.path);
         commands.insert_resource(NesRomFile::new(ev.path.clone().into_os_string().into_string().unwrap()));
         next_state.set(EmuAppState::NesGame);
     }
 }
 
-fn menu(
+fn nes_menu(
     mut commands: Commands,
     mut interaction_query: Query<
         (&Interaction, &mut BackgroundColor),
-        (Changed<Interaction>, With<Button>),
+        (Changed<Interaction>, With<NesButton>),
     >,
 ) {
     for (interaction, mut color) in &mut interaction_query {
@@ -73,7 +96,41 @@ fn menu(
                 commands.dialog().add_filter("NES", &["nes"])
                     .pick_file_path::<NesRomFile>();
                 *color = PRESSED_BUTTON.into();
-                //next_state.set(EmuAppState::NesGame);
+            }
+            Interaction::Hovered => {
+                *color = HOVERED_BUTTON.into();
+            }
+            Interaction::None => {
+                *color = NORMAL_BUTTON.into();
+            }
+        }
+    }
+}
+
+fn vcs_file_picked(
+    mut ev_picked: MessageReader<DialogFilePicked<VcsRomFile>>,
+    mut commands: Commands,
+    mut next_state: ResMut<NextState<EmuAppState>>) {
+
+    for ev in ev_picked.read() {
+        commands.insert_resource(VcsRomFile::new(ev.path.clone().into_os_string().into_string().unwrap()));
+        next_state.set(EmuAppState::VcsGame);
+    }
+}
+
+fn vcs_menu(
+    mut commands: Commands,
+    mut interaction_query: Query<
+        (&Interaction, &mut BackgroundColor),
+        (Changed<Interaction>, With<VcsButton>),
+    >,
+) {
+    for (interaction, mut color) in &mut interaction_query {
+        match *interaction {
+            Interaction::Pressed => {
+                commands.dialog().add_filter("BIN", &["bin"])
+                    .pick_file_path::<VcsRomFile>();
+                *color = PRESSED_BUTTON.into();
             }
             Interaction::Hovered => {
                 *color = HOVERED_BUTTON.into();
@@ -118,6 +175,7 @@ mod ui {
                 },
                 children![(
                     Button,
+                    NesButton,
                     Node {
                         width: px(150),
                         height: px(65),
@@ -130,6 +188,24 @@ mod ui {
                     BackgroundColor(NORMAL_BUTTON),
                     children![(
                         Text::new("NES"),
+                        TextColor(Color::srgb(0.9, 0.9, 0.9)),
+                    )]
+                ),
+                (
+                    Button,
+                    VcsButton,
+                    Node {
+                        width: px(150),
+                        height: px(65),
+                        // horizontally center child text
+                        justify_content: JustifyContent::Center,
+                        // vertically center child text
+                        align_items: AlignItems::Center,
+                        ..default()
+                    },
+                    BackgroundColor(NORMAL_BUTTON),
+                    children![(
+                        Text::new("VCS"),
                         TextColor(Color::srgb(0.9, 0.9, 0.9)),
                     )]
                 )],

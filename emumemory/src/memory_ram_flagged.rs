@@ -20,6 +20,10 @@ pub mod emu_memory
             }
         }
 
+        fn get_name(&self) -> String {
+            self.name.clone()
+        }
+
         pub fn read(&mut self, location: u16) -> u8 {
             self.is_read_flagged[location as usize] = true;
             self.memory[location as usize]

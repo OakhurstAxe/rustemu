@@ -6,9 +6,6 @@ pub mod nes {
 
     use emucpu::base_cpu::emu_cpu::BaseCpu;
     use emucpu::m6502::emu_cpu::M6502;
-    use emumemory::memory_mapper::emu_memory::MemoryMapper;
-
-    use sdl2::event::EventSender;
 
     use crate::nes_cartridge::nes::NesCartridge;
     use crate::{nes_cartridge_000::nes::NesCartridge000, nes_memory::nes::NesMemory};
@@ -26,11 +23,9 @@ pub mod nes {
         cpu: M6502<NesMemory>,
         ppu: Arc<RwLock<NesPpu>>,
         apu: Arc<RwLock<NesApu>>,
-        frame_rendered: bool,
         left_controller: u8,
         right_controller: u8,
-        //event_sender: EventSender,
-        debug: u8,
+        _debug: u8,
         pub frame: u32,
     }
 
@@ -38,10 +33,10 @@ pub mod nes {
 
     impl NesConsole {
 
-        pub fn new (rom_file: String/* , sender: EventSender*/) -> NesConsole {
+        pub fn new (rom_file: String) -> NesConsole {
             let mut ines_file: INesFile = INesFile::new();
             ines_file.load_file(rom_file);
-            let mut cartridge: Arc<RwLock<NesCartridge000>> = Arc::new(RwLock::new(NesCartridge000::new()));
+            let cartridge: Arc<RwLock<NesCartridge000>> = Arc::new(RwLock::new(NesCartridge000::new()));
             cartridge.write().unwrap().load_prog_rom(ines_file.get_prog_rom_data());
             cartridge.write().unwrap().load_char_rom(ines_file.get_char_rom_data());
 
@@ -54,11 +49,9 @@ pub mod nes {
                 cpu: cpu,
                 ppu: Arc::clone(&ppu),
                 apu: Arc::clone(&apu),
-                frame_rendered: false,
                 left_controller: 0,
                 right_controller: 0,
-                //event_sender: sender,
-                debug: 0,
+                _debug: 0,
                 frame: 0,
             };
 
@@ -74,26 +67,13 @@ pub mod nes {
             self.ppu.write().unwrap().reset();
         }
 
-        pub fn get_audio(&mut self) -> Vec<f32> {
-            let channel0 = self.apu.write().unwrap().get_audio_buffer(0);
-            let channel1 = self.apu.write().unwrap().get_audio_buffer(1);
-            let channel2 = self.apu.write().unwrap().get_audio_buffer(2);
-            let channel3 = self.apu.write().unwrap().get_audio_buffer(3);
-            let samples_per_frame: usize;
-            
-            samples_per_frame = 735;
+        fn get_audio(&mut self) -> Vec<f32> {
 
-            let mut mix:Vec<f32> = Vec::with_capacity(samples_per_frame);
-
-            for i in 0..samples_per_frame {
-                let volume: f32 = (channel0[i] + channel1[i] + channel2[i] + channel3[i])/4.0;
-                mix.push(volume);
-            }
-
-            mix
+            let buffer = self.apu.write().unwrap().get_audio_buffer();
+            buffer
         }
 
-        pub fn start_next_frame(&mut self) {
+        pub fn run_frame(&mut self) -> (Vec<u8>, Vec<f32>) {
 
             self.frame += 1;
             let mut ticks: i32 = 0;
@@ -119,16 +99,12 @@ pub mod nes {
                 self.read_gamepad();
                 ticks += 1;
             }
-            self.frame_rendered = true;
-            //nesMainWindow_->DrawFrame(ppu_->GetScreen());
+            
+            let video = self.ppu.read().unwrap().get_screen();
+            let audio = self.get_audio();
+            (video, audio)
         }
             
-        pub fn is_frame_rendered(&mut self) -> (bool, Vec<u8>) {
-            let result = self.frame_rendered;
-            self.frame_rendered = false;
-            (result, self.ppu.read().unwrap().get_screen())
-        }
-
         pub fn left_controler_a(&mut self, value: bool) {
             self.left_controller &= 0xfe;
 

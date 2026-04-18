@@ -10,12 +10,7 @@ path = "src/lib.rs"
 [dependencies]
 emumemory = { path = "../emumemory" }
 emucpu = { path = "../emucpu" }
-bevy = "0.18.1"
-
-[dependencies.sdl2]
-version = "0.38" # Use the current version
-default-features = false
-features = ["mixer"]
+bevy = { version = "0.18.1",  default-features = false, features = ["2d", "wav"]}
 
 [profile.dev]
 opt-level = 1

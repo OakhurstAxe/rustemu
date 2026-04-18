@@ -15,7 +15,7 @@ pub mod vcs {
     impl VcsCartridgeDetector {
 
         pub fn detect_cartridge(vcs_parameters: Arc<RwLock<crate::vcs_parameters::vcs::VcsParameters>>) 
-            -> Box<dyn VcsCartridge + Send> {
+            -> Box<dyn VcsCartridge + Send + Sync> {
 
             let image = vcs_parameters.read().unwrap().cart_data.clone();
             let size = image.len();

@@ -4,9 +4,6 @@ pub mod vcs {
     use std::fs;
     use std::sync::{ Arc, RwLock };
 
-    use sdl2::event::{ EventSender };
-
-    use emumemory::memory_mapper::emu_memory::MemoryMapper;
     use emucpu::base_cpu::emu_cpu::BaseCpu;
     use emucpu::m6502::emu_cpu::M6502;
     use crate::vcs_audio_channel::vcs::{NTSC_SAMPLES_PER_FRAME, PAL_SAMPLES_PER_FRAME};
@@ -40,12 +37,11 @@ pub mod vcs {
         total_ticks: u32,
         image: Vec<u8>,
         frame_rendered: bool,
-        event_sender: EventSender,
     }
 
     impl VcsConsole {
 
-        pub fn new (rom_file: &str, sender: EventSender) -> VcsConsole{
+        pub fn new (rom_file: String) -> VcsConsole{
 
             let rom = fs::read(rom_file);
             let parameters: Arc<RwLock<VcsParameters>>;
@@ -70,7 +66,6 @@ pub mod vcs {
                 total_ticks: 0,
                 image: Vec::with_capacity(0),
                 frame_rendered: false,
-                event_sender: sender,
             };
 
             temp_instance.image = Vec::with_capacity(x_resolution as usize * y_resolution as usize * 4);
@@ -103,7 +98,7 @@ pub mod vcs {
             self.total_ticks = 0;
         }
 
-        fn send_audio_event(&mut self) {
+        fn get_audio(&mut self) -> Vec<f32> {
             let channel0 = self.vcs_audio.get_audio_buffer(0);
             let channel1 = self.vcs_audio.get_audio_buffer(1);
             let samples_per_frame: usize;
@@ -115,24 +110,19 @@ pub mod vcs {
                 samples_per_frame = NTSC_SAMPLES_PER_FRAME;
             }
 
-            let mut mix:Vec<u16> = Vec::with_capacity(samples_per_frame);
+            let mut mix:Vec<f32> = Vec::with_capacity(samples_per_frame);
 
             for i in 0..samples_per_frame {
-                mix.push((channel0[i] >> 1) + (channel1[i] >> 1));
+                mix.push((channel0[i] + channel1[i]) / 2.0);
             }
 
-            let audio_event:VcsAudioEvent = VcsAudioEvent {
-                channel_mix: mix.clone(),
-            };
-
-            _ = self.event_sender.push_custom_event(audio_event);
+            mix
         }
 
-        pub fn start_next_frame (&mut self) {
+        pub fn run_frame (&mut self) -> (Vec<u8>, Vec<f32>) {
             let mut frame_ticks: u32 = 0;
 
             self.vcs_audio.execute_tick();
-            self.send_audio_event();
 
             while frame_ticks < self.console_type.read().unwrap().get_ticks_per_frame() as u32 {
                 if self.total_ticks % 3 == 0 {
@@ -151,27 +141,32 @@ pub mod vcs {
                 self.total_ticks += 1;
                 frame_ticks += 1;
             }
+
+            let video = self.vcs_tia.read().unwrap().get_screen();
+            let audio = self.get_audio();
+
+            (video, audio)
         }
 
-        pub fn handle_input(&mut self, event: Message, value: i8) {
-            match event {
-                Message::Select => {
-                    self.vcs_riot.write().unwrap().select_pressed(value != 0);
-                },
-                Message::Reset => {
-                    self.vcs_riot.write().unwrap().reset_pressed(value != 0);
-                },
-                Message::P0UpDown => {
-                    self.vcs_riot.write().unwrap().left_controller_up_down(value);
-                },
-                Message::P0LeftRight => {
-                    self.vcs_riot.write().unwrap().left_controller_left_right(value);
-                },
-                Message::P0Trigger => {
-                    self.vcs_tia.write().unwrap().left_controller_trigger(value != 0);
-                },
-            }
+        pub fn left_controler_select(&mut self, value: bool) {
+            self.vcs_riot.write().unwrap().select_pressed(value);
         }
 
+        pub fn left_controler_start(&mut self, value: bool) {
+            self.vcs_riot.write().unwrap().reset_pressed(value);
+        }
+
+        pub fn left_controler_a(&mut self, value: bool) {
+            self.vcs_tia.write().unwrap().left_controller_trigger(value);
+        }
+
+        pub fn left_controler_up_down(&mut self, value: i8) {
+            self.vcs_riot.write().unwrap().left_controller_up_down(value);
+        }
+
+        pub fn left_controler_left_right(&mut self, value: i8) {
+            self.vcs_riot.write().unwrap().left_controller_left_right(value);
+        }
     }
+
 }

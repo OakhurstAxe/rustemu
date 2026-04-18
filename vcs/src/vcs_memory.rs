@@ -11,7 +11,7 @@ pub mod vcs {
     pub struct VcsMemory {
         vcs_tia: Arc<RwLock<VcsTia>>,
         vcs_riot: Arc<RwLock<VcsRiot>>,
-        vcs_cartridge: Box<dyn VcsCartridge>,
+        vcs_cartridge: Box<dyn VcsCartridge + Send + Sync>,
         _debug: u8,
     }
 

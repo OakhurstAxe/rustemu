@@ -1,12 +1,8 @@
 
 pub mod nes {
 
-    use std::time::Duration;
-    use std::ops::DerefMut;
+    use std::sync::Arc;
 
-    use bevy::audio::AddAudioSource;
-    use bevy::audio::AudioPlugin;
-    use bevy::audio::Source;
     use bevy::asset::RenderAssetUsages;
     use bevy::color::{palettes::css};
     use bevy::prelude::*;
@@ -20,9 +16,6 @@ pub mod nes {
     /// Store the image handle that we will draw to, here.
     #[derive(Resource)]
     pub struct MyProcGenImage(Handle<Image>);
-
-    #[derive(Resource)]
-    pub struct MyProcGenAudio(Handle<NesAudio>);
 
     #[derive(Resource)]
     pub struct Nes(NesConsole);
@@ -39,75 +32,6 @@ pub mod nes {
         }
     }
 
-    #[derive(Asset, TypePath)]
-    pub struct NesAudio {
-        pub buffer: Vec<f32>,
-        pub current_position: u32,
-    }
-
-    impl NesAudio {
-        pub fn new(audio: Vec<f32>) -> NesAudio {
-            Self {
-                buffer: audio,
-                current_position: 0,
-            }
-        }
-
-        pub fn set_buffer(&mut self, audio: Vec<f32>) {
-            self.buffer = audio;
-            self.current_position = 0;
-        }
-    }
-
-    impl Iterator for NesAudio {
-        type Item = f32;
-
-        fn next(&mut self) -> Option<Self::Item> {
-            
-            if self.current_position > 734 {
-                self.current_position = 0;
-            }
-
-            let mut val = self.buffer[self.current_position as usize];
-            //val = 0.7;
-            //if self.current_position %100 < 50 {
-            //    val = -0.7;
-           //}
-
-            self.current_position += 1;
-
-            Some(val)
-        }
-    }
-
-    impl Source for NesAudio {
-        fn current_frame_len(&self) -> Option<usize> {
-            None
-        }
-
-        fn channels(&self) -> u16 {
-            1
-        }
-
-        fn sample_rate(&self) -> u32 {
-            44100
-        }
-
-        fn total_duration(&self) -> Option<Duration> {
-            None
-        }
-    }
-
-    impl Decodable for NesAudio {
-        type DecoderItem = <NesAudio as Iterator>::Item;
-
-        type Decoder = NesAudio;
-
-        fn decoder(&self) -> Self::Decoder {
-            NesAudio::new(self.buffer.clone())
-        }
-    }
-
     pub struct NesBevy {
     }
 
@@ -115,22 +39,14 @@ pub mod nes {
     
         pub fn setup(
             mut commands: Commands, 
-            mut assets: ResMut<Assets<NesAudio>>,
             mut images: ResMut<Assets<Image>>,
-            rom_file:  ResMut<NesRomFile>) {
+            rom_file:  ResMut<NesRomFile>,
+            windows: Query<&mut Window>) {
 
-            let audio_handle = assets.add(NesAudio::new(vec![0.0; 736]));
-            commands.spawn(AudioPlayer(audio_handle.clone()));
-            commands.insert_resource(MyProcGenAudio(audio_handle));
-
-            commands.spawn(Camera2d);
-
-            let nes_console = NesConsole::new(rom_file.0.clone());//"roms/Donkey_kong.nes");
+            let nes_console = NesConsole::new(rom_file.0.clone());
             commands.insert_resource(Nes(nes_console));
 
-            // Create an image that we are going to draw into
             let image = Image::new_fill(
-                // 2D image of size 256x256
                 Extent3d {
                     width: IMAGE_WIDTH,
                     height: IMAGE_HEIGHT,
@@ -143,41 +59,60 @@ pub mod nes {
             );
 
             let handle = images.add(image);
-            commands.spawn(Sprite::from_image(handle.clone()));
+            let mut sprite = Sprite::from_image(handle.clone());
+            sprite.custom_size = Some(Vec2::new(windows.single().unwrap().width(), windows.single().unwrap().height()));
+            commands.spawn(sprite);
             commands.insert_resource(MyProcGenImage(handle));
         }
 
-        pub fn draw(
+        pub fn frame(
             mut commands: Commands, 
-            mut assets: ResMut<Assets<NesAudio>>,
-            audio_handle: Res<MyProcGenAudio>,
-            my_handle: Res<MyProcGenImage>,
-            mut images: ResMut<Assets<Image>>,
+            mut audio_assets: ResMut<Assets<AudioSource>>,
+            video_handle: Res<MyProcGenImage>,
+            mut video_assets: ResMut<Assets<Image>>,
             mut nes_console: ResMut<Nes>
         ) {
 
-            nes_console.0.start_next_frame();
-            let new_screen = nes_console.0.is_frame_rendered();
-            let screen = new_screen.1;
-
-            // Get the image from Bevy's asset storage.
-            let image = images.get_mut(&my_handle.0).expect("Image not found");
+            let (video, audio) = nes_console.0.run_frame();
+            let image = video_assets.get_mut(&video_handle.0).expect("Image not found");
  
             for y in 0..IMAGE_HEIGHT {
                 for x in 0..IMAGE_WIDTH {
                     let color = Color::srgb_u8(
-                        screen[((y * 256 + x) * 3) as usize],
-                        screen[((y * 256 + x) * 3 + 1) as usize],
-                        screen[((y * 256 + x) * 3 + 2) as usize],
+                        video[((y * IMAGE_WIDTH + x) * 3) as usize],
+                        video[((y * IMAGE_WIDTH + x) * 3 + 1) as usize],
+                        video[((y * IMAGE_WIDTH + x) * 3 + 2) as usize],
                     );
                     _ = image.set_color_at(x, y, color);
                 }
             }
 
-            let audio = nes_console.0.get_audio();
-            let nes_audio = assets.get_mut(&audio_handle.0).expect("Audio not found");
-            nes_audio.buffer = audio;
-            commands.spawn(AudioPlayer(audio_handle.0.clone()));
+            let wav_header: Vec<u8> = vec![ 
+                0x52, 0x49, 0x46, 0x46, //b'R', b'I', b'F', b'F', 
+                0x0b, 0x03, 0x0, 0x0, 
+                0x57, 0x41, 0x56, 0x45, //b'W', b'A', b'V', b'E', 
+                0x66, 0x6d, 0x74, 0x20, //b'f', b'm', b't', 0, 
+                0x10, 0x0, 0x0, 0x0, 
+                0x1, 0x0,
+                0x1, 0x0, 
+                0x44, 0xac, 0x0, 0x0, 
+                0x44, 0xac, 0x0, 0x0, 
+                0x1, 0x0, 
+                0x8, 0x0, 
+                0x64, 0x61, 0x74, 0x61, //b'd', b'a', b't', b'a', 
+                0xdf, 0x2, 0x0, 0x0];
+                
+            let mut buffer: Vec<u8> = vec![0; 780];
+            for i in 0..44 {
+                buffer[i] = wav_header[i];
+            }
+            for i in 0..735 {
+                buffer[i+44] = ((audio[i] + 1.0) * 127.0) as u8;
+            }
+            let buffer_array: [u8; 780] = buffer.try_into().unwrap();
+            let audio_source = AudioSource{bytes: Arc::new(buffer_array)};
+            let audio_handle = audio_assets.add(audio_source);
+            commands.spawn((AudioPlayer::new(audio_handle), PlaybackSettings::DESPAWN));
         }
 
         pub fn gamepad_system(gamepads: Query<(Entity, &Gamepad)>,

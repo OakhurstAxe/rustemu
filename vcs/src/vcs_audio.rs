@@ -39,7 +39,7 @@ pub mod vcs {
             self.channels[1].set_channel_settings(register1, register2, register3);
         }
 
-        pub fn get_audio_buffer(&mut self, channel: usize) -> Vec<u16> {
+        pub fn get_audio_buffer(&mut self, channel: usize) -> Vec<f32> {
             let buffer = self.channels[channel].callback(DATA_SAMPLE_RATE_HZ / self.frames_per_second as usize).clone();
 
             buffer

@@ -18,10 +18,10 @@ pub mod vcs {
 
     pub struct VcsAudioChannel {
         total_sample: u64,
-        volume: u16,
+        volume: f32,
         frequency: u16,
-        volume_steps: Vec<u16>,
-        m_buffer: Vec<u16>,
+        volume_steps: Vec<f32>,
+        m_buffer: Vec<f32>,
         is_shutdown: bool,
         shift_register: ShiftRegister,
         apply_third: bool,
@@ -40,11 +40,11 @@ pub mod vcs {
 
             Self {
                 total_sample: 0,
-                volume: 0,
+                volume: 0.0,
                 frequency: 0,
 
-                volume_steps: vec![0, 2295, 4335, 6630, 8670, 10965, 13005, 15300, 17340, 19635, 21675, 23970, 26265, 28305, 30600, 32640],
-                m_buffer: vec![0u16; DATA_SAMPLE_RATE_HZ / frames_per_second as usize],
+                volume_steps: vec![0.0, 0.067, 0.134, 0.201, 0.268, 0.335, 0.402, 0.469, 0.535, 0.602, 0.669, 0.736, 0.803, 0.870, 0.937, 1.0],
+                m_buffer: vec![0.0f32; DATA_SAMPLE_RATE_HZ / frames_per_second as usize],
                 is_shutdown: false,
                 shift_register: ShiftRegister::Four,
                 apply_third: false,
@@ -67,7 +67,7 @@ pub mod vcs {
 
             match noise_reg & 0x0F {
                 0 | 11 =>
-                    self.volume = 0,
+                    self.volume = 0.0,
                 1 =>
                     if self.shift_register != ShiftRegister::Four {
                         self.shift_register = ShiftRegister::Four;
@@ -202,13 +202,13 @@ pub mod vcs {
             }
         }
 
-        fn generate_buffer_data(&mut self, sample_count: usize) -> &[u16] {
+        fn generate_buffer_data(&mut self, sample_count: usize) -> &[f32] {
 
             if self.frequency == 0 {
                 if sample_count > DATA_SAMPLE_RATE_HZ / self.frames_per_second as usize {
                     panic!("Audio Sample larger than buffer size");
                 }
-                self.m_buffer[0..sample_count as usize].fill(0);
+                self.m_buffer[0..sample_count as usize].fill(0.0);
                 return self.m_buffer.as_slice().into();
             }
 
@@ -229,7 +229,7 @@ pub mod vcs {
                             self.m_buffer[sample_index as usize] = self.volume;
                         }
                         else {
-                            self.m_buffer[sample_index as usize] = 0;
+                            self.m_buffer[sample_index as usize] = 0.0;
                         }
                     }
                     else if self.shift_register == ShiftRegister::Five {
@@ -238,7 +238,7 @@ pub mod vcs {
                             self.m_buffer[sample_index as usize] = self.volume;
                         }
                         else {
-                            self.m_buffer[sample_index as usize] = 0;
+                            self.m_buffer[sample_index as usize] = 0.0;
                         }
                     }
                     else if self.shift_register == ShiftRegister::Nine {
@@ -247,7 +247,7 @@ pub mod vcs {
                             self.m_buffer[sample_index as usize] = self.volume;
                         }
                         else {
-                            self.m_buffer[sample_index as usize] = 0;
+                            self.m_buffer[sample_index as usize] = 0.0;
                         }
                     }
                     else if self.shift_register == ShiftRegister::Div2 {
@@ -256,7 +256,7 @@ pub mod vcs {
                             self.m_buffer[sample_index as usize] = self.volume;
                         }
                         else {
-                            self.m_buffer[sample_index as usize] = 0;
+                            self.m_buffer[sample_index as usize] = 0.0;
                         }
                     }
                     else if self.shift_register == ShiftRegister::Div31 {
@@ -265,7 +265,7 @@ pub mod vcs {
                             self.m_buffer[sample_index as usize] = self.volume;
                         }
                         else {
-                            self.m_buffer[sample_index as usize] = 0;
+                            self.m_buffer[sample_index as usize] = 0.0;
                         }
                     }
 
@@ -281,9 +281,9 @@ pub mod vcs {
             self.m_buffer.as_slice().into()
         }
 
-        pub fn callback(&mut self, size: usize) -> Vec<u16> {
+        pub fn callback(&mut self, size: usize) -> Vec<f32> {
                 
-            let mut buffer: Vec<u16> = vec![0; size];
+            let mut buffer: Vec<f32> = vec![0.0; size];
 
             if self.is_shutdown {
                 return buffer;

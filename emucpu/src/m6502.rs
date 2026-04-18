@@ -26,7 +26,11 @@ pub mod emu_cpu {
 
     impl<T:MemoryMapper> Clone for OperationStruct<T> {
         fn clone (&self) -> Self {
-            *self
+            OperationStruct {
+                operation: self.operation,
+                address_method: self.address_method,
+                ticks: self.ticks,
+            }
         }
     }
 
@@ -643,23 +647,23 @@ pub mod emu_cpu {
 
         // NES specific operations
         fn op_rla(&mut self, address_method: fn(&mut M6502<T>) -> u16) {
-            let address: u16 = address_method(self);
+            let _address: u16 = address_method(self);
         }
 
         fn op_sre(&mut self, address_method: fn(&mut M6502<T>) -> u16) {
-            let address: u16 = address_method(self);
+            let _address: u16 = address_method(self);
         }
 
         fn op_rra(&mut self, address_method: fn(&mut M6502<T>) -> u16) {
-            let address: u16 = address_method(self);
+            let _address: u16 = address_method(self);
         }
 
         fn op_lax(&mut self, address_method: fn(&mut M6502<T>) -> u16) {
-            let address: u16 = address_method(self);
+            let _address: u16 = address_method(self);
         }
 
         fn op_dcp(&mut self, address_method: fn(&mut M6502<T>) -> u16) {
-            let address: u16 = address_method(self);
+            let _address: u16 = address_method(self);
         }
 
         // Load Store operations
@@ -780,7 +784,7 @@ pub mod emu_cpu {
 
         fn op_adc(&mut self, address_method: fn(&mut M6502<T>) -> u16) {
             let address: u16 = address_method(self);
-            let mut byte: u8 = self.memory.cpu_read(address);
+            let byte: u8 = self.memory.cpu_read(address);
             let mut value: u8;
 
             let mut carry: u8 = 0;
@@ -801,7 +805,7 @@ pub mod emu_cpu {
                 }
             }
             self.set_status_flag(OVERFLOW_FLAG, ((self.accumulator ^ value) & (byte ^ value) & 0x080) == 0x80);
-            self.set_status_flag(CARRY_FLAG, (overflow1 || overflow2));
+            self.set_status_flag(CARRY_FLAG, overflow1 || overflow2);
             self.set_negative_zero(value);
             self.accumulator = value;
         }
@@ -809,7 +813,7 @@ pub mod emu_cpu {
         // Same as ADC, except switch input byte to 1s-Compliment
         fn op_sbc(&mut self, address_method: fn(&mut M6502<T>) -> u16) {
             let address: u16 = address_method(self);
-            let mut byte: u8 = !self.memory.cpu_read(address);
+            let byte: u8 = !self.memory.cpu_read(address);
             let mut value: u8;
 
             let mut carry: u8 = 0;
@@ -830,7 +834,7 @@ pub mod emu_cpu {
                 }
             }
             self.set_status_flag(OVERFLOW_FLAG, ((self.accumulator ^ value) & (byte ^ value) & 0x080) == 0x80);
-            self.set_status_flag(CARRY_FLAG, (overflow1 || overflow2));
+            self.set_status_flag(CARRY_FLAG, overflow1 || overflow2);
             self.set_negative_zero(value);
             self.accumulator = value;
         }

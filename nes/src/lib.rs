@@ -1,5 +1,4 @@
 
-pub mod nes_sdlmain;
 pub mod nes_palette;
 pub mod nes_ppu;
 pub mod nes_memory;
