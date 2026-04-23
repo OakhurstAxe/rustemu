@@ -67,13 +67,13 @@ pub mod nes {
             self.ppu.write().unwrap().reset();
         }
 
-        fn get_audio(&mut self) -> Vec<f32> {
+        fn get_audio(&mut self) -> Vec<u8> {
 
             let buffer = self.apu.write().unwrap().get_audio_buffer();
             buffer
         }
 
-        pub fn run_frame(&mut self) -> (Vec<u8>, Vec<f32>) {
+        pub fn run_frame(&mut self) -> (Vec<u8>, Vec<u8>) {
 
             self.frame += 1;
             let mut ticks: i32 = 0;

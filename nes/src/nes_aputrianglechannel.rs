@@ -69,9 +69,9 @@ pub mod nes {
             return (111860 / (timer + 1) as u32) as u32;
         }
 
-        fn generate_buffer_data(&mut self, sample_count: u32) -> Vec<f32> {
+        fn generate_buffer_data(&mut self, sample_count: u32) -> Vec<u8> {
             let mut sample_index: u32 = 0;
-            let mut buffer: Vec<f32> = vec![0.0; SAMPLES_PER_FRAME];
+            let mut buffer: Vec<u8> = vec![127; SAMPLES_PER_FRAME];
 
             if self.frequency == 0 {
                 return buffer;
@@ -87,16 +87,15 @@ pub mod nes {
                     self.reverse = false;
                 }
                 else if step >= self.counter && self.reverse == false {
-                    self.counter = 0.0;
+                    self.counter = -1.0;
                     self.reverse = true;
                 }
 
                 if self.load_counter == 0 && self.halt_flag == false {
-                    buffer[sample_index as usize] = 0.5;
+                    buffer[sample_index as usize] = 0;
                 }                
                 else {
-                    buffer[sample_index as usize] = self.counter;
-                    //buffer[sample_index as usize] = (((self.counter / 2.0) * 32000.0) as u16) + 32000;
+                    buffer[sample_index as usize] = (((self.counter / 2.0) * 254.0) as u8);
                 }
                 
                 if self.reverse {

@@ -7,6 +7,7 @@ pub mod nes {
     use crate::nes_apupulsechannel::nes::NesApuPulseChannel;
     use crate::nes_aputrianglechannel::nes::NesApuTriangleChannel;
     use crate::nes_apunoisechannel::nes::NesApuNoiseChannel;
+    use crate::nes_apuchannel::nes::SAMPLES_PER_FRAME;
 
     pub struct NesApu {
         apu_io_registers: MemoryRamFlagged,
@@ -123,17 +124,17 @@ pub mod nes {
                                             register4, register4_flag);
                                         }
 
-        pub fn get_audio_buffer(&mut self) -> Vec<f32> {
+        pub fn get_audio_buffer(&mut self) -> Vec<u8> {
 
-            let mut mix:Vec<f32> = Vec::with_capacity(736);
+            let mut mix:Vec<u8> = Vec::with_capacity(SAMPLES_PER_FRAME);
 
-            let buffer0 = self.channel0.generate_buffer_data(736).clone();
-            let buffer1 = self.channel1.generate_buffer_data(736).clone();
-            let buffer2 = self.channel2.generate_buffer_data(736).clone();
-            let buffer3 = self.channel3.generate_buffer_data(736).clone();
+            let buffer0 = self.channel0.generate_buffer_data(SAMPLES_PER_FRAME as u32).clone();
+            let buffer1 = self.channel1.generate_buffer_data(SAMPLES_PER_FRAME as u32).clone();
+            let buffer2 = self.channel2.generate_buffer_data(SAMPLES_PER_FRAME as u32).clone();
+            let buffer3 = self.channel3.generate_buffer_data(SAMPLES_PER_FRAME as u32).clone();
 
-            for i in 0..736 {
-                let volume: f32 = (buffer0[i] + buffer1[i] + buffer2[i] + buffer3[i])/4.0;
+            for i in 0..SAMPLES_PER_FRAME {
+                let volume = buffer0[i] + buffer1[i];// + buffer2[i];// + buffer3[i];
                 mix.push(volume);
             }
 

@@ -9,9 +9,11 @@ pub mod nes {
     use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 
     use crate::nes_console::nes::NesConsole;
+    use crate::nes_apuchannel::nes::SAMPLES_PER_FRAME;
+    use crate::nes_ppu::nes::{ NTSC_X_RESOLUTION, NTSC_Y_RESOLUTION };
 
-    const IMAGE_WIDTH: u32 = 256;
-    const IMAGE_HEIGHT: u32 = 240;
+    const IMAGE_WIDTH: u32 = NTSC_X_RESOLUTION;
+    const IMAGE_HEIGHT: u32 = NTSC_Y_RESOLUTION;
 
     /// Store the image handle that we will draw to, here.
     #[derive(Resource)]
@@ -48,8 +50,8 @@ pub mod nes {
 
             let image = Image::new_fill(
                 Extent3d {
-                    width: IMAGE_WIDTH,
-                    height: IMAGE_HEIGHT,
+                    width: IMAGE_WIDTH as u32,
+                    height: IMAGE_HEIGHT as u32,
                     depth_or_array_layers: 1,
                 },
                 TextureDimension::D2,
@@ -83,13 +85,13 @@ pub mod nes {
                         video[((y * IMAGE_WIDTH + x) * 3 + 1) as usize],
                         video[((y * IMAGE_WIDTH + x) * 3 + 2) as usize],
                     );
-                    _ = image.set_color_at(x, y, color);
+                    _ = image.set_color_at(x as u32, y as u32, color);
                 }
             }
 
             let wav_header: Vec<u8> = vec![ 
                 0x52, 0x49, 0x46, 0x46, //b'R', b'I', b'F', b'F', 
-                0x0b, 0x03, 0x0, 0x0, 
+                0x1a, 0x03, 0x0, 0x0, 
                 0x57, 0x41, 0x56, 0x45, //b'W', b'A', b'V', b'E', 
                 0x66, 0x6d, 0x74, 0x20, //b'f', b'm', b't', 0, 
                 0x10, 0x0, 0x0, 0x0, 
@@ -100,16 +102,16 @@ pub mod nes {
                 0x1, 0x0, 
                 0x8, 0x0, 
                 0x64, 0x61, 0x74, 0x61, //b'd', b'a', b't', b'a', 
-                0xdf, 0x2, 0x0, 0x0];
+                0xee, 0x2, 0x0, 0x0];
                 
-            let mut buffer: Vec<u8> = vec![0; 780];
+            let mut buffer: Vec<u8> = vec![0; SAMPLES_PER_FRAME + 44];
             for i in 0..44 {
                 buffer[i] = wav_header[i];
             }
-            for i in 0..735 {
-                buffer[i+44] = ((audio[i] + 1.0) * 127.0) as u8;
+            for i in 0..SAMPLES_PER_FRAME {
+                buffer[i+44] = audio[i];
             }
-            let buffer_array: [u8; 780] = buffer.try_into().unwrap();
+            let buffer_array: [u8; SAMPLES_PER_FRAME + 44] = buffer.try_into().unwrap();
             let audio_source = AudioSource{bytes: Arc::new(buffer_array)};
             let audio_handle = audio_assets.add(audio_source);
             commands.spawn((AudioPlayer::new(audio_handle), PlaybackSettings::DESPAWN));

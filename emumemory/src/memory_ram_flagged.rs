@@ -4,7 +4,7 @@ pub mod emu_memory
 
     pub struct MemoryRamFlagged {
         memory: Vec<u8>,
-        name: String,
+        _name: String,
         is_read_flagged: Vec<bool>,
         is_write_flagged: Vec<bool>,
     }
@@ -14,14 +14,14 @@ pub mod emu_memory
         pub fn new(size: usize, name: String) -> MemoryRamFlagged {
             Self {
                 memory: vec![0; size],
-                name: name,
+                _name: name,
                 is_read_flagged: vec![false; size],
                 is_write_flagged: vec![false; size],
             }
         }
 
-        fn get_name(&self) -> String {
-            self.name.clone()
+        fn _get_name(&self) -> String {
+            self._name.clone()
         }
 
         pub fn read(&mut self, location: u16) -> u8 {

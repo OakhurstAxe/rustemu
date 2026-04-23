@@ -1,7 +1,6 @@
 
 
 pub mod nes {
-    use emumemory::memory_rom::emu_memory::MemoryRom;
 
     use crate::nes_cartridge::nes::NesCartridge;
 

@@ -4,13 +4,13 @@ pub mod nes {
 
     #[derive(Copy, Clone)]
     enum Palette {
-        Palette_2C03 = 0,
+        Palette2C03 = 0,
         //Palette_2C05 = 0,
-        Palette_RC2C03B = 1,
-        Palette_RP2C04_0001 = 2,
-        Palette_RP2C04_0002 = 3,
-        Palette_RP2C04_0003 = 4,
-        Palette_RP2C04_0004 = 5
+        PaletteRC2C03B = 1,
+        PaletteRP2C04_0001 = 2,
+        PaletteRP2C04_0002 = 3,
+        PaletteRP2C04_0003 = 4,
+        PaletteRP2C04_0004 = 5
     }
 
     const ENTRIES_2C03: [u16; 64] = [
@@ -85,12 +85,12 @@ pub mod nes {
         }
 
         fn setup_palettes(&mut self) {
-            self.setup_palette(ENTRIES_2C03, Palette::Palette_2C03);
-            self.setup_palette(ENTRIES_RC03B, Palette::Palette_RC2C03B);
-            self.setup_palette(ENTRIES_RP2C04_0001, Palette::Palette_RP2C04_0001);
-            self.setup_palette(ENTRIES_RP2C04_0002, Palette::Palette_RP2C04_0002);
-            self.setup_palette(ENTRIES_RP2C04_0003, Palette::Palette_RP2C04_0003);
-            self.setup_palette(ENTRIES_RP2C04_0004, Palette::Palette_RP2C04_0004);
+            self.setup_palette(ENTRIES_2C03, Palette::Palette2C03);
+            self.setup_palette(ENTRIES_RC03B, Palette::PaletteRC2C03B);
+            self.setup_palette(ENTRIES_RP2C04_0001, Palette::PaletteRP2C04_0001);
+            self.setup_palette(ENTRIES_RP2C04_0002, Palette::PaletteRP2C04_0002);
+            self.setup_palette(ENTRIES_RP2C04_0003, Palette::PaletteRP2C04_0003);
+            self.setup_palette(ENTRIES_RP2C04_0004, Palette::PaletteRP2C04_0004);
         }
 
         fn setup_palette(&mut self, entries: [u16; 64], palette: Palette)

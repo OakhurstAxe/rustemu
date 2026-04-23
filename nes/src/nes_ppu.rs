@@ -4,14 +4,15 @@ pub mod nes {
     use std::sync::Arc;
     use std::sync::RwLock;
 
-    use emumemory::{memory_mapper::emu_memory::MemoryMapper};
     use emumemory::memory_ram::emu_memory::MemoryRam;
     use emumemory::base_memory::emu_memory::BaseMemory;
 
-    use crate::nes_memory::nes::NesMemory;
     use crate::nes_cartridge::nes::NesCartridge;
     use crate::nes_cartridge_000::nes::NesCartridge000;
     use crate::nes_palette::nes::NesPalette;
+
+    pub const NTSC_X_RESOLUTION: u32 = 256;
+    pub const NTSC_Y_RESOLUTION: u32 = 240;
 
     const PPU_CONTROL_ADDR: u16 =  0x2000;
     const PPU_MASK_ADDR: u16 =     0x2001;
@@ -21,10 +22,10 @@ pub mod nes {
     const PPU_DATA_ADDR: u16 =     0x2007;
     const PPU_OAM_ADDR: u16 =      0x2003;
     const PPU_OAM_DATA_ADDR: u16 = 0x2004;
-    const PPU_OAM_DMA_ADDR: u16 =  0x4014;
+    const _PPU_OAM_DMA_ADDR: u16 =  0x4014;
 
     const PPU_ATTRIBUTE_ADDR: u16 = 0x23c0;
-    const PPU_ATTRIBUTE_SIZE: u16 = 0x0040;
+    const _PPU_ATTRIBUTE_SIZE: u16 = 0x0040;
     const PPU_NAMETABLE_ADDR: u16 = 0x2000;
     const PPU_NAMETABLE_SIZE: u16 = 0x0400;
     const PPU_PATTERN_SIZE: u16 =   0x1000;
@@ -202,7 +203,7 @@ pub mod nes {
                 nmi_set: false,
                 cycle: 0,
                 render_sprites: [-1, -1, -1, -1, -1, -1, -1, -1],
-                screen: vec!(0; 61440 * 3),
+                screen: vec!(0; (NTSC_X_RESOLUTION * NTSC_Y_RESOLUTION * 3) as usize),
                 attribute_byte: 0,
                 nametable_address: 0,
                 pattern_entry_address: 0,
@@ -432,7 +433,7 @@ pub mod nes {
 
             if screen_cycle == 0 {
                 self.render_sprites = [-1, -1, -1, -1, -1, -1, -1, -1];
-                let mut sprite_count: i8 = 0;
+                let mut sprite_count: usize = 0;
 
                 for i in 0..64 {
                     if sprite_count == 8 {
@@ -441,10 +442,10 @@ pub mod nes {
                         break;
                     }
 
-                    let y_pos: u8 = self.oam_read(i * 4);
+                    let y_pos: i32 = self.oam_read(i * 4) as i32;
 
-                    if screen_scan_line - y_pos as i32 > 0 && screen_scan_line - y_pos as i32 <= 8 {
-                        self.render_sprites[sprite_count as usize] = i as i8;
+                    if screen_scan_line - y_pos > 0 && screen_scan_line - y_pos <= 8 {
+                        self.render_sprites[sprite_count] = i as i8;
                         sprite_count += 1;
                     }            
                 }
@@ -466,16 +467,14 @@ pub mod nes {
                     pattern_address = (pattern_address) << 4;
                     sprite_attribute.reg(self.oam_read((sprite_pos * PPU_SPRITE_SIZE + 2) as u16));
                     let x_pos: u16 = self.oam_read((sprite_pos * PPU_SPRITE_SIZE + 3) as u16) as u16;
-                    let mut sprite_lsb: u8 = 0;
-                    let mut sprite_msb: u8 = 0;
                     let mut sprite_pattern_address: u16 = pattern_address + ((screen_scan_line - y_pos) & 0x07) as u16;
 
                     if sprite_attribute.flip_vertically > 0 {// flip verticle
                         sprite_pattern_address = pattern_address + ((7 - screen_scan_line - y_pos) & 0x07) as u16;
                     }
 
-                    sprite_lsb = self.read(sprite_pattern_address);
-                    sprite_msb = self.read(sprite_pattern_address + PPU_SPRITE_PATTERN_SIZE);
+                    let mut sprite_lsb = self.read(sprite_pattern_address);
+                    let mut sprite_msb = self.read(sprite_pattern_address + PPU_SPRITE_PATTERN_SIZE);
 
                     if sprite_attribute.flip_horizontally > 0 {
                         sprite_lsb = NesPpu::reverse_bits(sprite_lsb);
@@ -495,15 +494,15 @@ pub mod nes {
                                     self.set_ppu_sprite_zero_hit(1);
                                 }
 
-                                //if sprite_attribute.priority == 0 || self.screen[(screen_scan_line * 256 + j as i32) as usize] == background {
+                                if sprite_attribute.priority == 0 || self.screen[(screen_scan_line * 256 + j as i32) as usize] == background {
                                     self.screen[(screen_scan_line * 256 + j as i32) as usize] = color;
 
                                     let (red, green, blue) = self.palette.get_color(color as usize, 0);
 
-                                    self.screen[((screen_scan_line * 256 + j as i32) * 3) as usize] = red;
-                                    self.screen[(((screen_scan_line * 256 + j as i32) * 3) + 1) as usize] = green;
-                                    self.screen[(((screen_scan_line * 256 + j as i32) * 3) + 2) as usize] = blue;
-                                //}
+                                 //   self.screen[((screen_scan_line * 256 + j as i32) * 3) as usize] = red;
+                                 //   self.screen[(((screen_scan_line * 256 + j as i32) * 3) + 1) as usize] = green;
+                                 //   self.screen[(((screen_scan_line * 256 + j as i32) * 3) + 2) as usize] = blue;
+                                }
                             }
                         }
                         sprite_lsb = sprite_lsb << 1;
@@ -525,7 +524,6 @@ pub mod nes {
         }
 
         fn get_background_pixel(&mut self, mut screen_row: u16, mut screen_column: i16) -> u8 {
-            let mut attribute_value: u16 = 0;
             let mut attribute_shift: u8 = 0;
             let ppu_control_addr: u8 = self.cpu_ppu_registers.read(PPU_CONTROL_ADDR % 8); 
             self.control_register.reg(ppu_control_addr);
@@ -579,11 +577,10 @@ pub mod nes {
                 attribute_shift = 6;
             }
 
-            attribute_value = ((self.attribute_byte  >> attribute_shift) & 0x03) as u16;
+            let attribute_value = ((self.attribute_byte  >> attribute_shift) & 0x03) as u16;
 
             let tile_row: u16 = screen_row / 8;
             let tile_column: u16 = screen_column as u16/ 8;
-            // Should be one of: $2000, $2400, $2800, or $2C00
             let nametable_table_address: u16 = PPU_NAMETABLE_ADDR + (nametable_x * PPU_NAMETABLE_SIZE as u8) as u16 + 
                 (nametable_y * PPU_NAMETABLE_SIZE as u8 * 2) as u16;
             self.nametable_address = (((tile_row) * 32) + (tile_column)) + nametable_table_address;
@@ -592,10 +589,8 @@ pub mod nes {
             let pattering: u16 = self.control_register.get_pattern_background() as u16;
             self.pattern_entry_address = (addr2  + (screen_row % 8)) + 
                 (PPU_PATTERN_SIZE * pattering);
-            //self.pattern_entry_address = (((self.read(self.nametable_address) << 4)  + (screen_row % 8) as u8) + 
-            //    PPU_PATTERN_SIZE as u8 * self.control_register.pattern_background as u8) as u16;
-            let char1 = self.read(self.pattern_entry_address);
-            let char2 = self.read(self.pattern_entry_address + 0x08);
+            let _char1 = self.read(self.pattern_entry_address);
+            let _char2 = self.read(self.pattern_entry_address + 0x08);
 
             self.char_table_entry_lsb = self.read(self.pattern_entry_address) << (screen_column % 8);
             self.char_table_entry_msb = self.read(self.pattern_entry_address + 0x08) << (screen_column % 8);

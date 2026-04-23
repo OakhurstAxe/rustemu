@@ -1,13 +1,13 @@
 
 pub mod nes {
     use crate::nes_apuchannel::nes::NesApuChannel;
-    use crate::nes_apuchannel::nes::{ SAMPLES_PER_FRAME, DATA_SAMPLE_RATE_HZ, SAMPLES_PER_HALF_FRAME, VOLUME_STEPS };
+    use crate::nes_apuchannel::nes::{ DATA_SAMPLE_RATE_HZ, VOLUME_STEPS };
     
     pub struct NesApuPulseChannel {
         duty: u8,
         halt: bool,
         constant_volume: bool,
-        volume: f32,
+        volume: u8,
         sweep_enabled: bool,
         sweep_period: u8,
         sweep_negate: bool,
@@ -27,7 +27,7 @@ pub mod nes {
                 duty: 0,
                 halt: true,
                 constant_volume: true,
-                volume: 0.0,
+                volume: 0,
                 sweep_enabled: false,
                 sweep_period: 0,
                 sweep_negate: false,
@@ -59,8 +59,8 @@ pub mod nes {
             if register2_flag {
                 self.sweep_enabled = register2 & 0x80 != 0;
                 self.sweep_period = (register2 & 0x70) >> 4;
-                self.sweep_negate = register2 & 0x80 != 0;
-                self.sweep_shift = register2 & 0x70;
+                self.sweep_negate = register2 & 0x08 != 0;
+                self.sweep_shift = register2 & 0x07;
             }
 
             if register3_flag {
@@ -85,30 +85,30 @@ pub mod nes {
             return (111860 / (timer + 1) as u32) as u32;
         }
 
-        fn generate_buffer_data(&mut self, sample_count: u32) -> Vec<f32> {
+        fn generate_buffer_data(&mut self, sample_count: u32) -> Vec<u8> {
             let mut sample_index: u32 = 0;
-            let mut buffer: Vec<f32> = vec![0.0; SAMPLES_PER_FRAME];
+            let mut buffer: Vec<u8> = vec![127; sample_count as usize];
 
             if self.frequency == 0 {
                 return buffer;
             }
             
-            let wavelength: u32 = (DATA_SAMPLE_RATE_HZ / self.frequency as usize) as u32;
+            let wavelength: u32 = (DATA_SAMPLE_RATE_HZ / (self.frequency * 2) as usize) as u32;
             let wavelength_eigth: u32 = wavelength / 8;
 
             while sample_index < sample_count {
                 if self.load_counter == 0 && self.halt == false {
-                    buffer[sample_index as usize] = 0.0; // zero
+                    buffer[sample_index as usize] = 127;
                 }
                 else if (self.total_samples % wavelength as u64) < (wavelength_eigth * (self.duty + 1) as u32) as u64 {
-                    buffer[sample_index as usize] = self.volume;
+                    buffer[sample_index as usize] = self.volume + 127;
                 }
                 else 
                 {
-                    buffer[sample_index as usize] = - self.volume;
+                    buffer[sample_index as usize] = 127 - self.volume;
                 }
                 
-                if self.total_samples % SAMPLES_PER_HALF_FRAME as u64 == 0 {// 120 Hz timer
+                //if self.total_samples % SAMPLES_PER_HALF_FRAME as u64 == 0 {// 120 Hz timer
                     /*
                     if (constantVolume_)
                     {
@@ -122,10 +122,10 @@ pub mod nes {
                         }
                     }*/
 
-                    if self.load_counter > 0 && self.halt == false {
-                        self.load_counter -= 1;
-                    }
-                }
+                //    if self.load_counter > 0 && self.halt == false {
+                //        self.load_counter -= 1;
+                //    }
+                //}
                 sample_index += 1;
                 self.total_samples += 1;
             }

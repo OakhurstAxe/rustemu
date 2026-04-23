@@ -178,7 +178,7 @@ pub mod vcs {
             true
         }
 
-        fn is_probably_arm(image: &Vec<u8>) -> bool {
+        fn _is_probably_arm(image: &Vec<u8>) -> bool {
             // ARM code contains the following 'loader' patterns in the first 1K
             // Thanks to Thomas Jentzsch of AtariAge for this advice
             let constexpr1: Vec<u8> = vec![ 0xA0, 0xC1, 0x1F, 0xE0 ]; 

@@ -1,7 +1,5 @@
 pub mod nes {
 
-    use emumemory::base_memory::emu_memory::BaseMemory;
-    
     pub trait NesCartridge {
         
         fn cpu_read(&self, location: u16) -> u8;

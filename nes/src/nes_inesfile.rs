@@ -16,7 +16,6 @@ pub mod nes {
         mapper_flags: u8,
         memory_mapper: u16,
         rom_size_flags: u8,
-        header: [u8; 4],
         ram_eprom_size_flags: u8,
         char_rom_size_flags: u8,
         trainer: Vec<u8>,
@@ -35,7 +34,6 @@ pub mod nes {
                 mapper_flags: 0,
                 memory_mapper: 0,
                 rom_size_flags: 0,
-                header: [0, 0, 0, 0],
                 ram_eprom_size_flags: 0,
                 char_rom_size_flags: 0,
                 trainer: vec![0; 0],
@@ -50,7 +48,7 @@ pub mod nes {
             self.prog_rom_data.clone()
         }
         
-        fn get_prog_rom_size(&self) -> u8 {
+        fn _get_prog_rom_size(&self) -> u8 {
             self.prog_rom_data.len() as u8
         }
         
@@ -58,11 +56,11 @@ pub mod nes {
             self.char_rom_data.clone()
         }
         
-        fn get_char_rom_size(&self) -> u8 {
+        fn _get_char_rom_size(&self) -> u8 {
             self.char_rom_data.len() as u8
         }
 
-        fn get_memory_mapper(&self) -> u16 {
+        fn _get_memory_mapper(&self) -> u16 {
             self.memory_mapper
         }
 
