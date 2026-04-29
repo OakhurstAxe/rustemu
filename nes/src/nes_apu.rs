@@ -134,7 +134,7 @@ pub mod nes {
             let buffer3 = self.channel3.generate_buffer_data(SAMPLES_PER_FRAME as u32).clone();
 
             for i in 0..SAMPLES_PER_FRAME {
-                let volume = buffer0[i] + buffer1[i];// + buffer2[i];// + buffer3[i];
+                let volume = buffer0[i];// + buffer1[i];// + buffer2[i];// + buffer3[i];
                 mix.push(volume);
             }
 

@@ -174,8 +174,6 @@ pub mod nes {
         attribute_byte: u8,
         nametable_address: u16,
         pattern_entry_address: u16,
-        char_table_entry_lsb: u8,
-        char_table_entry_msb: u8,
         pub ppu_x_scroll_write: bool,
         pub ppu_x_scroll_read: bool,
         pub ppu_x_scroll: u8,
@@ -207,8 +205,6 @@ pub mod nes {
                 attribute_byte: 0,
                 nametable_address: 0,
                 pattern_entry_address: 0,
-                char_table_entry_lsb: 0,
-                char_table_entry_msb: 0,
                 ppu_x_scroll_write: true,
                 ppu_x_scroll_read: true,
                 ppu_x_scroll: 0,
@@ -431,6 +427,7 @@ pub mod nes {
             let screen_scan_line = self.scan_line - 1;
             let screen_cycle: i32 = self.cycle;
 
+            /*
             if screen_cycle == 0 {
                 self.render_sprites = [-1, -1, -1, -1, -1, -1, -1, -1];
                 let mut sprite_count: usize = 0;
@@ -510,10 +507,21 @@ pub mod nes {
                     }
                 }
             }
- 
-            let background_pixel: u8 = self.get_background_pixel(screen_scan_line as u16, screen_cycle as i16);
+            */
 
-            if self.cycle >= 0  && self.cycle < 256 {
+            let background: u8 = self.read(PPU_PALETTE_ADDR);
+            let background_pixel: u8 = self.get_background_pixel(screen_scan_line as u16, screen_cycle as i16);
+            let sprite_pixel: u8 = self.get_sprite_pixel(screen_scan_line as u16, screen_cycle as i16);
+
+            if sprite_pixel != background {
+
+                let (red, green, blue) = self.palette.get_color(sprite_pixel as usize, 0);
+
+                self.screen[((screen_scan_line * 256 + screen_cycle as i32) * 3) as usize] = red;
+                self.screen[(((screen_scan_line * 256 + screen_cycle as i32) * 3) + 1) as usize] = green;
+                self.screen[(((screen_scan_line * 256 + screen_cycle as i32) * 3) + 2) as usize] = blue;
+            }
+            else if self.cycle >= 0  && self.cycle < 256 {
 
                 let (red, green, blue) = self.palette.get_color(background_pixel as usize, 0);
 
@@ -523,47 +531,135 @@ pub mod nes {
             }
         }
 
+        fn get_sprite_pixel(&mut self, mut screen_row: u16, mut screen_column: i16) -> u8 {
+            let background: u8 = self.read(PPU_PALETTE_ADDR);
+            let mut color = background;
+
+            if screen_row == 0 {
+                return color;
+            }
+
+            let ppuctrl: u8 = self.ppu_register_read(PPU_CONTROL_ADDR);
+            let sprite_pattern_table: u16 = 0x1000 * (((ppuctrl & 0x04) as u16) >> 3);
+            let is_16_sprite: bool = ppuctrl & 0x20 != 0;
+
+            for i in 0..64 {
+                let y_pos: u16 = self.oam_read(i * PPU_SPRITE_SIZE as u16) as u16;
+                let tile: u8 = self.oam_read(i * PPU_SPRITE_SIZE as u16 + 1);
+                let attributes: u8 = self.oam_read(i * PPU_SPRITE_SIZE as u16 + 2);
+                let x_pos: u16 = self.oam_read(i * PPU_SPRITE_SIZE as u16 + 3) as u16;
+
+                // sprite not visible, go to next one
+                if y_pos == 0 || (y_pos > screen_row) || (screen_row > y_pos + 8) {
+                    continue;
+                }
+                if (x_pos > screen_column as u16) || (screen_column > (x_pos + 8) as i16) {
+                    continue;
+                }
+
+                let tile_byte = (tile & 0xFE) >> 1;
+
+                // 8 bit tile address
+                let mut tile_bank = sprite_pattern_table;
+                if is_16_sprite {
+                    // 16 bit tile address
+                    tile_bank = 0x1000  * ((tile & 0x01) as u16);
+                }
+
+                let palette = (attributes & 0x20) >> 5;
+                let priority = (attributes & 0x20) >> 5;
+                let flip_horz = (attributes & 0x40) >> 6;
+                let flip_vert = (attributes & 0x80) >> 7;
+
+                let mut sprite_tile_address = tile_bank + (tile_byte as u16 * PPU_SPRITE_SIZE as u16);
+                sprite_tile_address = sprite_tile_address as u16 + (screen_row - y_pos as u16) as u16;
+                let mut sprite_lsb = self.read(sprite_tile_address);
+                let mut sprite_msb = self.read(sprite_tile_address + PPU_SPRITE_PATTERN_SIZE as u16);
+
+                if flip_horz != 0 {
+                    sprite_lsb = NesPpu::reverse_bits(sprite_lsb);
+                    sprite_msb = NesPpu::reverse_bits(sprite_msb);
+                }
+
+                let mut sprite_byte: u16 = (sprite_msb as u16) << 8 + sprite_lsb as u16;
+
+                sprite_byte = (sprite_byte >> ((screen_column - x_pos as i16) * 2)) & 0x3;
+
+                color = self.read(PPU_PALETTE_ADDR + palette as u16 + sprite_byte as u16);
+
+                if color != 0 {
+                    return color;
+                }
+            }
+
+
+            return color
+
+        }
+
+        fn get_bg_attribute_bytes(&mut self, mut screen_row: u16, mut screen_column: i16) {
+
+            if screen_column % 8 == 0 {
+                let ppu_control_addr: u8 = self.cpu_ppu_registers.read(PPU_CONTROL_ADDR % 8); 
+                self.control_register.reg(ppu_control_addr);
+
+                let mut nametable_x: u8 = self.control_register.get_nametable_x();
+                let mut nametable_y: u8 = self.control_register.get_nametable_y();
+
+                if screen_column >= 256 {
+                    screen_column -= 256;
+                    
+                    if nametable_x == 0 {
+                        nametable_x = 1;
+                    }
+                    else
+                    {
+                        nametable_x = 0;
+                    }
+                }
+
+                if screen_row >= 240 {
+                    screen_row -= 240;
+
+                    if nametable_y == 0 {
+                        nametable_y = 1;
+                    }
+                    else {
+                        nametable_y = 0;
+                    }
+                }
+
+                // attribute byte
+                let attribute_table_address: u16 = PPU_ATTRIBUTE_ADDR + (nametable_x * PPU_NAMETABLE_SIZE as u8) as u16 + 
+                    (nametable_y * PPU_NAMETABLE_SIZE as u8 * 2) as u16;
+                let attribute_address: u16 = ((screen_row / 32) * 8 + (screen_column / 32) as u16) + attribute_table_address;
+                self.attribute_byte = self.read(attribute_address);
+
+                // nametable byte
+                let tile_row: u16 = screen_row / 8;
+                let tile_column: u16 = screen_column as u16/ 8;
+                let nametable_table_address: u16 = PPU_NAMETABLE_ADDR + (nametable_x * PPU_NAMETABLE_SIZE as u8) as u16 + 
+                    (nametable_y * PPU_NAMETABLE_SIZE as u8 * 2) as u16;
+                self.nametable_address = (((tile_row) * 32) + (tile_column)) + nametable_table_address;
+
+                // pattern table byte
+                let addr: u16 = self.read(self.nametable_address) as u16;
+                let addr2 = addr << 4;
+                let pattering: u16 = self.control_register.get_pattern_background() as u16;
+                self.pattern_entry_address = (addr2  + (screen_row % 8)) + (PPU_PATTERN_SIZE * pattering);
+            }
+        }
+        
         fn get_background_pixel(&mut self, mut screen_row: u16, mut screen_column: i16) -> u8 {
+
+            self.get_bg_attribute_bytes(screen_row, screen_column);
+
             let mut attribute_shift: u8 = 0;
-            let ppu_control_addr: u8 = self.cpu_ppu_registers.read(PPU_CONTROL_ADDR % 8); 
-            self.control_register.reg(ppu_control_addr);
             let x_scroll: u8 = self.ppu_x_scroll;
             let y_scroll: u8 = self.ppu_y_scroll;
-            let mut nametable_x: u8 = self.control_register.get_nametable_x();
-            let mut nametable_y: u8 = self.control_register.get_nametable_y();
             screen_column += x_scroll as i16;
             screen_row += y_scroll as u16;
             
-            if screen_column >= 256 {
-                screen_column -= 256;
-                
-                if nametable_x == 0 {
-                    nametable_x = 1;
-                }
-                else
-                {
-                    nametable_x = 0;
-                }
-            }
-
-            if screen_row >= 240 {
-                screen_row -= 240;
-
-                if nametable_y == 0 {
-                    nametable_y = 1;
-                }
-                else {
-                    nametable_y = 0;
-                }
-            }
-
-            // Get attribute value
-            // Should be one of: $23C0, $27C0, $2BC0, or $2FC0
-            let attribute_table_address: u16 = PPU_ATTRIBUTE_ADDR + (nametable_x * PPU_NAMETABLE_SIZE as u8) as u16 + 
-                (nametable_y * PPU_NAMETABLE_SIZE as u8 * 2) as u16;
-            let attribute_address: u16 = ((screen_row / 32) * 8 + (screen_column / 32) as u16) + attribute_table_address;
-            self.attribute_byte = self.read(attribute_address);
-
             if ((screen_row % 32) < 16) && (screen_column % 32) < 16 {
                 attribute_shift = 0;
             }
@@ -579,22 +675,11 @@ pub mod nes {
 
             let attribute_value = ((self.attribute_byte  >> attribute_shift) & 0x03) as u16;
 
-            let tile_row: u16 = screen_row / 8;
-            let tile_column: u16 = screen_column as u16/ 8;
-            let nametable_table_address: u16 = PPU_NAMETABLE_ADDR + (nametable_x * PPU_NAMETABLE_SIZE as u8) as u16 + 
-                (nametable_y * PPU_NAMETABLE_SIZE as u8 * 2) as u16;
-            self.nametable_address = (((tile_row) * 32) + (tile_column)) + nametable_table_address;
-            let addr: u16 = self.read(self.nametable_address) as u16;
-            let addr2 = addr << 4;
-            let pattering: u16 = self.control_register.get_pattern_background() as u16;
-            self.pattern_entry_address = (addr2  + (screen_row % 8)) + 
-                (PPU_PATTERN_SIZE * pattering);
             let _char1 = self.read(self.pattern_entry_address);
             let _char2 = self.read(self.pattern_entry_address + 0x08);
-
-            self.char_table_entry_lsb = self.read(self.pattern_entry_address) << (screen_column % 8);
-            self.char_table_entry_msb = self.read(self.pattern_entry_address + 0x08) << (screen_column % 8);
-            let pixel: u16 =  (((self.char_table_entry_msb & 0x80) >> 6) + ((self.char_table_entry_lsb & 0x80) >> 7)) as u16;
+            let char_table_entry_lsb = self.read(self.pattern_entry_address) << (screen_column % 8);
+            let char_table_entry_msb = self.read(self.pattern_entry_address + 0x08) << (screen_column % 8);
+            let pixel: u16 =  (((char_table_entry_msb & 0x80) >> 6) + ((char_table_entry_lsb & 0x80) >> 7)) as u16;
             let pixel_address: u16 = PPU_PALETTE_ADDR + pixel + (attribute_value << 2);
             let color: u8 = self.read(pixel_address);
 
