@@ -429,11 +429,9 @@ pub mod nes {
             self.cpu_ppu_registers.write(2, byte);
         }
 
-        fn render_pixel(&mut self) {
-            let screen_scan_line = self.scan_line - 1;
-            let screen_cycle: i32 = self.cycle;
+        pub fn get_sprite_pixel(&mut self, screen_row: u16, screen_column: i16) -> u8 {
 
-            if screen_cycle == 0 {
+            if screen_column == 0 {
                 self.render_sprites = [-1, -1, -1, -1, -1, -1, -1, -1];
                 let mut sprite_count: i8 = 0;
 
@@ -446,84 +444,88 @@ pub mod nes {
 
                     let y_pos: u8 = self.oam_read(i * 4);
 
-                    if screen_scan_line - y_pos as i32 > 0 && screen_scan_line - y_pos as i32 <= 8 {
+                    if screen_row - y_pos as u16 > 0 && screen_row - y_pos as u16 <= 8 {
                         self.render_sprites[sprite_count as usize] = i as i8;
                         sprite_count += 1;
                     }            
                 }
             }
             
-            if screen_cycle == 254 {
-                let background: u8 = self.read(PPU_PALETTE_ADDR);
+            let background: u8 = self.read(PPU_PALETTE_ADDR);
 
-                for i in (0..=7).rev() {
-                    let mut sprite_attribute: PpuSpriteAttributeRegister = PpuSpriteAttributeRegister::new();
-                    let sprite_pos: i32 = self.render_sprites[i] as i32;
+            for i in (0..=7).rev() {
 
-                    if sprite_pos == -1 {
-                        continue;
-                    }
+                let mut sprite_attribute: PpuSpriteAttributeRegister = PpuSpriteAttributeRegister::new();
+                let sprite_pos: i32 = self.render_sprites[i] as i32;
 
-                    let y_pos: i32 = (self.oam_read((sprite_pos * PPU_SPRITE_SIZE) as u16) + 1) as i32;
-                    let mut pattern_address: u16 = self.oam_read((sprite_pos * PPU_SPRITE_SIZE + 1) as u16) as u16;
-                    pattern_address = (pattern_address) << 4;
-                    sprite_attribute.reg(self.oam_read((sprite_pos * PPU_SPRITE_SIZE + 2) as u16));
-                    let x_pos: u16 = self.oam_read((sprite_pos * PPU_SPRITE_SIZE + 3) as u16) as u16;
-                    let mut sprite_lsb: u8 = 0;
-                    let mut sprite_msb: u8 = 0;
-                    let mut sprite_pattern_address: u16 = pattern_address + ((screen_scan_line - y_pos) & 0x07) as u16;
+                if sprite_pos == -1 {
+                    continue;
+                }
 
-                    if sprite_attribute.flip_vertically > 0 {// flip verticle
-                        sprite_pattern_address = pattern_address + ((7 - screen_scan_line - y_pos) & 0x07) as u16;
-                    }
+                let x_pos: u16 = self.oam_read((sprite_pos * PPU_SPRITE_SIZE + 3) as u16) as u16;
+                if (screen_column - x_pos as i16) < 0 || screen_column - x_pos as i16 > 8 {
+                    continue;
+                }                       
 
-                    sprite_lsb = self.read(sprite_pattern_address);
-                    sprite_msb = self.read(sprite_pattern_address + PPU_SPRITE_PATTERN_SIZE);
+                let y_pos: i32 = (self.oam_read((sprite_pos * PPU_SPRITE_SIZE) as u16) + 1) as i32;
+                let mut pattern_address: u16 = self.oam_read((sprite_pos * PPU_SPRITE_SIZE + 1) as u16) as u16;
+                pattern_address = (pattern_address) << 4;
+                sprite_attribute.reg(self.oam_read((sprite_pos * PPU_SPRITE_SIZE + 2) as u16));
+                let mut sprite_lsb: u8 = 0;
+                let mut sprite_msb: u8 = 0;
+                let mut sprite_pattern_address: u16 = pattern_address + ((screen_row - y_pos as u16) & 0x07) as u16;
 
-                    if sprite_attribute.flip_horizontally > 0 {
-                        sprite_lsb = NesPpu::reverse_bits(sprite_lsb);
-                        sprite_msb = NesPpu::reverse_bits(sprite_msb);
-                    }
+                if sprite_attribute.flip_vertically > 0 {// flip verticle
+                    sprite_pattern_address = pattern_address + ((7 - screen_row - y_pos as u16) & 0x07) as u16;
+                }
 
-                    for j in x_pos..x_pos + 8 {
-                        let pixel: u8 = ((sprite_msb >> 6) & 0x02) + ((sprite_lsb >> 7) & 0x01);
-                        let palette: u8 = ((sprite_attribute.sprite_palette) + 0x04) << 2;
+                sprite_lsb = self.read(sprite_pattern_address);
+                sprite_msb = self.read(sprite_pattern_address + PPU_SPRITE_PATTERN_SIZE);
 
-                        if pixel != 0{
-                            let color: u8 = self.read(PPU_PALETTE_ADDR + palette as u16 + pixel as u16);
+                if sprite_attribute.flip_horizontally > 0 {
+                    sprite_lsb = NesPpu::reverse_bits(sprite_lsb);
+                    sprite_msb = NesPpu::reverse_bits(sprite_msb);
+                }
 
-                            if background != color {
+                for j in x_pos ..x_pos + 8 {
+                    let pixel: u8 = ((sprite_msb >> 6) & 0x02) + ((sprite_lsb >> 7) & 0x01);
+                    let palette: u8 = ((sprite_attribute.sprite_palette) + 0x04) << 2;
 
-                                if sprite_pos == 0 && self.screen[(screen_scan_line * 256 + j as i32) as usize] != background {
-                                    self.set_ppu_sprite_zero_hit(1);
-                                }
+                    if pixel != 0{
+                        let color: u8 = self.read(PPU_PALETTE_ADDR + palette as u16 + pixel as u16);
 
-                                //if sprite_attribute.priority == 0 || self.screen[(screen_scan_line * 256 + j as i32) as usize] == background {
-                                    self.screen[(screen_scan_line * 256 + j as i32) as usize] = color;
-
-                                    let (red, green, blue) = self.palette.get_color(color as usize, 0);
-
-                                    self.screen[((screen_scan_line * 256 + j as i32) * 3) as usize] = red;
-                                    self.screen[(((screen_scan_line * 256 + j as i32) * 3) + 1) as usize] = green;
-                                    self.screen[(((screen_scan_line * 256 + j as i32) * 3) + 2) as usize] = blue;
-                                //}
-                            }
+                        if background != color && j == screen_column as u16 {
+                            return color;
                         }
-                        sprite_lsb = sprite_lsb << 1;
-                        sprite_msb = sprite_msb << 1;
                     }
+                    sprite_lsb = sprite_lsb << 1;
+                    sprite_msb = sprite_msb << 1;
                 }
             }
- 
-            let background_pixel: u8 = self.get_background_pixel(screen_scan_line as u16, screen_cycle as i16);
 
-            if self.cycle >= 0  && self.cycle < 256 {
+            return 0
+        }
 
-                let (red, green, blue) = self.palette.get_color(background_pixel as usize, 0);
+        fn render_pixel(&mut self) {
+            let sprite_pixel: u8 = self.get_sprite_pixel(self.scan_line as u16, self.cycle as i16);
+            let background_pixel: u8 = self.get_background_pixel(self.scan_line as u16, self.cycle as i16);
 
-                self.screen[((screen_scan_line * 256 + screen_cycle) * 3) as usize] = red;
-                self.screen[(((screen_scan_line * 256 + screen_cycle) * 3) + 1) as usize] = green;
-                self.screen[(((screen_scan_line * 256 + screen_cycle) * 3) + 2) as usize] = blue;
+            if self.cycle >= 0  && self.cycle < 256 && self.scan_line >= 0 && self.scan_line < 240 {
+
+                let mut color = 0;
+                
+                if sprite_pixel != 0 {
+                    color = sprite_pixel;
+                }
+                else  {
+                    color = background_pixel;
+                }
+
+                let (red, green, blue) = self.palette.get_color(color as usize, 0);
+
+                self.screen[((self.scan_line * 256 + self.cycle) * 3) as usize] = red;
+                self.screen[(((self.scan_line * 256 + self.cycle) * 3) + 1) as usize] = green;
+                self.screen[(((self.scan_line * 256 + self.cycle) * 3) + 2) as usize] = blue;
             }
         }
 
@@ -615,7 +617,7 @@ pub mod nes {
 
             color
         }
-        
+
         fn reverse_bits(mut n: u8) -> u8 {
             let mut ans: u8 = 0;
 
