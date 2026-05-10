@@ -13,7 +13,7 @@ pub mod nes {
     use crate::nes_inesfile::nes::INesFile;
     use crate::nes_apu::nes::NesApu;
 
-    const TICKS_PER_FRAME: u16 =  59736;
+    pub const TICKS_PER_FRAME: u16 =  59736;
 
     pub struct NesAudioEvent {
         pub channel_mix: Vec<u16>,
@@ -43,7 +43,8 @@ pub mod nes {
             let ppu: Arc<RwLock<NesPpu>> = Arc::new(RwLock::new(NesPpu::new(Arc::clone(&cartridge))));
             let apu: Arc<RwLock<NesApu>> = Arc::new(RwLock::new(NesApu::new()));
             let memory = NesMemory::new (Arc::clone(&cartridge), Arc::clone(&ppu), Arc::clone(&apu));
-            let cpu: M6502<NesMemory> = M6502::new(memory);
+            let mut cpu: M6502<NesMemory> = M6502::new(memory);
+//            cpu.disable_dec();
 
             let mut temp_instance = Self {
                 cpu: cpu,
@@ -77,10 +78,17 @@ pub mod nes {
 
             self.frame += 1;
             let mut ticks: i32 = 0;
-            self.apu.write().unwrap().execute_tick();
 
             while ticks < TICKS_PER_FRAME as i32 {
-              
+
+                if (ticks % 2) == 0 {
+                    self.apu.write().unwrap().execute_tick();
+                }
+                if self.apu.write().unwrap().is_nmi_set() {
+                    self.cpu.set_nmi();
+                    self.apu.write().unwrap().reset_nmi();
+                }
+
                 if (ticks % 3) == 0 {
                     if self.ppu.read().unwrap().dma_suspend == 0 {
                         self.cpu.execute_tick();
@@ -167,9 +175,9 @@ pub mod nes {
                 self.apu.write().unwrap().set_left_controller(self.left_controller);
             }
 
-            if self.apu.write().unwrap().is_write_flag_set(0x4017) {
-                self.apu.write().unwrap().set_right_controller(self.right_controller);
-            }
+            //if self.apu.write().unwrap().is_write_flag_set(0x4017) {
+               // self.apu.write().unwrap().set_right_controller(self.right_controller);
+            //}
         } 
 
     }

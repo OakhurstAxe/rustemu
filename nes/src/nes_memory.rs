@@ -86,7 +86,7 @@ pub mod nes {
             }
             
             // APU and IO Registers            
-            else if location < 0x4020 {
+            else if location < 0x401f {
 
                 if location == 0x4014 {
                     self.dma_suspend = 154;

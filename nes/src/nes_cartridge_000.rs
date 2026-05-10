@@ -4,7 +4,6 @@ pub mod nes {
 
     use crate::nes_cartridge::nes::NesCartridge;
 
-
     pub struct NesCartridge000 {
         cpu_prog_rom_0: Vec<u8>,
         cpu_prog_rom_1: Vec<u8>,
@@ -46,8 +45,8 @@ pub mod nes {
             self.cpu_prog_rom_1[location as usize]
         }
     
-        fn cpu_write(&self, _location: u16, _byte: u8) {
-            panic!("This cartridge does not support cpu write");
+        fn cpu_write(&self, location: u16, _byte: u8) {
+            eprintln!("This cartridge does not support cpu write {}", location);
         }
 
         fn ppu_read(&self, mut location: u16) -> u8 {
@@ -61,8 +60,8 @@ pub mod nes {
             }
         }
     
-        fn ppu_write(&self, _location: u16, _byte: u8) {
-            panic!("This cartridge does not support ppu write");
+        fn ppu_write(&self, location: u16, _byte: u8) {
+            eprintln!("This cartridge does not support ppu write {}", location);
         }
 
         fn load_prog_rom(&mut self, data: Vec<u8>) {

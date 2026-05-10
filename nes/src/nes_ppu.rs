@@ -429,7 +429,7 @@ pub mod nes {
             self.cpu_ppu_registers.write(2, byte);
         }
 
-        pub fn get_sprite_pixel(&mut self, screen_row: u16, screen_column: i16) -> u8 {
+        pub fn get_sprite_pixel(&mut self, screen_row: u16, screen_column: i16) -> (u8, u8) {
 
             if screen_column == 0 {
                 self.render_sprites = [-1, -1, -1, -1, -1, -1, -1, -1];
@@ -444,7 +444,7 @@ pub mod nes {
 
                     let y_pos: u8 = self.oam_read(i * 4);
 
-                    if screen_row - y_pos as u16 > 0 && screen_row - y_pos as u16 <= 8 {
+                    if screen_row >= y_pos as u16 && screen_row - y_pos as u16 > 0 && screen_row - y_pos as u16 <= 8 {
                         self.render_sprites[sprite_count as usize] = i as i8;
                         sprite_count += 1;
                     }            
@@ -452,73 +452,74 @@ pub mod nes {
             }
             
             let background: u8 = self.read(PPU_PALETTE_ADDR);
+            let mut priority: u8 = 0;
 
-            for i in (0..=7).rev() {
+            let mut sprite_attribute: PpuSpriteAttributeRegister = PpuSpriteAttributeRegister::new();
+            for i in (0..=7) {
 
-                let mut sprite_attribute: PpuSpriteAttributeRegister = PpuSpriteAttributeRegister::new();
                 let sprite_pos: i32 = self.render_sprites[i] as i32;
-
                 if sprite_pos == -1 {
                     continue;
                 }
 
                 let x_pos: u16 = self.oam_read((sprite_pos * PPU_SPRITE_SIZE + 3) as u16) as u16;
-                if (screen_column - x_pos as i16) < 0 || screen_column - x_pos as i16 > 8 {
+                if (screen_column - x_pos as i16) < 0 || screen_column - x_pos as i16 > 7 {
                     continue;
                 }                       
 
                 let y_pos: i32 = (self.oam_read((sprite_pos * PPU_SPRITE_SIZE) as u16) + 1) as i32;
-                let mut pattern_address: u16 = self.oam_read((sprite_pos * PPU_SPRITE_SIZE + 1) as u16) as u16;
-                pattern_address = (pattern_address) << 4;
-                sprite_attribute.reg(self.oam_read((sprite_pos * PPU_SPRITE_SIZE + 2) as u16));
-                let mut sprite_lsb: u8 = 0;
-                let mut sprite_msb: u8 = 0;
+
+                let mut pattern_address: u16 = (self.oam_read((sprite_pos * PPU_SPRITE_SIZE + 1) as u16) as u16) << 4;
                 let mut sprite_pattern_address: u16 = pattern_address + ((screen_row - y_pos as u16) & 0x07) as u16;
 
+                sprite_attribute.reg(self.oam_read((sprite_pos * PPU_SPRITE_SIZE + 2) as u16));
                 if sprite_attribute.flip_vertically > 0 {// flip verticle
                     sprite_pattern_address = pattern_address + ((7 - screen_row - y_pos as u16) & 0x07) as u16;
                 }
 
-                sprite_lsb = self.read(sprite_pattern_address);
-                sprite_msb = self.read(sprite_pattern_address + PPU_SPRITE_PATTERN_SIZE);
+                priority = sprite_attribute.priority;
+
+                let mut sprite_lsb = self.read(sprite_pattern_address);
+                let mut sprite_msb = self.read(sprite_pattern_address + PPU_SPRITE_PATTERN_SIZE);
 
                 if sprite_attribute.flip_horizontally > 0 {
                     sprite_lsb = NesPpu::reverse_bits(sprite_lsb);
                     sprite_msb = NesPpu::reverse_bits(sprite_msb);
                 }
 
-                for j in x_pos ..x_pos + 8 {
-                    let pixel: u8 = ((sprite_msb >> 6) & 0x02) + ((sprite_lsb >> 7) & 0x01);
-                    let palette: u8 = ((sprite_attribute.sprite_palette) + 0x04) << 2;
+                let slide = screen_column - x_pos as i16;
+                sprite_lsb = sprite_lsb << slide;
+                sprite_msb = sprite_msb << slide;
 
-                    if pixel != 0{
-                        let color: u8 = self.read(PPU_PALETTE_ADDR + palette as u16 + pixel as u16);
+                let pixel: u8 = ((sprite_msb >> 6) & 0x02) + ((sprite_lsb >> 7) & 0x01);
+                let palette: u8 = ((sprite_attribute.sprite_palette) + 0x04) << 2;
 
-                        if background != color && j == screen_column as u16 {
-                            return color;
-                        }
+                if pixel != background{
+                    let color: u8 = self.read(PPU_PALETTE_ADDR + palette as u16 + pixel as u16);
+
+                    if background != color {
+                        return (color, priority);
                     }
-                    sprite_lsb = sprite_lsb << 1;
-                    sprite_msb = sprite_msb << 1;
                 }
             }
 
-            return 0
+            return (0,priority)
         }
 
         fn render_pixel(&mut self) {
-            let sprite_pixel: u8 = self.get_sprite_pixel(self.scan_line as u16, self.cycle as i16);
+            let (sprite_pixel, sprite_priority): (u8, u8) = self.get_sprite_pixel(self.scan_line as u16, self.cycle as i16);
             let background_pixel: u8 = self.get_background_pixel(self.scan_line as u16, self.cycle as i16);
+            let background: u8 = self.read(PPU_PALETTE_ADDR);
 
             if self.cycle >= 0  && self.cycle < 256 && self.scan_line >= 0 && self.scan_line < 240 {
 
                 let mut color = 0;
-                
-                if sprite_pixel != 0 {
-                    color = sprite_pixel;
-                }
-                else  {
+                if background_pixel != 0 {
                     color = background_pixel;
+                }
+                
+                if sprite_pixel != 0 && (sprite_priority == 0 || background_pixel == background) {
+                    color = sprite_pixel;
                 }
 
                 let (red, green, blue) = self.palette.get_color(color as usize, 0);

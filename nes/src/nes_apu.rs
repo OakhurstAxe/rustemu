@@ -8,11 +8,15 @@ pub mod nes {
     use crate::nes_aputrianglechannel::nes::NesApuTriangleChannel;
     use crate::nes_apunoisechannel::nes::NesApuNoiseChannel;
     use crate::nes_apuchannel::nes::SAMPLES_PER_FRAME;
+    use crate::nes_console::nes::TICKS_PER_FRAME;
 
     pub struct NesApu {
         apu_io_registers: MemoryRamFlagged,
         left_controller: u8,
         right_controller: u8,
+        nmi_set: bool,
+        interrupt_set: bool,
+        frame_counter: u16,
         channel0: NesApuPulseChannel,
         channel1: NesApuPulseChannel,
         channel2: NesApuTriangleChannel,
@@ -26,6 +30,9 @@ pub mod nes {
                 apu_io_registers: MemoryRamFlagged::new(0x001f, String::from("APU IO Registers")),
                 left_controller: 0,
                 right_controller: 0,
+                nmi_set: false,
+                interrupt_set: false,
+                frame_counter: 0,
                 channel0: NesApuPulseChannel::new(),
                 channel1: NesApuPulseChannel::new(),
                 channel2: NesApuTriangleChannel::new(),
@@ -47,6 +54,17 @@ pub mod nes {
 
         pub fn write(&mut self, location: u16, byte: u8) {
             self.apu_io_registers.write(location, byte);
+
+            if (location == 0x17) {
+                if (byte & 0x80) == 0 {
+                    self.frame_counter = TICKS_PER_FRAME >> 2;
+                }
+                if (byte & 0x40) != 0 {
+                    self.interrupt_set = false;
+                } else {
+                    self.interrupt_set = true;
+                }
+            }
         }
 
         pub fn set_left_controller(&mut self, byte: u8) {
@@ -69,8 +87,24 @@ pub mod nes {
             result
         }
 
+        pub fn is_nmi_set(&self) -> bool {
+            self.nmi_set
+        }
+        
+        pub fn reset_nmi(&mut self) {
+            self.nmi_set = false;
+            self.interrupt_set = false;
+        }
+
         pub fn execute_tick(&mut self) {
             
+            if self.frame_counter > 0 {
+                self.frame_counter -= 1;
+            }
+            if self.frame_counter == 0 && self.interrupt_set == true {
+                self.nmi_set = true;
+            }
+
             let mut register1: u8 = self.apu_io_registers.read(0);
             let mut register1_flag = self.apu_io_registers.is_write_flag_set(0);
             let mut register2: u8 = self.apu_io_registers.read(1);
@@ -122,7 +156,7 @@ pub mod nes {
                                             register2, register2_flag,
                                             register3, register3_flag,
                                             register4, register4_flag);
-                                        }
+        }
 
         pub fn get_audio_buffer(&mut self) -> Vec<u8> {
 
@@ -140,6 +174,7 @@ pub mod nes {
 
             mix
         }
-
     }
+
 }
+
