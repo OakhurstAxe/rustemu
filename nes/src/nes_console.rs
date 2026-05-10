@@ -44,7 +44,7 @@ pub mod nes {
             let apu: Arc<RwLock<NesApu>> = Arc::new(RwLock::new(NesApu::new()));
             let memory = NesMemory::new (Arc::clone(&cartridge), Arc::clone(&ppu), Arc::clone(&apu));
             let mut cpu: M6502<NesMemory> = M6502::new(memory);
-//            cpu.disable_dec();
+            cpu.disable_dec();
 
             let mut temp_instance = Self {
                 cpu: cpu,

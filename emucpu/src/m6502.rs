@@ -49,6 +49,7 @@ pub mod emu_cpu {
         operation: OperationStruct<T>,
         instruction: u8,
         is_nmi_set: bool,
+        dec_disabled: bool,
     }
 
     impl<T: MemoryMapper> BaseCpu for M6502<T> {
@@ -118,6 +119,7 @@ pub mod emu_cpu {
                     instruction: 0,
                     debug: 0,
                     is_nmi_set: false,
+                    dec_disabled: false,
             }
         }
 
@@ -127,6 +129,10 @@ pub mod emu_cpu {
 
         pub fn set_nmi (&mut self) {
             self.is_nmi_set = true;
+        }
+        
+        pub fn disable_dec(&mut self) {
+            self.dec_disabled = true;
         }
 
         fn get_op_codes() -> [OperationStruct<T>; 0x100] {
@@ -796,7 +802,7 @@ pub mod emu_cpu {
             let(value2, overflow2) = value1.overflowing_add(carry);
             value = value2;
 
-            if self.get_status_flag(DECIMAL_MODE) != 0 {
+            if self.get_status_flag(DECIMAL_MODE) != 0 && !self.dec_disabled {
                 if ((self.accumulator ^ byte ^ value) & 0x10) == 0x10 {
                     value += 0x06;
                 }
@@ -825,7 +831,7 @@ pub mod emu_cpu {
             let(value2, overflow2) = value1.overflowing_add(carry);
             value = value2;
 
-            if self.get_status_flag(DECIMAL_MODE) != 0 {
+            if self.get_status_flag(DECIMAL_MODE) != 0 && !self.dec_disabled {
                 if ((self.accumulator ^ byte ^ value) & 0x10) == 0x10 {
                     value += 0x06;
                 }
