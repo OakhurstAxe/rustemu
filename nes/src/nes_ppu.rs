@@ -165,7 +165,8 @@ pub mod nes {
         ppu_name_table: MemoryRam,
         ppu_palette: MemoryRam,
         ppu_oam: MemoryRam,
-        pub cpu_ppu_registers: MemoryRam,
+        cpu_ppu_registers: MemoryRam,
+        ppu_write_latch: u8,
         cartridge: Arc<RwLock<NesCartridge000>>,
         control_register: PpuControlRegister,
         scan_line: i32,
@@ -176,13 +177,11 @@ pub mod nes {
         attribute_byte: u8,
         nametable_address: u16,
         pattern_entry_address: u16,
-        char_table_entry_lsb: u8,
-        char_table_entry_msb: u8,
-        pub ppu_x_scroll_write: bool,
-        pub ppu_x_scroll_read: bool,
-        pub ppu_x_scroll: u8,
-        pub ppu_y_scroll: u8,
-        pub ppu_addr: u16,
+        ppu_x_scroll_write: bool,
+        ppu_x_scroll_read: bool,
+        ppu_x_scroll: u8,
+        ppu_y_scroll: u8,
+        ppu_addr: u16,
         ppu_addr_h: u8,
         ppu_addr_l: u8,
         ppu_addr_count: u8,
@@ -199,6 +198,7 @@ pub mod nes {
                 ppu_palette: MemoryRam::new(String::from("PPU Palette RAM"), 0x0100),
                 ppu_oam: MemoryRam::new(String::from("PPU OAM RAM"), 0x0100),
                 cpu_ppu_registers: MemoryRam::new(String::from("PPU Registers"), 0x0008),
+                ppu_write_latch: 0,
                 cartridge: cartridge,
                 control_register: PpuControlRegister::new(),
                 scan_line: 0,
@@ -209,8 +209,6 @@ pub mod nes {
                 attribute_byte: 0,
                 nametable_address: 0,
                 pattern_entry_address: 0,
-                char_table_entry_lsb: 0,
-                char_table_entry_msb: 0,
                 ppu_x_scroll_write: true,
                 ppu_x_scroll_read: true,
                 ppu_x_scroll: 0,
@@ -280,42 +278,39 @@ pub mod nes {
 
         pub fn ppu_register_read(&mut self, mut location: u16) -> u8 {
             // Mirroring, and bring to zero
-            location = location % 8;
+            location %= 8;
             
             if location == 0x02 {
                 let byte: u8 = self.cpu_ppu_registers.read(2);
                 self.cpu_ppu_registers.write(2, byte & 0x7f);
                 self.ppu_addr_count = 0;
                 return byte;
+            } else if location == 0x04 {
+                return self.oam_read(self.ppu_oam_addr as u16);
+            } else if location == 0x07 {
+                return self.read(self.ppu_addr);
             }
 
-            if location == 0x05 {
-                
-                return self.ppu_scroll_read();
-            }
-
-            return self.cpu_ppu_registers.read(location);
+            self.ppu_write_latch
         }
 
         pub fn ppu_register_write(&mut self, mut location: u16, byte: u8) {
 
-            location = location % 8;
-            self.cpu_ppu_registers.write(location, byte);
+            location %= 8;
+            self.ppu_write_latch = byte;
 
-            if location == 0x03 {
+            if location == 0x00 {
+                self.cpu_ppu_registers.write(0, byte);
+            } else if location == 0x01 {
+                self.cpu_ppu_registers.write(1, byte);
+            } else if location == 0x03 {
                 self.ppu_oam_addr = byte;
-            }
-
-            if location == 0x04 {
+            } else if location == 0x04 {
                 self.oam_write(self.ppu_oam_addr as u16, byte);
                 self.ppu_oam_addr += 1;
-            }
-
-            if location == 0x05 {
+            } else if location == 0x05 {
                 self.ppu_scroll_write(byte);
-            }
-
-            if location == 0x06 {
+            } else if location == 0x06 {
                 self.ppu_addr_count += 1;
                 
                 if self.ppu_addr_count == 1 {
@@ -325,26 +320,21 @@ pub mod nes {
                 if self.ppu_addr_count == 2 {
                     self.ppu_addr_l = byte;
                     self.ppu_addr = (((self.ppu_addr_h as u16) << 8) + self.ppu_addr_l as u16) as u16;
-                    //self.ppu_addr = (((self.ppu_addr_h as u16) << 8) + self.ppu_addr_l as u16) as u16;
                     self.ppu_addr_count = 0;
                 }
-            }
-            
-            if location == 0x07 { // && ppuAddr_ != 0)
+            } else if location == 0x07 { // && ppuAddr_ != 0)
                 let addr = self.ppu_addr;
                 self.write(addr, byte);
                 //self.ppu.write().unwrap().write(self.ppu_addr, byte);
                 let controller: u8 = self.cpu_ppu_registers.read(0x0000);
                 if controller & 0x04 > 0 {
                     self.ppu_addr += 32;
-                    //self.ppu_addr += 32;
                 }
                 else {
                     self.ppu_addr += 1;
-                    //self.ppu_addr += 1;
                 }
             }
-            return;
+
         }
         
         pub fn oam_read(&mut self, location: u16) -> u8 {

@@ -1,7 +1,7 @@
 
 pub mod emu_cpu {
 
-    use std::ptr::fn_addr_eq;
+    use std::{ops::Add, ptr::fn_addr_eq};
 
     use emumemory::memory_mapper::emu_memory::MemoryMapper;
     use crate::base_cpu::emu_cpu::BaseCpu;
@@ -17,14 +17,20 @@ pub mod emu_cpu {
 
     
     pub struct OperationStruct<T: MemoryMapper> {
-        operation: fn(&mut M6502<T>, fn(&mut M6502<T>) -> AddressStruct),
-        address_method: fn(&mut M6502<T>) -> AddressStruct,
+        operation: fn(&mut M6502<T>, fn(&mut M6502<T>)),
+        address_method: fn(&mut M6502<T>),
         ticks: u8
     }
 
     pub struct AddressStruct {
-        address: u16,
-        dummy_address: Option<u16>,
+        loadl: u8,
+        loadh: u8,
+    }
+
+    impl AddressStruct {
+        fn address(&self) -> u16 {
+             ((self.loadh as u16) << 8) + (self.loadl as u16)
+        }
     }
 
     impl<T:MemoryMapper> Copy for OperationStruct<T> {}
@@ -55,6 +61,7 @@ pub mod emu_cpu {
         instruction: u8,
         is_nmi_set: bool,
         dec_disabled: bool,
+        address_bus: AddressStruct,
     }
 
     impl<T: MemoryMapper> BaseCpu for M6502<T> {
@@ -125,6 +132,7 @@ pub mod emu_cpu {
                     debug: 0,
                     is_nmi_set: false,
                     dec_disabled: false,
+                    address_bus : AddressStruct { loadl: 0, loadh: 0 },
             }
         }
 
@@ -419,8 +427,12 @@ pub mod emu_cpu {
             op_code_lookup
         }
 
-        fn call_op_method(&mut self, op: fn(&mut M6502<T>, fn(&mut M6502<T>) -> AddressStruct), address_method: fn(&mut M6502<T>) -> AddressStruct) {
-            op(self, address_method);            
+        fn call_op_method(&mut self, op: fn(&mut M6502<T>, fn(&mut M6502<T>)), address_method: fn(&mut M6502<T>)) {
+            if self.program_counter == 12642 {
+                self.debug = 0;
+            }
+            
+            op(self, address_method);         
         }
 
         pub fn get_next_operation(&mut self) {
@@ -434,24 +446,23 @@ pub mod emu_cpu {
 
             self.overflow_ticks += self.operation.ticks as i32;
             self.set_overflow_for_operation();
-            self.set_overflow_for_address_access(self.operation.address_method);
         }
 
         fn set_overflow_for_operation(&mut self)
         {
             // If branch operaion takes a branch it causes extra tick
-            if (fn_addr_eq(self.operation.operation, M6502::op_bcc as fn(&mut M6502<T>, fn(&mut M6502<T>) -> AddressStruct)) && self.get_status_flag(CARRY_FLAG) == 0) 
-                || (fn_addr_eq(self.operation.operation, M6502::op_bcs as fn(&mut M6502<T>, fn(&mut M6502<T>) -> AddressStruct)) && self.get_status_flag(CARRY_FLAG) != 0) 
-                || (fn_addr_eq(self.operation.operation, M6502::op_beq as fn(&mut M6502<T>, fn(&mut M6502<T>) -> AddressStruct)) && self.get_status_flag(ZERO_FLAG) != 0) 
-                || (fn_addr_eq(self.operation.operation, M6502::op_bmi as fn(&mut M6502<T>, fn(&mut M6502<T>) -> AddressStruct)) && self.get_status_flag(NEGATIVE_FLAG) != 0) 
-                || (fn_addr_eq(self.operation.operation, M6502::op_bne as fn(&mut M6502<T>, fn(&mut M6502<T>) -> AddressStruct)) && self.get_status_flag(ZERO_FLAG) == 0) 
-                || (fn_addr_eq(self.operation.operation, M6502::op_bpl as fn(&mut M6502<T>, fn(&mut M6502<T>) -> AddressStruct)) && self.get_status_flag(NEGATIVE_FLAG) == 0) 
-                || (fn_addr_eq(self.operation.operation, M6502::op_bvc as fn(&mut M6502<T>, fn(&mut M6502<T>) -> AddressStruct)) && self.get_status_flag(OVERFLOW_FLAG) == 0) 
-                || (fn_addr_eq(self.operation.operation, M6502::op_bvs as fn(&mut M6502<T>, fn(&mut M6502<T>) -> AddressStruct)) && self.get_status_flag(OVERFLOW_FLAG) != 0) {
+            if (fn_addr_eq(self.operation.operation, M6502::op_bcc as fn(&mut M6502<T>, fn(&mut M6502<T>))) && self.get_status_flag(CARRY_FLAG) == 0) 
+                || (fn_addr_eq(self.operation.operation, M6502::op_bcs as fn(&mut M6502<T>, fn(&mut M6502<T>))) && self.get_status_flag(CARRY_FLAG) != 0) 
+                || (fn_addr_eq(self.operation.operation, M6502::op_beq as fn(&mut M6502<T>, fn(&mut M6502<T>))) && self.get_status_flag(ZERO_FLAG) != 0) 
+                || (fn_addr_eq(self.operation.operation, M6502::op_bmi as fn(&mut M6502<T>, fn(&mut M6502<T>))) && self.get_status_flag(NEGATIVE_FLAG) != 0) 
+                || (fn_addr_eq(self.operation.operation, M6502::op_bne as fn(&mut M6502<T>, fn(&mut M6502<T>))) && self.get_status_flag(ZERO_FLAG) == 0) 
+                || (fn_addr_eq(self.operation.operation, M6502::op_bpl as fn(&mut M6502<T>, fn(&mut M6502<T>))) && self.get_status_flag(NEGATIVE_FLAG) == 0) 
+                || (fn_addr_eq(self.operation.operation, M6502::op_bvc as fn(&mut M6502<T>, fn(&mut M6502<T>))) && self.get_status_flag(OVERFLOW_FLAG) == 0) 
+                || (fn_addr_eq(self.operation.operation, M6502::op_bvs as fn(&mut M6502<T>, fn(&mut M6502<T>))) && self.get_status_flag(OVERFLOW_FLAG) != 0) {
                 self.overflow_ticks += 1;
                 let address_met = self.operation.address_method;
-                let relative_address = address_met(self);
-                let diff = self.program_counter.abs_diff(relative_address.address);
+                address_met(self);
+                let diff = self.program_counter.abs_diff(self.address_bus.address());
                 if (diff & 0xFF00) > 0 {
                     self.overflow_ticks += 1;
                 }
@@ -459,30 +470,9 @@ pub mod emu_cpu {
             }
         }
         
-        fn set_overflow_for_address_access(&mut self, address_method: fn(&mut M6502<T>) -> AddressStruct) {
-            let mut carry: u16 = 0;
-            
-            // overflow on address lookup ONLY if low byte carrys to 
-            // high byte by adding X or Y register
-            if fn_addr_eq(address_method, M6502::absolute_y_address as for<'a, 'b> fn(&'a mut M6502<T>) -> AddressStruct) {
-                let loadl: u8 = self.memory.cpu_read(self.program_counter);
-                carry = loadl as u16 + self.register_y as u16;
-            }
-            else if fn_addr_eq(address_method, M6502::indirect_y_address as for<'a, 'b> fn(&'a mut M6502<T>) -> AddressStruct) {
-                let indirect: u16 = self.memory.cpu_read(self.program_counter) as u16;
-                let loadl: u8 = self.memory.cpu_read(indirect & 0xff);
-                carry = loadl as u16 + self.register_y as u16;
-            }
-            
-            // Carry goes into high byte, so requires extra clock cycle
-            if carry > 0x00FF {
-                self.overflow_ticks += 1;
-            }
-        }
-
         fn push_stack(&mut self, byte: u8) {
             if self.stack_pointer == 0 {
-                panic!("Stack overflow");
+                eprintln!("Stack overflow");
             }
             self.memory.cpu_write(self.stack_pointer + self.stack_pointer_page, byte);
             self.stack_pointer -= 1;
@@ -490,177 +480,143 @@ pub mod emu_cpu {
 
         fn pop_stack(&mut self) -> u8 {
             if self.stack_pointer > 255 {
-                panic!("Stack underflow");
+                eprintln!("Stack underflow");
             }
             self.stack_pointer += 1;
             self.memory.cpu_read(self.stack_pointer + self.stack_pointer_page)
         }
 
-        fn null_address(&mut self) -> AddressStruct {
-            AddressStruct {
-                address: 0,
-                dummy_address: None
-            }
+        fn null_address(&mut self) {
+            self.address_bus.loadl = 0;
+            self.address_bus.loadh = 0;
         }
 
-        fn accumulator_address(&mut self) -> AddressStruct {
-            AddressStruct {
-                address: self.accumulator as u16,
-                dummy_address: None
-            }
+        fn accumulator_address(&mut self) {
+            self.address_bus.loadl = self.accumulator;
+            self.address_bus.loadh = 0;
         }
 
-        fn immediate_address(&mut self) -> AddressStruct {
-            let address: u16 = self.program_counter;
+        fn immediate_address(&mut self) {
+            self.address_bus.loadl = (self.program_counter & 0x00FF) as u8;
+            self.address_bus.loadh = (self.program_counter >> 8) as u8;
             self.program_counter += 1;
-            AddressStruct {
-                address: address,
-                dummy_address: None
-            }
         }
         
-        fn zero_address(&mut self) -> AddressStruct {
+        fn zero_address(&mut self) {
             let address: u16 = self.memory.cpu_read(self.program_counter) as u16 & 0xFF;
+            self.address_bus.loadl = (address & 0x00FF) as u8;
+            self.address_bus.loadh = (address >> 8) as u8;
             self.program_counter += 1;
-            AddressStruct {
-                address: address,
-                dummy_address: None
-            }
         }
         
-        fn zero_x_address(&mut self) -> AddressStruct {
-            let address: u16 = self.memory.cpu_read(self.program_counter) as u16 + self.register_x as u16 & 0xFF;
+        fn zero_x_address(&mut self) {
+            let address: u16 = self.memory.cpu_read(self.program_counter) as u16;
+            self.address_bus.loadl = ((address + self.register_x as u16) & 0x00FF) as u8;
+            self.address_bus.loadh = (address >> 8) as u8;
             self.program_counter += 1;
-            AddressStruct {
-                address: address,
-                dummy_address: None
-            }
         }
 
-        fn zero_y_address(&mut self) -> AddressStruct {
-            let address: u16 = self.memory.cpu_read(self.program_counter) as u16 + self.register_y as u16 & 0xFF;
+        fn zero_y_address(&mut self) {
+            let address: u16 = self.memory.cpu_read(self.program_counter) as u16;
+            self.address_bus.loadl = ((address + self.register_y as u16) & 0x00FF) as u8;
+            self.address_bus.loadh = (address >> 8) as u8;
             self.program_counter += 1;
-            AddressStruct {
-                address: address,
-                dummy_address: None
-            }
         }
 
-        fn absolute_address(&mut self) -> AddressStruct {
-            let loadl: u8 = self.memory.cpu_read(self.program_counter);
+        fn absolute_address(&mut self) {
+            self.address_bus.loadl = self.memory.cpu_read(self.program_counter);
             self.program_counter += 1;
-            let loadh: u8 = self.memory.cpu_read(self.program_counter);
+            self.address_bus.loadh = self.memory.cpu_read(self.program_counter);
             self.program_counter += 1;
-            let address: u16 = ((loadh as u16) << 8) + (loadl as u16);
-            AddressStruct {
-                address: address,
-                dummy_address: None
-            }
         }
 
-        fn absolute_x_address(&mut self) -> AddressStruct {
-            let loadl: u8 = self.memory.cpu_read(self.program_counter);
+        fn absolute_x_address(&mut self) {
+            self.address_bus.loadl = self.memory.cpu_read(self.program_counter);
             self.program_counter += 1;
-            let loadh: u8 = self.memory.cpu_read(self.program_counter);
+            self.address_bus.loadh = self.memory.cpu_read(self.program_counter);
             self.program_counter += 1;
-            let address: u16 = ((loadh as u16) << 8) + loadl as u16 + self.register_x as u16;
 
-            let mut dummy_address: Option<u16> = None;
-            let carry = loadl as u16 + self.register_x as u16;
-            if carry > 0x00FF {
-                dummy_address =  Some(((loadh as u16) << 8) + loadl as u16);
+            let increment = self.address_bus.loadl as u16 + self.register_x as u16;
+            if increment > 0x00FF {
+                let dummy = ((self.address_bus.loadh as u16) << 8) + (increment & 0xff);
                 self.overflow_ticks += 1;
+                self.memory.cpu_read(dummy);
             }
 
-            AddressStruct {
-                address: address,
-                dummy_address: dummy_address
-            }
+            self.address_bus.loadl = self.address_bus.loadl.overflowing_add(self.register_x).0;
+            self.address_bus.loadh += (increment >> 8) as u8;
         }
 
-        fn absolute_x_address_no_overflow(&mut self) -> AddressStruct {
-            AddressStruct {
-                address: self.absolute_x_address().address,
-                dummy_address: None
-            }
+        fn absolute_x_address_no_overflow(&mut self) {
+            self.absolute_x_address();
         }
 
-        fn absolute_y_address(&mut self) -> AddressStruct {
-            let loadl: u8 = self.memory.cpu_read(self.program_counter);
+        fn absolute_y_address(&mut self) {
+            self.address_bus.loadl = self.memory.cpu_read(self.program_counter);
             self.program_counter += 1;
-            let loadh: u8 = self.memory.cpu_read(self.program_counter);
+
+            let increment = self.address_bus.loadl as u16 + self.register_y as u16;
+            if increment > 0x00FF {
+                let dummy = ((self.address_bus.loadh as u16) << 8) + (increment & 0xff);
+                self.overflow_ticks += 1;
+                self.memory.cpu_read(dummy);
+            }
+
+            self.address_bus.loadh = self.memory.cpu_read(self.program_counter);
             self.program_counter += 1;
-            let (addr1, _overflow1) = ((loadh as u16) << 8).overflowing_add(loadl as u16);
-            let (addr2, _overflow1) = addr1.overflowing_add(self.register_y as u16);
-            let address: u16 = addr2;
-            AddressStruct {
-                address: address,
-                dummy_address: None
-            }
+            self.address_bus.loadl = self.address_bus.loadl.overflowing_add(self.register_y).0;
+            self.address_bus.loadh += (increment >> 8) as u8;
         }
 
-        fn absolute_y_address_no_overflow(&mut self) -> AddressStruct {
-            AddressStruct {
-                address: self.absolute_y_address().address,
-                dummy_address: None
-            }
+        fn absolute_y_address_no_overflow(&mut self) {
+            self.absolute_y_address();
         }
 
-        fn indirect_address(&mut self) -> AddressStruct {
+        fn indirect_address(&mut self) {
             let mut loadl: u8 = self.memory.cpu_read(self.program_counter);
             self.program_counter += 1;
             let mut loadh: u8 = self.memory.cpu_read(self.program_counter);
             let mut load: u16 = ((loadh as u16) << 8) + loadl as u16;
             // Bug in M6502 if low nibble is end of page
             if loadl == 0x00ff {
-                loadl = self.memory.cpu_read(load);
-                loadh = self.memory.cpu_read(load & 0xff00);
+                self.address_bus.loadl = self.memory.cpu_read(load);
+                self.address_bus.loadh = self.memory.cpu_read(load & 0xff00);
             }
             else {
-                loadl = self.memory.cpu_read(load);
+                self.address_bus.loadl = self.memory.cpu_read(load);
                 load += 1;
-                loadh = self.memory.cpu_read(load);
-            }
-            AddressStruct {
-                address: ((loadh as u16) << 8) + loadl as u16,
-                dummy_address: None
+                self.address_bus.loadh = self.memory.cpu_read(load);
             }
         }
 
-        fn indirect_x_address(&mut self) -> AddressStruct {
+        fn indirect_x_address(&mut self) {
             let mut indirect: u16 = self.memory.cpu_read(self.program_counter) as u16 + self.register_x as u16;
             self.program_counter += 1;
-            let loadl: u8 = self.memory.cpu_read(indirect & 0xff);
+            self.address_bus.loadl = self.memory.cpu_read(indirect & 0xff);
             indirect += 1;
-            let loadh: u8 = self.memory.cpu_read(indirect & 0xff);
-            let (addr1, _overflow1) = ((loadh as u16) << 8).overflowing_add(loadl as u16);
-            let address: u16 = addr1;
-            AddressStruct {
-                address: address,
-                dummy_address: None
-            }
+            self.address_bus.loadh = self.memory.cpu_read(indirect & 0xff);
         }
 
-        fn indirect_y_address(&mut self) -> AddressStruct {
+        fn indirect_y_address(&mut self) {
             let mut indirect: u16 = self.memory.cpu_read(self.program_counter) as u16;
             self.program_counter += 1;
-            let loadl: u8 = self.memory.cpu_read(indirect & 0xff);
+            self.address_bus.loadl = self.memory.cpu_read(indirect & 0xff);
             indirect += 1;
-            let loadh: u8 = self.memory.cpu_read(indirect & 0xff);
-            let (addr1, _overflow1) = ((loadh as u16) << 8).overflowing_add(loadl as u16);
-            let (addr2, _overflow1) = addr1.overflowing_add(self.register_y as u16);
-            let address: u16 = addr2;
-            AddressStruct {
-                address: address,
-                dummy_address: None
+            self.address_bus.loadh = self.memory.cpu_read(indirect & 0xff);
+
+            let increment = self.address_bus.loadl as u16 + self.register_y as u16;
+            if increment > 0x00FF {
+                let dummy = ((self.address_bus.loadh as u16) << 8) + (increment & 0xff);
+                self.overflow_ticks += 1;
+                self.memory.cpu_read(dummy);
             }
+
+            self.address_bus.loadl = self.address_bus.loadl.overflowing_add(self.register_y).0;
+            self.address_bus.loadh += (increment >> 8) as u8;
         }
 
-        fn indirect_y_address_no_overflow(&mut self) -> AddressStruct {
-            AddressStruct {
-                address: self.indirect_y_address().address,
-                dummy_address: None
-            }
+        fn indirect_y_address_no_overflow(&mut self) {
+            self.indirect_y_address();
         }
 
         pub fn get_accumulator(&self) -> u8 {
@@ -706,99 +662,96 @@ pub mod emu_cpu {
         }
 
         // NES specific operations
-        fn op_rla(&mut self, address_method: fn(&mut M6502<T>) -> AddressStruct) {
-            let _address: u16 = address_method(self).address;
+        fn op_rla(&mut self, address_method: fn(&mut M6502<T>)) {
+            address_method(self);
         }
 
-        fn op_sre(&mut self, address_method: fn(&mut M6502<T>) -> AddressStruct) {
-            let _address: u16 = address_method(self).address;
+        fn op_sre(&mut self, address_method: fn(&mut M6502<T>)) {
+            address_method(self);
         }
 
-        fn op_rra(&mut self, address_method: fn(&mut M6502<T>) -> AddressStruct) {
-            let _address: u16 = address_method(self).address;
+        fn op_rra(&mut self, address_method: fn(&mut M6502<T>)) {
+            address_method(self);
         }
 
-        fn op_lax(&mut self, address_method: fn(&mut M6502<T>) -> AddressStruct) {
-            let _address: u16 = address_method(self).address;
+        fn op_lax(&mut self, address_method: fn(&mut M6502<T>)) {
+            address_method(self);
         }
 
-        fn op_dcp(&mut self, address_method: fn(&mut M6502<T>) -> AddressStruct) {
-            let _address: u16 = address_method(self).address;
+        fn op_dcp(&mut self, address_method: fn(&mut M6502<T>)) {
+            address_method(self);
         }
 
         // Load Store operations
-        fn op_lda(&mut self, address_method: fn(&mut M6502<T>) -> AddressStruct) {
-            let address  = address_method(self);
-            if let Some(dummy_address) = address.dummy_address {
-                self.memory.cpu_read(dummy_address);
-            }
-            self.accumulator = self.memory.cpu_read(address.address);
+        fn op_lda(&mut self, address_method: fn(&mut M6502<T>)) {
+            address_method(self);
+            self.accumulator = self.memory.cpu_read(self.address_bus.address());
             self.set_negative_zero(self.accumulator);
         }
 
-        fn op_ldx(&mut self, address_method: fn(&mut M6502<T>) -> AddressStruct) {
-            let address: u16 = address_method(self).address;
-            self.register_x = self.memory.cpu_read(address);
+        fn op_ldx(&mut self, address_method: fn(&mut M6502<T>)) {
+            address_method(self);
+            self.register_x = self.memory.cpu_read(self.address_bus.address());
             self.set_negative_zero(self.register_x);
         }
 
-        fn op_ldy(&mut self, address_method: fn(&mut M6502<T>) -> AddressStruct) {
-            let address: u16 = address_method(self).address;
-            self.register_y = self.memory.cpu_read(address);
+        fn op_ldy(&mut self, address_method: fn(&mut M6502<T>)) {
+            address_method(self);
+            self.register_y = self.memory.cpu_read(self.address_bus.address());
             self.set_negative_zero(self.register_y);
         }
 
-        fn op_sta(&mut self, address_method: fn(&mut M6502<T>) -> AddressStruct) {
-            let address: u16 = address_method(self).address;
-            self.memory.cpu_write(address, self.accumulator);
+        fn op_sta(&mut self, address_method: fn(&mut M6502<T>)) {
+            address_method(self);
+            self.memory.cpu_write(self.address_bus.address(), self.accumulator);
         }
         
-        fn op_stx(&mut self, address_method: fn(&mut M6502<T>) -> AddressStruct) {
-            let address: u16 = address_method(self).address;
-            self.memory.cpu_write(address, self.register_x);
+        fn op_stx(&mut self, address_method: fn(&mut M6502<T>)) {
+            address_method(self);
+            self.memory.cpu_write(self.address_bus.address(), self.register_x);
         }
 
-        fn op_sty(&mut self, address_method: fn(&mut M6502<T>) -> AddressStruct) {
-            let address: u16 = address_method(self).address;
-            self.memory.cpu_write(address, self.register_y);
+        fn op_sty(&mut self, address_method: fn(&mut M6502<T>)) {
+            address_method(self);
+            self.memory.cpu_write(self.address_bus.address(), self.register_y);
         }
 
         // Register transfers
-        fn op_tax(&mut self, _address_method: fn(&mut M6502<T>) -> AddressStruct) {
+        fn op_tax(&mut self, _address_method: fn(&mut M6502<T>)) {
             self.register_x = self.accumulator;
             self.set_negative_zero(self.register_x);
         }
 
-        fn op_tay(&mut self, _address_method: fn(&mut M6502<T>) -> AddressStruct) {
+        fn op_tay(&mut self, _address_method: fn(&mut M6502<T>)) {
             self.register_y = self.accumulator;
             self.set_negative_zero(self.register_y);
         }
 
-        fn op_txa(&mut self, _address_method: fn(&mut M6502<T>) -> AddressStruct) {
+        fn op_txa(&mut self, _address_method: fn(&mut M6502<T>)) {
             self.accumulator = self.register_x;
             self.set_negative_zero(self.accumulator);
         }
 
-        fn op_tya(&mut self, _address_method: fn(&mut M6502<T>) -> AddressStruct) {
+        fn op_tya(&mut self, _address_method: fn(&mut M6502<T>)) {
             self.accumulator = self.register_y;
             self.set_negative_zero(self.accumulator);
         }
 
         // Stack operaions
-        fn op_tsx(&mut self, _address_method: fn(&mut M6502<T>) -> AddressStruct) {
+        fn op_tsx(&mut self, _address_method: fn(&mut M6502<T>)) {
             self.register_x = self.stack_pointer as u8;
             self.set_negative_zero(self.register_x);
         }
 
-        fn op_txs(&mut self, _address_method: fn(&mut M6502<T>) -> AddressStruct) {
+        fn op_txs(&mut self, _address_method: fn(&mut M6502<T>)) {
             self.stack_pointer = self.register_x as u16;
         }
 
-        fn op_pha(&mut self, _address_method: fn(&mut M6502<T>) -> AddressStruct) {
+        fn op_pha(&mut self, _address_method: fn(&mut M6502<T>)) {
             self.push_stack(self.accumulator);
         }
 
-        fn op_php(&mut self, _address_method: fn(&mut M6502<T>) -> AddressStruct) {
+        fn op_php(&mut self, _address_method: fn(&mut M6502<T>)) {
             self.set_status_flag(BREAK_COMMAND, true);
             self.set_status_flag(IGNORED, true);
             self.push_stack(self.status_register);
@@ -806,48 +759,48 @@ pub mod emu_cpu {
             self.set_status_flag(IGNORED, false);
         }
 
-        fn op_pla(&mut self, _address_method: fn(&mut M6502<T>) -> AddressStruct) {
+        fn op_pla(&mut self, _address_method: fn(&mut M6502<T>)) {
             self.accumulator = self.pop_stack();
             self.set_negative_zero(self.accumulator);
         }
 
-        fn op_plp(&mut self, _address_method: fn(&mut M6502<T>) -> AddressStruct) {
+        fn op_plp(&mut self, _address_method: fn(&mut M6502<T>)) {
             self.status_register = self.pop_stack();
         }
 
         // Logical operations
-        fn op_and(&mut self, address_method: fn(&mut M6502<T>) -> AddressStruct) {
-            let address: u16 = address_method(self).address;
-            let byte: u8 = self.memory.cpu_read(address);
+        fn op_and(&mut self, address_method: fn(&mut M6502<T>)) {
+            address_method(self);
+            let byte: u8 = self.memory.cpu_read(self.address_bus.address());
             self.accumulator &= byte;
             self.set_negative_zero(self.accumulator);
         }
 
-        fn op_eor(&mut self, address_method: fn(&mut M6502<T>) -> AddressStruct) {
-            let address: u16 = address_method(self).address;
-            let byte: u8 = self.memory.cpu_read(address);
+        fn op_eor(&mut self, address_method: fn(&mut M6502<T>)) {
+            address_method(self);
+            let byte: u8 = self.memory.cpu_read(self.address_bus.address());
             self.accumulator ^= byte;
             self.set_negative_zero(self.accumulator);
         }
 
-        fn op_ora(&mut self, address_method: fn(&mut M6502<T>) -> AddressStruct) {
-            let address: u16 = address_method(self).address;
-            let byte: u8 = self.memory.cpu_read(address);
+        fn op_ora(&mut self, address_method: fn(&mut M6502<T>)) {
+            address_method(self);
+            let byte: u8 = self.memory.cpu_read(self.address_bus.address());
             self.accumulator |= byte;
             self.set_negative_zero(self.accumulator);
         }
 
-        fn op_bit(&mut self, address_method: fn(&mut M6502<T>) -> AddressStruct) {
-            let address: u16 = address_method(self).address;
-            let byte: u8 = self.memory.cpu_read(address);
+        fn op_bit(&mut self, address_method: fn(&mut M6502<T>)) {
+            address_method(self);
+            let byte: u8 = self.memory.cpu_read(self.address_bus.address());
             self.set_status_flag(OVERFLOW_FLAG, (byte & 0x40) != 0);
             self.set_negative(byte);
             self.set_zero(byte & self.accumulator);
         }
 
-        fn op_adc(&mut self, address_method: fn(&mut M6502<T>) -> AddressStruct) {
-            let address: u16 = address_method(self).address;
-            let byte: u8 = self.memory.cpu_read(address);
+        fn op_adc(&mut self, address_method: fn(&mut M6502<T>)) {
+            address_method(self);
+            let byte: u8 = self.memory.cpu_read(self.address_bus.address());
             let mut value: u8;
 
             let mut carry: u8 = 0;
@@ -874,9 +827,9 @@ pub mod emu_cpu {
         }
 
         // Same as ADC, except switch input byte to 1s-Compliment
-        fn op_sbc(&mut self, address_method: fn(&mut M6502<T>) -> AddressStruct) {
-            let address: u16 = address_method(self).address;
-            let byte: u8 = !self.memory.cpu_read(address);
+        fn op_sbc(&mut self, address_method: fn(&mut M6502<T>)) {
+            address_method(self);
+            let byte: u8 = !self.memory.cpu_read(self.address_bus.address());
             let mut value: u8;
 
             let mut carry: u8 = 0;
@@ -902,27 +855,27 @@ pub mod emu_cpu {
             self.accumulator = value;
         }
 
-        fn op_cmp(&mut self, address_method: fn(&mut M6502<T>) -> AddressStruct) {
-            let address: u16 = address_method(self).address;
-            let byte: u8 = self.memory.cpu_read(address);
+        fn op_cmp(&mut self, address_method: fn(&mut M6502<T>)) {
+            address_method(self);
+            let byte: u8 = self.memory.cpu_read(self.address_bus.address());
             self.set_status_flag(CARRY_FLAG, self.accumulator >= byte);
             self.set_status_flag(ZERO_FLAG, self.accumulator == byte);
             let (negzerocheck, _overflow) = self.accumulator.overflowing_sub(byte);
             self.set_status_flag(NEGATIVE_FLAG, negzerocheck & 0x80 != 0);
         }
 
-        fn op_cpx(&mut self, address_method: fn(&mut M6502<T>) -> AddressStruct) {
-            let address: u16 = address_method(self).address;
-            let byte: u8 = self.memory.cpu_read(address);
+        fn op_cpx(&mut self, address_method: fn(&mut M6502<T>)) {
+            address_method(self);
+            let byte: u8 = self.memory.cpu_read(self.address_bus.address());
             self.set_status_flag(CARRY_FLAG, self.register_x >= byte);
             self.set_status_flag(ZERO_FLAG, self.register_x == byte);
             let (negzerocheck, _overflow) = self.register_x.overflowing_sub(byte);
             self.set_status_flag(NEGATIVE_FLAG, negzerocheck & 0x80 != 0);
         }
 
-        fn op_cpy(&mut self, address_method: fn(&mut M6502<T>) -> AddressStruct) {
-            let address: u16 = address_method(self).address;
-            let byte: u8 = self.memory.cpu_read(address);
+        fn op_cpy(&mut self, address_method: fn(&mut M6502<T>)) {
+            address_method(self);
+            let byte: u8 = self.memory.cpu_read(self.address_bus.address());
             self.set_status_flag(CARRY_FLAG, self.register_y >= byte);
             self.set_status_flag(ZERO_FLAG, self.register_y == byte);
             let (negzerocheck, _overflow) = self.register_y.overflowing_sub(byte);
@@ -930,174 +883,173 @@ pub mod emu_cpu {
         }
 
         // Increment and decrement operations
-        fn op_inc(&mut self, address_method: fn(&mut M6502<T>) -> AddressStruct) {
-            let address: u16 = address_method(self).address;
-            let byte: u8 = self.memory.cpu_read(address);
+        fn op_inc(&mut self, address_method: fn(&mut M6502<T>)) {
+            address_method(self);
+            let byte: u8 = self.memory.cpu_read(self.address_bus.address());
             let(byte2, _overflow) = byte.overflowing_add(1);
-            self.memory.cpu_write(address, byte2);
+            self.memory.cpu_write(self.address_bus.address(), byte2);
             self.set_negative_zero(byte2);
         }
 
-        fn op_inx(&mut self, _address_method: fn(&mut M6502<T>) -> AddressStruct) {
+        fn op_inx(&mut self, _address_method: fn(&mut M6502<T>)) {
             let (value, _overflow) = self.register_x.overflowing_add(1);
             self.register_x = value;
             self.set_negative_zero(self.register_x);
         }
 
-        fn op_iny(&mut self, _address_method: fn(&mut M6502<T>) -> AddressStruct) {
+        fn op_iny(&mut self, _address_method: fn(&mut M6502<T>)) {
             let (value, _overflow) = self.register_y.overflowing_add(1);
             self.register_y = value;
             self.set_negative_zero(self.register_y);
         }
 
-        fn op_dec(&mut self, address_method: fn(&mut M6502<T>) -> AddressStruct) {
-            let address: u16 = address_method(self).address;
-            let byte: u8 = self.memory.cpu_read(address);
+        fn op_dec(&mut self, address_method: fn(&mut M6502<T>)) {
+            address_method(self);
+            let byte: u8 = self.memory.cpu_read(self.address_bus.address());
             let (byte, _overflow) = byte.overflowing_sub(1);
-            self.memory.cpu_write(address, byte);
+            self.memory.cpu_write(self.address_bus.address(), byte);
             self.set_negative_zero(byte);
         }
 
-        fn op_dex(&mut self, _address_method: fn(&mut M6502<T>) -> AddressStruct) {
+        fn op_dex(&mut self, _address_method: fn(&mut M6502<T>)) {
             let (result, _overflow) = self.register_x.overflowing_sub(1);
             self.register_x = result;
             self.set_negative_zero(self.register_x);
         }
 
-        fn op_dey(&mut self, _address_method: fn(&mut M6502<T>) -> AddressStruct) {
+        fn op_dey(&mut self, _address_method: fn(&mut M6502<T>)) {
             let (new_y, _overflow) = self.register_y.overflowing_sub(1);
             self.register_y = new_y;
             self.set_negative_zero(self.register_y);
         }
 
         // Shift operations
-        fn op_asl(&mut self, address_method: fn(&mut M6502<T>) -> AddressStruct) {
+        fn op_asl(&mut self, address_method: fn(&mut M6502<T>)) {
             let mut byte: u8;
-            let mut address: u16 = 0;
 
-            if fn_addr_eq(address_method, M6502::accumulator_address as for<'a, 'b> fn(&'a mut M6502<T>) -> AddressStruct) {
+            if fn_addr_eq(address_method, M6502::accumulator_address as for<'a, 'b> fn(&'a mut M6502<T>)) {
                 byte = self.accumulator;
             }
             else {
-                address = address_method(self).address;
-                byte = self.memory.cpu_read(address);
+                address_method(self);
+                byte = self.memory.cpu_read(self.address_bus.address());
             }
             self.set_status_flag(CARRY_FLAG, (byte & 0x80) != 0);
             byte = byte << 1;
             self.set_negative_zero(byte);
-            if fn_addr_eq(address_method, M6502::accumulator_address as for<'a, 'b> fn(&'a mut M6502<T>) -> AddressStruct) {
+            if fn_addr_eq(address_method, M6502::accumulator_address as for<'a, 'b> fn(&'a mut M6502<T>)) {
                 self.accumulator = byte;
             }
             else {
-                self.memory.cpu_write(address, byte);
+                self.memory.cpu_write(self.address_bus.address(), byte);
             }
         }    
 
-        fn op_lsr(&mut self, address_method: fn(&mut M6502<T>) -> AddressStruct) {
+        fn op_lsr(&mut self, address_method: fn(&mut M6502<T>)) {
             let mut byte: u8;
-            let mut address: u16 = 0;
 
-            if fn_addr_eq(address_method, M6502::accumulator_address as for<'a, 'b> fn(&'a mut M6502<T>) -> AddressStruct) {
-                byte = address_method(self).address as u8;
+            if fn_addr_eq(address_method, M6502::accumulator_address as for<'a, 'b> fn(&'a mut M6502<T>)) {
+                address_method(self);
+                byte = self.address_bus.loadl as u8;
             }
             else {
-                address = address_method(self).address;
-                byte = self.memory.cpu_read(address);
+                address_method(self);
+                byte = self.memory.cpu_read(self.address_bus.address());
             }
             self.set_status_flag(CARRY_FLAG, (byte & 0x01) != 0);
             byte = byte >> 1;
             self.set_negative_zero(byte);
-            if fn_addr_eq(address_method, M6502::accumulator_address as for<'a, 'b> fn(&'a mut M6502<T>) -> AddressStruct) {
+            if fn_addr_eq(address_method, M6502::accumulator_address as for<'a, 'b> fn(&'a mut M6502<T>)) {
                 self.accumulator = byte;
             }
             else {
-                self.memory.cpu_write(address, byte);
+                self.memory.cpu_write(self.address_bus.address(), byte);
             }
         }
 
-        fn op_rol(&mut self, address_method: fn(&mut M6502<T>) -> AddressStruct) {
+        fn op_rol(&mut self, address_method: fn(&mut M6502<T>)) {
             let mut byte: u8;
-            let mut address: u16 = 0;
 
             let mut carry: u8 = 0;
             if self.get_status_flag(CARRY_FLAG) != 0 {
                 carry = 0x01;
             }
 
-            if fn_addr_eq(address_method, M6502::accumulator_address as for<'a, 'b> fn(&'a mut M6502<T>) -> AddressStruct) {
-                byte = address_method(self).address as u8;
+            if fn_addr_eq(address_method, M6502::accumulator_address as for<'a, 'b> fn(&'a mut M6502<T>)) {
+                address_method(self);
+                byte = self.address_bus.loadl;
             }
             else {
-                address = address_method(self).address;
-                byte = self.memory.cpu_read(address);
+                address_method(self);
+                byte = self.memory.cpu_read(self.address_bus.address());
             }
             self.set_status_flag(CARRY_FLAG, (byte & 0x80) != 0);
             let temp: u8 = (byte << 1) | carry;
             byte = temp;
             self.set_negative_zero(byte);
-            if fn_addr_eq(address_method, M6502::accumulator_address as for<'a, 'b> fn(&'a mut M6502<T>) -> AddressStruct) {
+            if fn_addr_eq(address_method, M6502::accumulator_address as for<'a, 'b> fn(&'a mut M6502<T>)) {
                 self.accumulator  = byte;
             }
             else {
-                self.memory.cpu_write(address, byte);
+                self.memory.cpu_write(self.address_bus.address(), byte);
             }
         }
 
-        fn op_ror(&mut self, address_method: fn(&mut M6502<T>) -> AddressStruct) {
+        fn op_ror(&mut self, address_method: fn(&mut M6502<T>)) {
             let mut byte: u8;
-            let mut address: u16 = 0;
 
             let mut carry: u8 = 0;
             if self.get_status_flag(CARRY_FLAG) != 0 {
                 carry = 0x80;
             }
 
-            if fn_addr_eq(address_method, M6502::accumulator_address as for<'a, 'b> fn(&'a mut M6502<T>) -> AddressStruct) {
-                byte = address_method(self).address as u8;
+            if fn_addr_eq(address_method, M6502::accumulator_address as for<'a, 'b> fn(&'a mut M6502<T>)) {
+                address_method(self);
+                byte = self.address_bus.loadl;
             }
             else {
-                address = address_method(self).address;
-                byte = self.memory.cpu_read(address);
+                address_method(self);
+                byte = self.memory.cpu_read(self.address_bus.address());
             }
             self.set_status_flag(CARRY_FLAG, byte & 0x01 != 0);
             let temp: u8 = (byte >> 1) | carry;
             byte = temp;
             self.set_negative_zero(byte);
-            if fn_addr_eq(address_method, M6502::accumulator_address as for<'a, 'b> fn(&'a mut M6502<T>) -> AddressStruct) {
+            if fn_addr_eq(address_method, M6502::accumulator_address as for<'a, 'b> fn(&'a mut M6502<T>)) {
                 self.accumulator  = byte;
             }
             else
             {
-                self.memory.cpu_write(address, byte);
+                self.memory.cpu_write(self.address_bus.address(), byte);
             }
         }
 
         // Jumps and Call operations
-        fn op_jmp(&mut self, address_method: fn(&mut M6502<T>) -> AddressStruct) {
-            let address: u16 = address_method(self).address;
-            self.program_counter = address;
+        fn op_jmp(&mut self, address_method: fn(&mut M6502<T>)) {
+            address_method(self);
+            self.program_counter = self.address_bus.address();
         }
 
-        fn op_jsr(&mut self, address_method: fn(&mut M6502<T>) -> AddressStruct) {
-            let jump_address: u16 = address_method(self).address;
+        fn op_jsr(&mut self, address_method: fn(&mut M6502<T>)) {
+            address_method(self);
+            let jump_address: u16 = self.address_bus.address();
             self.program_counter -= 1;
             self.push_stack(((self.program_counter & 0xff00) >> 8) as u8);
             self.push_stack((self.program_counter & 0x00ff) as u8);
             self.program_counter = jump_address;
         }
 
-        fn op_rts(&mut self, _address_method: fn(&mut M6502<T>) -> AddressStruct) {
-            let loadl: u8 = self.pop_stack();
-            let loadh: u8 = self.pop_stack();
-            let address: u16 = ((loadh as u16) << 8) + loadl as u16;
-            self.program_counter = address;
+        fn op_rts(&mut self, _address_method: fn(&mut M6502<T>)) {
+            self.address_bus.loadl = self.pop_stack();
+            self.address_bus.loadh = self.pop_stack();
+            self.program_counter = self.address_bus.address();
             self.program_counter += 1;
         }
 
         // Branch operations
-        fn op_bcc(&mut self, address_method: fn(&mut M6502<T>) -> AddressStruct) {
-            let address: u16 = address_method(self).address;
-            let relative_address: i8 = self.memory.cpu_read(address) as i8;
+        fn op_bcc(&mut self, address_method: fn(&mut M6502<T>)) {
+            address_method(self);
+            let relative_address: i8 = self.memory.cpu_read(self.address_bus.address()) as i8;
             if self.get_status_flag(CARRY_FLAG) == 0 {
                 if relative_address > 0 {
                     self.program_counter += relative_address as u16;
@@ -1108,9 +1060,9 @@ pub mod emu_cpu {
             }
         }
 
-        fn op_bcs(&mut self, address_method: fn(&mut M6502<T>) -> AddressStruct) {
-            let address: u16 = address_method(self).address;
-            let relative_address: i8 = self.memory.cpu_read(address) as i8;
+        fn op_bcs(&mut self, address_method: fn(&mut M6502<T>)) {
+            address_method(self);
+            let relative_address: i8 = self.memory.cpu_read(self.address_bus.address()) as i8;
             if self.get_status_flag(CARRY_FLAG) != 0 {
                 if relative_address > 0 {
                     self.program_counter += relative_address as u16;
@@ -1121,9 +1073,9 @@ pub mod emu_cpu {
             }
         }
 
-        fn op_beq(&mut self, address_method: fn(&mut M6502<T>) -> AddressStruct) {
-            let address: u16 = address_method(self).address;
-            let relative_address: i8 = self.memory.cpu_read(address) as i8;
+        fn op_beq(&mut self, address_method: fn(&mut M6502<T>)) {
+            address_method(self);
+            let relative_address: i8 = self.memory.cpu_read(self.address_bus.address()) as i8;
             if self.get_status_flag(ZERO_FLAG) != 0 {
                 if relative_address > 0 {
                     self.program_counter += relative_address as u16;
@@ -1134,9 +1086,9 @@ pub mod emu_cpu {
             }
         }
         
-        fn op_bmi(&mut self, address_method: fn(&mut M6502<T>) -> AddressStruct) {
-            let address: u16 = address_method(self).address;
-            let relative_address: i8 = self.memory.cpu_read(address) as i8;
+        fn op_bmi(&mut self, address_method: fn(&mut M6502<T>)) {
+            address_method(self);
+            let relative_address: i8 = self.memory.cpu_read(self.address_bus.address()) as i8;
             if self.get_status_flag(NEGATIVE_FLAG) != 0 {
                 if relative_address > 0 {
                     self.program_counter += relative_address as u16;
@@ -1147,9 +1099,9 @@ pub mod emu_cpu {
             }
         }  
 
-        fn op_bne(&mut self, address_method: fn(&mut M6502<T>) -> AddressStruct) {
-            let address: u16 = address_method(self).address;
-            let relative_address: i8 = self.memory.cpu_read(address) as i8;
+        fn op_bne(&mut self, address_method: fn(&mut M6502<T>)) {
+            address_method(self);
+            let relative_address: i8 = self.memory.cpu_read(self.address_bus.address()) as i8;
             if self.get_status_flag(ZERO_FLAG) == 0 {
                 if relative_address > 0 {
                     self.program_counter += relative_address as u16;
@@ -1160,9 +1112,9 @@ pub mod emu_cpu {
             }
         }
         
-        fn op_bpl(&mut self, address_method: fn(&mut M6502<T>) -> AddressStruct) {
-            let address: u16 = address_method(self).address;
-            let relative_address: i8 = self.memory.cpu_read(address) as i8;
+        fn op_bpl(&mut self, address_method: fn(&mut M6502<T>)) {
+            address_method(self);
+            let relative_address: i8 = self.memory.cpu_read(self.address_bus.address()) as i8;
             if self.get_status_flag(NEGATIVE_FLAG) == 0 {
                 if relative_address > 0 {
                     self.program_counter += relative_address as u16;
@@ -1173,9 +1125,9 @@ pub mod emu_cpu {
             }
         }
 
-        fn op_bvc(&mut self, address_method: fn(&mut M6502<T>) -> AddressStruct) {
-            let address: u16 = address_method(self).address;
-            let relative_address: i8 = self.memory.cpu_read(address) as i8;
+        fn op_bvc(&mut self, address_method: fn(&mut M6502<T>)) {
+            address_method(self);
+            let relative_address: i8 = self.memory.cpu_read(self.address_bus.address()) as i8;
             if self.get_status_flag(OVERFLOW_FLAG) == 0 {
                 if relative_address > 0 {
                     self.program_counter += relative_address as u16;
@@ -1186,9 +1138,9 @@ pub mod emu_cpu {
             }
         }
 
-        fn op_bvs(&mut self, address_method: fn(&mut M6502<T>) -> AddressStruct) {
-            let address: u16 = address_method(self).address;
-            let relative_address: i8 = self.memory.cpu_read(address) as i8;
+        fn op_bvs(&mut self, address_method: fn(&mut M6502<T>)) {
+            address_method(self);
+            let relative_address: i8 = self.memory.cpu_read(self.address_bus.address()) as i8;
             if self.get_status_flag(OVERFLOW_FLAG) != 0 {
                 if relative_address > 0 {
                     self.program_counter += relative_address as u16;
@@ -1200,36 +1152,36 @@ pub mod emu_cpu {
         }
 
         // Status Flag operations
-        fn op_clc(&mut self, _address_method: fn(&mut M6502<T>) -> AddressStruct) {
+        fn op_clc(&mut self, _address_method: fn(&mut M6502<T>)) {
             self.set_status_flag(CARRY_FLAG, false);
         }
 
-        fn op_cld(&mut self, _address_method: fn(&mut M6502<T>) -> AddressStruct) {
+        fn op_cld(&mut self, _address_method: fn(&mut M6502<T>)) {
             self.set_status_flag(DECIMAL_MODE, false);
         }
 
-        fn op_cli(&mut self, _address_method: fn(&mut M6502<T>) -> AddressStruct) {
+        fn op_cli(&mut self, _address_method: fn(&mut M6502<T>)) {
             self.set_status_flag(INTERRUPT_FLAG, false);
         }
 
-        fn op_clv(&mut self, _address_method: fn(&mut M6502<T>) -> AddressStruct) {
+        fn op_clv(&mut self, _address_method: fn(&mut M6502<T>)) {
             self.set_status_flag(OVERFLOW_FLAG, false);
         }
 
-        fn op_sec(&mut self, _address_method: fn(&mut M6502<T>) -> AddressStruct) {
+        fn op_sec(&mut self, _address_method: fn(&mut M6502<T>)) {
             self.set_status_flag(CARRY_FLAG, true);
         }
 
-        fn op_sed(&mut self, _address_method: fn(&mut M6502<T>) -> AddressStruct) {
+        fn op_sed(&mut self, _address_method: fn(&mut M6502<T>)) {
             self.set_status_flag(DECIMAL_MODE, true);
         }
 
-        fn op_sei(&mut self, _address_method: fn(&mut M6502<T>) -> AddressStruct) {
+        fn op_sei(&mut self, _address_method: fn(&mut M6502<T>)) {
             self.set_status_flag(INTERRUPT_FLAG, true);
         }
 
         // System operations
-        fn op_brk(&mut self, _address_method: fn(&mut M6502<T>) -> AddressStruct) {
+        fn op_brk(&mut self, _address_method: fn(&mut M6502<T>)) {
             self.set_status_flag(INTERRUPT_FLAG, true);
             self.program_counter += 1;
             self.push_stack(((self.program_counter & 0xff00) >> 8) as u8);
@@ -1243,10 +1195,10 @@ pub mod emu_cpu {
             self.program_counter = load;
         }
 
-        fn op_nop(&mut self, _address_method: fn(&mut M6502<T>) -> AddressStruct) {
+        fn op_nop(&mut self, _address_method: fn(&mut M6502<T>)) {
         }
 
-        fn op_rti(&mut self, _address_method: fn(&mut M6502<T>) -> AddressStruct) {
+        fn op_rti(&mut self, _address_method: fn(&mut M6502<T>)) {
             self.status_register = self.pop_stack();
             self.set_status_flag(BREAK_COMMAND, false);
             let loadl: u8 = self.pop_stack();
@@ -1255,29 +1207,29 @@ pub mod emu_cpu {
             self.program_counter = load;
         }
 
-        fn op_isc(&mut self, address_method: fn(&mut M6502<T>) -> AddressStruct) {
-            let address: u16 = address_method(self).address;
-            let mut byte: u8 = self.memory.cpu_read(address);
-            byte += 1;
-            self.memory.cpu_write(address, byte);
+        fn op_isc(&mut self, address_method: fn(&mut M6502<T>)) {
+            address_method(self);
+            let mut byte: u8 = self.memory.cpu_read(self.address_bus.address());
+            byte = byte.overflowing_add(1).0;
+            self.memory.cpu_write(self.address_bus.address(), byte);
             
             byte = !byte;
-            let value: u16 = (self.accumulator + byte + self.get_status_flag(CARRY_FLAG)) as u16;
+            let value: u16 = (self.accumulator as u16 + byte as u16 + self.get_status_flag(CARRY_FLAG) as u16);
             self.set_status_flag(CARRY_FLAG, value > 255);
             self.set_status_flag(OVERFLOW_FLAG, (self.accumulator as u16 ^ value) & (byte as u16 ^ value) & 0x80 != 0);
             self.accumulator = value as u8;
             self.set_negative_zero(self.accumulator);
         }
 
-        fn op_sax(&mut self, address_method: fn(&mut M6502<T>) -> AddressStruct) {
-            let address: u16 = address_method(self).address;
+        fn op_sax(&mut self, address_method: fn(&mut M6502<T>)) {
+            address_method(self);
             let byte: u8 = self.accumulator & self.register_x;
-            self.memory.cpu_write(address, byte);
+            self.memory.cpu_write(self.address_bus.address(), byte);
         }
 
-        fn op_slo(&mut self, address_method: fn(&mut M6502<T>) -> AddressStruct) {
-            let address: u16 = address_method(self).address;
-            let address: u16 = self.memory.cpu_read(address) as u16;
+        fn op_slo(&mut self, address_method: fn(&mut M6502<T>)) {
+            address_method(self);
+            let address: u16 = self.memory.cpu_read(self.address_bus.address()) as u16;
             let mut byte: u8 = self.memory.cpu_read(address);
             self.set_status_flag(CARRY_FLAG, (byte & 0x80) != 0);
             byte = byte << 1;
@@ -1287,7 +1239,7 @@ pub mod emu_cpu {
             self.set_negative_zero(self.accumulator);
         }     
 
-        fn op_panic(&mut self, _address_method: fn(&mut M6502<T>) -> AddressStruct) {
+        fn op_panic(&mut self, _address_method: fn(&mut M6502<T>)) {
             panic!("operation not implemented yet 0x{:x}", self.instruction);
         }
 
