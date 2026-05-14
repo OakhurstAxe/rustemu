@@ -166,7 +166,7 @@ pub mod nes {
         ppu_palette: MemoryRam,
         ppu_oam: MemoryRam,
         cpu_ppu_registers: MemoryRam,
-        ppu_write_latch: u8,
+        ppu_io_bus: u8,
         cartridge: Arc<RwLock<NesCartridge000>>,
         control_register: PpuControlRegister,
         scan_line: i32,
@@ -187,6 +187,7 @@ pub mod nes {
         ppu_addr_count: u8,
         ppu_oam_addr: u8,
         pub dma_suspend: u16,
+        debug: u8,
     }
 
     impl NesPpu {
@@ -198,7 +199,7 @@ pub mod nes {
                 ppu_palette: MemoryRam::new(String::from("PPU Palette RAM"), 0x0100),
                 ppu_oam: MemoryRam::new(String::from("PPU OAM RAM"), 0x0100),
                 cpu_ppu_registers: MemoryRam::new(String::from("PPU Registers"), 0x0008),
-                ppu_write_latch: 0,
+                ppu_io_bus: 0,
                 cartridge: cartridge,
                 control_register: PpuControlRegister::new(),
                 scan_line: 0,
@@ -219,6 +220,7 @@ pub mod nes {
                 ppu_addr_count: 0,
                 ppu_oam_addr: 0,
                 dma_suspend: 0,
+                debug: 0,
             }
         }
         
@@ -272,7 +274,7 @@ pub mod nes {
                 return;
             }
             
-            panic!("Invalid NES memory location for PPU write {}", location);
+            eprintln!("Invalid NES memory location for PPU write {}", location);
 
         }
 
@@ -284,20 +286,29 @@ pub mod nes {
                 let byte: u8 = self.cpu_ppu_registers.read(2);
                 self.cpu_ppu_registers.write(2, byte & 0x7f);
                 self.ppu_addr_count = 0;
+                let latch_byte = byte & 0xe0;
+                self.ppu_io_bus &= 0x1f;
+                self.ppu_io_bus |= latch_byte;
                 return byte;
             } else if location == 0x04 {
-                return self.oam_read(self.ppu_oam_addr as u16);
+                let byte = self.oam_read(self.ppu_oam_addr as u16);
+                self.ppu_io_bus = byte;
+                return byte;
             } else if location == 0x07 {
-                return self.read(self.ppu_addr);
+                let byte = self.read(self.ppu_addr);
+                self.ppu_io_bus = byte;
+                return byte;
+            } else {
+                self.debug = 1;
             }
 
-            self.ppu_write_latch
+            self.ppu_io_bus
         }
 
         pub fn ppu_register_write(&mut self, mut location: u16, byte: u8) {
 
             location %= 8;
-            self.ppu_write_latch = byte;
+            self.ppu_io_bus = byte;
 
             if location == 0x00 {
                 self.cpu_ppu_registers.write(0, byte);
@@ -333,6 +344,8 @@ pub mod nes {
                 else {
                     self.ppu_addr += 1;
                 }
+            } else {
+                self.debug = byte;
             }
 
         }

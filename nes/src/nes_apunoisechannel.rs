@@ -68,7 +68,8 @@ pub mod nes {
                 return 0;
             }
 
-            return (111860 / (timer + 1) as u32) as u32;
+            9
+            //(111860 / (timer + 1) as u32) as u32
         }
 
         fn generate_buffer_data(&mut self, sample_count: u32) -> Vec<u8> {

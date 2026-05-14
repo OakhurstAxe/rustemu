@@ -17,6 +17,7 @@ pub mod nes {
         ppu: Arc<RwLock<NesPpu>>,
         apu: Arc<RwLock<NesApu>>,
         dma_suspend: u8,
+        read_bus: u8,
         _debug: u8,
     }   
 
@@ -28,6 +29,7 @@ pub mod nes {
                 ppu: ppu,
                 apu: apu,
                 dma_suspend: 0,
+                read_bus: 0,
                 _debug: 0,
             }
         }
@@ -42,36 +44,58 @@ pub mod nes {
             // Working RAM
             if location < 0x2000 {
                 location = location % 0x800;  // mirroring
-                return self.cpu_work_ram.read(location);
+                let byte = self.cpu_work_ram.read(location);
+                self.read_bus = byte;
+                return byte;
             }   
 
             // PPU Registers
             else if location < 0x4000 {
-                return self.ppu.write().unwrap().ppu_register_read(location);
+                let byte = self.ppu.write().unwrap().ppu_register_read(location);
+                self.read_bus = byte;
+                return byte;
             }
 
             // APU and IO Registers
-            else if location < 0x4020 {                
+            else if location > 0x4000 && location < 0x4018 {                
                 location -= 0x4000;
 
                 if location == 0x16 {
-                    return self.apu.write().unwrap().get_left_controller();
+                    let byte = (self.apu.write().unwrap().get_left_controller() & 0x1f) + (self.read_bus & 0xe0);
+                    self.read_bus = byte;
+                    return byte;
                 }
 
                 if location == 0x17 {
-                    return self.apu.write().unwrap().get_right_controller();
+                    let byte = (self.apu.write().unwrap().get_right_controller() & 0x1f) + (self.read_bus & 0xe0);
+                    self.read_bus = byte;
+                    return byte;
                 }
 
-                return self.apu.write().unwrap().read(location);
+                if location == 0x15 {
+                    return self.read_bus;
+                }
+
+                let byte = self.apu.write().unwrap().read(location);
+                self.read_bus = byte;
+                return byte;
             }
 
             // Cartridge RAM/ROM
-            return self.cartridge.read().unwrap().cpu_read(location);
+            else if location >= 0x6000 {
+                let byte = self.cartridge.read().unwrap().cpu_read(location);
+                self.read_bus = byte;
+                return byte;
+            }
+
+            self.read_bus
             
         }
 
         fn cpu_write(&mut self, mut location: u16, byte: u8) {
             
+            self.read_bus = byte;
+
             // Working RAM
             if location < 0x2000 {
                 location = location % 0x800;  // mirroring

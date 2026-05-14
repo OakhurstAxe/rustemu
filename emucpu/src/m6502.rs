@@ -428,21 +428,13 @@ pub mod emu_cpu {
         }
 
         fn call_op_method(&mut self, op: fn(&mut M6502<T>, fn(&mut M6502<T>)), address_method: fn(&mut M6502<T>)) {
-            if self.program_counter == 12642 {
-                self.debug = 0;
-            }
-            
             op(self, address_method);         
         }
 
         pub fn get_next_operation(&mut self) {
-            if self.program_counter == 49816 {
-                self.debug = 0;
-            }
-                
             self.instruction = self.memory.cpu_read(self.program_counter);
             self.operation = self.op_code_lookup[self.memory.cpu_read(self.program_counter) as usize];
-            self.program_counter += 1;
+            self.program_counter = self.program_counter.overflowing_add(1).0;
 
             self.overflow_ticks += self.operation.ticks as i32;
             self.set_overflow_for_operation();
@@ -663,7 +655,32 @@ pub mod emu_cpu {
 
         // NES specific operations
         fn op_rla(&mut self, address_method: fn(&mut M6502<T>)) {
-            address_method(self);
+            let mut byte: u8;
+
+            let mut carry: u8 = 0;
+            if self.get_status_flag(CARRY_FLAG) != 0 {
+                carry = 0x01;
+            }
+
+            if fn_addr_eq(address_method, M6502::accumulator_address as for<'a, 'b> fn(&'a mut M6502<T>)) {
+                address_method(self);
+                byte = self.address_bus.loadl;
+            }
+            else {
+                address_method(self);
+                byte = self.memory.cpu_read(self.address_bus.address());
+            }
+            self.set_status_flag(CARRY_FLAG, (byte & 0x80) != 0);
+            let temp: u8 = (byte << 1) | carry;
+            byte = temp;
+            self.set_negative_zero(byte);
+            if fn_addr_eq(address_method, M6502::accumulator_address as for<'a, 'b> fn(&'a mut M6502<T>)) {
+                self.accumulator &= byte;
+                self.set_negative(self.accumulator);
+            }
+            else {
+                self.memory.cpu_write(self.address_bus.address(), byte);
+            }
         }
 
         fn op_sre(&mut self, address_method: fn(&mut M6502<T>)) {
@@ -1036,6 +1053,7 @@ pub mod emu_cpu {
             self.program_counter -= 1;
             self.push_stack(((self.program_counter & 0xff00) >> 8) as u8);
             self.push_stack((self.program_counter & 0x00ff) as u8);
+            self.memory.cpu_read(self.program_counter);
             self.program_counter = jump_address;
         }
 
@@ -1051,12 +1069,7 @@ pub mod emu_cpu {
             address_method(self);
             let relative_address: i8 = self.memory.cpu_read(self.address_bus.address()) as i8;
             if self.get_status_flag(CARRY_FLAG) == 0 {
-                if relative_address > 0 {
-                    self.program_counter += relative_address as u16;
-                }
-                else {
-                    self.program_counter -= relative_address.abs() as u16;
-                }
+                self.program_counter = (self.program_counter as i16 + relative_address as i16) as u16;
             }
         }
 
@@ -1064,12 +1077,7 @@ pub mod emu_cpu {
             address_method(self);
             let relative_address: i8 = self.memory.cpu_read(self.address_bus.address()) as i8;
             if self.get_status_flag(CARRY_FLAG) != 0 {
-                if relative_address > 0 {
-                    self.program_counter += relative_address as u16;
-                }
-                else {
-                    self.program_counter -= relative_address.abs() as u16;
-                }
+                self.program_counter = (self.program_counter as i16 + relative_address as i16) as u16;
             }
         }
 
@@ -1077,12 +1085,7 @@ pub mod emu_cpu {
             address_method(self);
             let relative_address: i8 = self.memory.cpu_read(self.address_bus.address()) as i8;
             if self.get_status_flag(ZERO_FLAG) != 0 {
-                if relative_address > 0 {
-                    self.program_counter += relative_address as u16;
-                }
-                else {
-                    self.program_counter -= relative_address.abs() as u16;
-                }
+                self.program_counter = (self.program_counter as i16 + relative_address as i16) as u16;
             }
         }
         
@@ -1090,12 +1093,7 @@ pub mod emu_cpu {
             address_method(self);
             let relative_address: i8 = self.memory.cpu_read(self.address_bus.address()) as i8;
             if self.get_status_flag(NEGATIVE_FLAG) != 0 {
-                if relative_address > 0 {
-                    self.program_counter += relative_address as u16;
-                }
-                else {
-                    self.program_counter -= relative_address.abs() as u16;
-                }
+                self.program_counter = (self.program_counter as i16 + relative_address as i16) as u16;
             }
         }  
 
@@ -1103,12 +1101,7 @@ pub mod emu_cpu {
             address_method(self);
             let relative_address: i8 = self.memory.cpu_read(self.address_bus.address()) as i8;
             if self.get_status_flag(ZERO_FLAG) == 0 {
-                if relative_address > 0 {
-                    self.program_counter += relative_address as u16;
-                }
-                else {
-                    self.program_counter -= relative_address.abs() as u16;
-                }
+                self.program_counter = (self.program_counter as i16 + relative_address as i16) as u16;
             }
         }
         
@@ -1116,12 +1109,7 @@ pub mod emu_cpu {
             address_method(self);
             let relative_address: i8 = self.memory.cpu_read(self.address_bus.address()) as i8;
             if self.get_status_flag(NEGATIVE_FLAG) == 0 {
-                if relative_address > 0 {
-                    self.program_counter += relative_address as u16;
-                }
-                else {
-                    self.program_counter -= relative_address.abs() as u16;
-                }
+                self.program_counter = (self.program_counter as i16 + relative_address as i16) as u16;
             }
         }
 
@@ -1129,12 +1117,7 @@ pub mod emu_cpu {
             address_method(self);
             let relative_address: i8 = self.memory.cpu_read(self.address_bus.address()) as i8;
             if self.get_status_flag(OVERFLOW_FLAG) == 0 {
-                if relative_address > 0 {
-                    self.program_counter += relative_address as u16;
-                }
-                else {
-                    self.program_counter -= relative_address.abs() as u16;
-                }
+                self.program_counter = (self.program_counter as i16 + relative_address as i16) as u16;
             }
         }
 
@@ -1142,12 +1125,7 @@ pub mod emu_cpu {
             address_method(self);
             let relative_address: i8 = self.memory.cpu_read(self.address_bus.address()) as i8;
             if self.get_status_flag(OVERFLOW_FLAG) != 0 {
-                if relative_address > 0 {
-                    self.program_counter += relative_address as u16;
-                }
-                else {
-                    self.program_counter -= relative_address.abs() as u16;
-                }
+                self.program_counter = (self.program_counter as i16 + relative_address as i16) as u16;
             }
         }
 
