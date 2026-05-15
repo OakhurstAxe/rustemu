@@ -383,7 +383,7 @@ pub mod emu_cpu {
             op_code_lookup[0xd7] = OperationStruct { operation: M6502::op_dcp, address_method: M6502::zero_x_address, ticks: 6 };
             op_code_lookup[0xd8] = OperationStruct { operation: M6502::op_cld, address_method: M6502::null_address, ticks: 2 };
             op_code_lookup[0xd9] = OperationStruct { operation: M6502::op_cmp, address_method: M6502::absolute_y_address, ticks: 4 };
-            op_code_lookup[0xda] = OperationStruct { operation: M6502::op_brk, address_method: M6502::null_address, ticks: 7 };
+            op_code_lookup[0xda] = OperationStruct { operation: M6502::op_nop, address_method: M6502::null_address, ticks: 2 };
             op_code_lookup[0xdb] = OperationStruct { operation: M6502::op_dcp, address_method: M6502::absolute_y_address, ticks: 7 };
             op_code_lookup[0xdc] = OperationStruct { operation: M6502::op_nop, address_method: M6502::absolute_x_address, ticks: 4 };
             op_code_lookup[0xdd] = OperationStruct { operation: M6502::op_cmp, address_method: M6502::absolute_x_address, ticks: 4 };
@@ -1173,7 +1173,9 @@ pub mod emu_cpu {
             self.program_counter = load;
         }
 
-        fn op_nop(&mut self, _address_method: fn(&mut M6502<T>)) {
+        fn op_nop(&mut self, address_method: fn(&mut M6502<T>)) {
+            address_method(self);
+            self.memory.cpu_read(self.address_bus.address());
         }
 
         fn op_rti(&mut self, _address_method: fn(&mut M6502<T>)) {
