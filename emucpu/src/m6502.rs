@@ -61,6 +61,7 @@ pub mod emu_cpu {
         instruction: u8,
         is_nmi_set: bool,
         is_irq_set: bool,
+        in_interrupt: bool,
         dec_disabled: bool,
         address_bus: AddressStruct,
     }
@@ -71,29 +72,11 @@ pub mod emu_cpu {
 
             if self.is_nmi_set {
                 self.is_nmi_set = false;
-                let (value, _overflow) = self.program_counter.overflowing_sub(1);
-                self.program_counter = value;
-                self.push_stack(((self.program_counter & 0xff00) >> 8) as u8);
-                self.push_stack((self.program_counter & 0x00ff) as u8);
-                self.op_php(M6502::null_address);
-                let loadl: u8 = self.memory.cpu_read(0xfffa);
-                let loadh: u8 = self.memory.cpu_read(0xfffb);
-                let load: u16 = (((loadh as u16) << 8) + loadl as u16) as u16;
-                self.program_counter = load;
-                self.get_next_operation();
+                self.handle_interrupt(0xfffa);
             }
             else if self.is_irq_set && self.get_status_flag(INTERRUPT_FLAG) == 0 {
                 self.is_irq_set = false;
-                let (value, _overflow) = self.program_counter.overflowing_sub(1);
-                self.program_counter = value;
-                self.push_stack(((self.program_counter & 0xff00) >> 8) as u8);
-                self.push_stack((self.program_counter & 0x00ff) as u8);
-                self.op_php(M6502::null_address);
-                let loadl: u8 = self.memory.cpu_read(0xfffe);
-                let loadh: u8 = self.memory.cpu_read(0xffff);
-                let load: u16 = (((loadh as u16) << 8) + loadl as u16) as u16;
-                self.program_counter = load;
-                self.get_next_operation();
+                self.handle_interrupt(0xfffe);
             }
             else {
                 if self.overflow_ticks  > 1 {
@@ -148,6 +131,7 @@ pub mod emu_cpu {
                     is_nmi_set: false,
                     is_irq_set: false,
                     dec_disabled: false,
+                    in_interrupt: false,
                     address_bus : AddressStruct { loadl: 0, loadh: 0 },
             }
         }
@@ -166,6 +150,20 @@ pub mod emu_cpu {
 
         pub fn disable_dec(&mut self) {
             self.dec_disabled = true;
+        }
+
+        fn handle_interrupt(&mut self, address: u16) {
+            self.in_interrupt = true;
+            self.program_counter = self.program_counter.overflowing_sub(1).0;
+            self.push_stack(((self.program_counter & 0xff00) >> 8) as u8);
+            self.push_stack((self.program_counter & 0x00ff) as u8);
+            self.op_php(M6502::null_address);
+            let loadl: u8 = self.memory.cpu_read(address);
+            let loadh: u8 = self.memory.cpu_read(address + 1);
+            let load: u16 = (((loadh as u16) << 8) + loadl as u16) as u16;
+            self.program_counter = load;
+            self.get_next_operation();
+            self.in_interrupt = false;
         }
 
         fn get_op_codes() -> [OperationStruct<T>; 0x100] {
@@ -448,9 +446,6 @@ pub mod emu_cpu {
         }
 
         fn call_op_method(&mut self, op: fn(&mut M6502<T>, fn(&mut M6502<T>)), address_method: fn(&mut M6502<T>)) {
-            if self.program_counter == 55400 {
-                self.debug = 1;
-            }
             op(self, address_method);         
         }
 
@@ -685,7 +680,7 @@ pub mod emu_cpu {
                 carry = 0x01;
             }
 
-            if fn_addr_eq(address_method, M6502::accumulator_address as for<'a, 'b> fn(&'a mut M6502<T>)) {
+            if fn_addr_eq(address_method, M6502::accumulator_address as fn(&mut M6502<T>)) {
                 address_method(self);
                 byte = self.address_bus.loadl;
             }
@@ -697,7 +692,7 @@ pub mod emu_cpu {
             let temp: u8 = (byte << 1) | carry;
             byte = temp;
             self.set_negative_zero(byte);
-            if fn_addr_eq(address_method, M6502::accumulator_address as for<'a, 'b> fn(&'a mut M6502<T>)) {
+            if fn_addr_eq(address_method, M6502::accumulator_address as fn(&mut M6502<T>)) {
                 self.accumulator &= byte;
                 self.set_negative(self.accumulator);
             }
@@ -743,8 +738,12 @@ pub mod emu_cpu {
 
         fn op_sta(&mut self, address_method: fn(&mut M6502<T>)) {
             address_method(self);
+            if fn_addr_eq(address_method, M6502::<T>::absolute_x_address_no_overflow as fn(&mut M6502<T>)) ||
+               fn_addr_eq(address_method, M6502::<T>::absolute_x_address as fn(&mut M6502<T>)) {
+                self.memory.cpu_read(self.address_bus.address());
+            }
             self.memory.cpu_write(self.address_bus.address(), self.accumulator);
-        }
+        }   
         
         fn op_stx(&mut self, address_method: fn(&mut M6502<T>)) {
             address_method(self);
@@ -792,10 +791,14 @@ pub mod emu_cpu {
         }
 
         fn op_php(&mut self, _address_method: fn(&mut M6502<T>)) {
-            self.set_status_flag(BREAK_COMMAND, true);
+            if !self.in_interrupt {
+                self.set_status_flag(BREAK_COMMAND, true);
+            }
             self.set_status_flag(IGNORED, true);
             self.push_stack(self.status_register);
-            self.set_status_flag(BREAK_COMMAND, false);
+            if !self.in_interrupt {
+                self.set_status_flag(BREAK_COMMAND, false);
+            }
             self.set_status_flag(IGNORED, false);
         }
 
@@ -969,7 +972,7 @@ pub mod emu_cpu {
         fn op_asl(&mut self, address_method: fn(&mut M6502<T>)) {
             let mut byte: u8;
 
-            if fn_addr_eq(address_method, M6502::accumulator_address as for<'a, 'b> fn(&'a mut M6502<T>)) {
+            if fn_addr_eq(address_method, M6502::accumulator_address as fn(&mut M6502<T>)) {
                 byte = self.accumulator;
             }
             else {
@@ -980,7 +983,7 @@ pub mod emu_cpu {
             self.set_status_flag(CARRY_FLAG, (byte & 0x80) != 0);
             byte = byte << 1;
             self.set_negative_zero(byte);
-            if fn_addr_eq(address_method, M6502::accumulator_address as for<'a, 'b> fn(&'a mut M6502<T>)) {
+            if fn_addr_eq(address_method, M6502::accumulator_address as fn(&mut M6502<T>)) {
                 self.accumulator = byte;
             }
             else {
@@ -991,7 +994,7 @@ pub mod emu_cpu {
         fn op_lsr(&mut self, address_method: fn(&mut M6502<T>)) {
             let mut byte: u8;
 
-            if fn_addr_eq(address_method, M6502::accumulator_address as for<'a, 'b> fn(&'a mut M6502<T>)) {
+            if fn_addr_eq(address_method, M6502::accumulator_address as fn(&mut M6502<T>)) {
                 address_method(self);
                 byte = self.address_bus.loadl as u8;
             }
@@ -1003,7 +1006,7 @@ pub mod emu_cpu {
             self.set_status_flag(CARRY_FLAG, (byte & 0x01) != 0);
             byte = byte >> 1;
             self.set_negative_zero(byte);
-            if fn_addr_eq(address_method, M6502::accumulator_address as for<'a, 'b> fn(&'a mut M6502<T>)) {
+            if fn_addr_eq(address_method, M6502::accumulator_address as fn(&mut M6502<T>)) {
                 self.accumulator = byte;
             }
             else {
@@ -1019,7 +1022,7 @@ pub mod emu_cpu {
                 carry = 0x01;
             }
 
-            if fn_addr_eq(address_method, M6502::accumulator_address as for<'a, 'b> fn(&'a mut M6502<T>)) {
+            if fn_addr_eq(address_method, M6502::accumulator_address as fn(&mut M6502<T>)) {
                 address_method(self);
                 byte = self.address_bus.loadl;
             }
@@ -1032,7 +1035,7 @@ pub mod emu_cpu {
             let temp: u8 = (byte << 1) | carry;
             byte = temp;
             self.set_negative_zero(byte);
-            if fn_addr_eq(address_method, M6502::accumulator_address as for<'a, 'b> fn(&'a mut M6502<T>)) {
+            if fn_addr_eq(address_method, M6502::accumulator_address as fn(&mut M6502<T>)) {
                 self.accumulator  = byte;
             }
             else {
@@ -1048,7 +1051,7 @@ pub mod emu_cpu {
                 carry = 0x80;
             }
 
-            if fn_addr_eq(address_method, M6502::accumulator_address as for<'a, 'b> fn(&'a mut M6502<T>)) {
+            if fn_addr_eq(address_method, M6502::accumulator_address as fn(&mut M6502<T>)) {
                 address_method(self);
                 byte = self.address_bus.loadl;
             }
@@ -1061,7 +1064,7 @@ pub mod emu_cpu {
             let temp: u8 = (byte >> 1) | carry;
             byte = temp;
             self.set_negative_zero(byte);
-            if fn_addr_eq(address_method, M6502::accumulator_address as for<'a, 'b> fn(&'a mut M6502<T>)) {
+            if fn_addr_eq(address_method, M6502::accumulator_address as fn(&mut M6502<T>)) {
                 self.accumulator  = byte;
             }
             else
@@ -1193,9 +1196,7 @@ pub mod emu_cpu {
             self.program_counter += 1;
             self.push_stack(((self.program_counter & 0xff00) >> 8) as u8);
             self.push_stack((self.program_counter & 0xff) as u8);
-            self.set_status_flag(BREAK_COMMAND, true);
-            self.push_stack(self.status_register);
-            self.set_status_flag(BREAK_COMMAND, false);
+            self.op_php(M6502::null_address);
             let loadl: u8 = self.memory.cpu_read(0xfffe);
             let loadh: u8 = self.memory.cpu_read(0xffff);
             let load: u16 = ((loadh as u16) << 8) + loadl as u16;

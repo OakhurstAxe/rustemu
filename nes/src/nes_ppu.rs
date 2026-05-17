@@ -304,8 +304,6 @@ use crate::nes_memory::nes::NesMemory;
                 self.ppu_io_bus = byte;
                 self.ppu_io_bus_ticks = TICKS_PER_FRAME as u32 * 30;
                 return byte;
-            } else {
-                self.debug = 1;
             }
 
             self.ppu_io_bus
@@ -351,8 +349,6 @@ use crate::nes_memory::nes::NesMemory;
                 else {
                     self.ppu_addr += 1;
                 }
-            } else {
-                self.debug = byte;
             }
 
         }
