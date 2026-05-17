@@ -14,7 +14,7 @@ pub mod nes {
         apu_io_registers: MemoryRamFlagged,
         left_controller: u8,
         right_controller: u8,
-        nmi_set: bool,
+        irq_set: bool,
         interrupt_set: bool,
         frame_counter: u16,
         channel0: NesApuPulseChannel,
@@ -30,7 +30,7 @@ pub mod nes {
                 apu_io_registers: MemoryRamFlagged::new(0x001f, String::from("APU IO Registers")),
                 left_controller: 0,
                 right_controller: 0,
-                nmi_set: false,
+                irq_set: false,
                 interrupt_set: false,
                 frame_counter: 0,
                 channel0: NesApuPulseChannel::new(),
@@ -87,12 +87,12 @@ pub mod nes {
             result
         }
 
-        pub fn is_nmi_set(&self) -> bool {
-            self.nmi_set
+        pub fn is_irq_set(&self) -> bool {
+            self.irq_set
         }
         
-        pub fn reset_nmi(&mut self) {
-            self.nmi_set = false;
+        pub fn reset_irq(&mut self) {
+            self.irq_set = false;
             self.interrupt_set = false;
         }
 
@@ -102,7 +102,7 @@ pub mod nes {
                 self.frame_counter -= 1;
             }
             if self.frame_counter == 0 && self.interrupt_set == true {
-                self.nmi_set = true;
+                self.irq_set = true;
             }
 
             let mut register1: u8 = self.apu_io_registers.read(0);

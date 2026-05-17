@@ -85,9 +85,9 @@ pub mod nes {
                 if (ticks % 2) == 0 {
                     self.apu.write().unwrap().execute_tick();
                 }
-                if self.apu.write().unwrap().is_nmi_set() {
-                    self.cpu.set_nmi();
-                    self.apu.write().unwrap().reset_nmi();
+                if self.apu.write().unwrap().is_irq_set() {
+                    self.cpu.set_irq();
+                    self.apu.write().unwrap().reset_irq();
                 }
 
                 if (ticks % 3) == 0 {

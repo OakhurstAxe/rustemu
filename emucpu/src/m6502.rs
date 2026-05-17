@@ -60,6 +60,7 @@ pub mod emu_cpu {
         operation: OperationStruct<T>,
         instruction: u8,
         is_nmi_set: bool,
+        is_irq_set: bool,
         dec_disabled: bool,
         address_bus: AddressStruct,
     }
@@ -68,7 +69,7 @@ pub mod emu_cpu {
 
         fn execute_tick(&mut self) {
 
-            if self.is_nmi_set && self.get_status_flag(INTERRUPT_FLAG) > 0 {
+            if self.is_nmi_set {
                 self.is_nmi_set = false;
                 let (value, _overflow) = self.program_counter.overflowing_sub(1);
                 self.program_counter = value;
@@ -77,6 +78,19 @@ pub mod emu_cpu {
                 self.op_php(M6502::null_address);
                 let loadl: u8 = self.memory.cpu_read(0xfffa);
                 let loadh: u8 = self.memory.cpu_read(0xfffb);
+                let load: u16 = (((loadh as u16) << 8) + loadl as u16) as u16;
+                self.program_counter = load;
+                self.get_next_operation();
+            }
+            else if self.is_irq_set && self.get_status_flag(INTERRUPT_FLAG) == 0 {
+                self.is_irq_set = false;
+                let (value, _overflow) = self.program_counter.overflowing_sub(1);
+                self.program_counter = value;
+                self.push_stack(((self.program_counter & 0xff00) >> 8) as u8);
+                self.push_stack((self.program_counter & 0x00ff) as u8);
+                self.op_php(M6502::null_address);
+                let loadl: u8 = self.memory.cpu_read(0xfffe);
+                let loadh: u8 = self.memory.cpu_read(0xffff);
                 let load: u16 = (((loadh as u16) << 8) + loadl as u16) as u16;
                 self.program_counter = load;
                 self.get_next_operation();
@@ -106,6 +120,7 @@ pub mod emu_cpu {
             self.status_register = 0;
             self.set_status_flag(IGNORED, true);
             self.is_nmi_set = false;
+            self.is_irq_set = false;
         } 
     }
 
@@ -131,6 +146,7 @@ pub mod emu_cpu {
                     instruction: 0,
                     debug: 0,
                     is_nmi_set: false,
+                    is_irq_set: false,
                     dec_disabled: false,
                     address_bus : AddressStruct { loadl: 0, loadh: 0 },
             }
@@ -144,6 +160,10 @@ pub mod emu_cpu {
             self.is_nmi_set = true;
         }
         
+        pub fn set_irq (&mut self) {
+            self.is_irq_set = true;
+        }
+
         pub fn disable_dec(&mut self) {
             self.dec_disabled = true;
         }
@@ -163,7 +183,7 @@ pub mod emu_cpu {
             op_code_lookup[0x08] = OperationStruct { operation: M6502::op_php, address_method: M6502::null_address, ticks: 3 };
             op_code_lookup[0x09] = OperationStruct { operation: M6502::op_ora, address_method: M6502::immediate_address, ticks: 2 };
             op_code_lookup[0x0a] = OperationStruct { operation: M6502::op_asl, address_method: M6502::accumulator_address, ticks: 2 };
-            op_code_lookup[0x0b] = OperationStruct { operation: M6502::op_brk, address_method: M6502::null_address, ticks: 7 };
+            op_code_lookup[0x0b] = OperationStruct { operation: M6502::op_anc, address_method: M6502::immediate_address, ticks: 7 };
             op_code_lookup[0x0c] = OperationStruct { operation: M6502::op_nop, address_method: M6502::absolute_address, ticks: 4 };
             op_code_lookup[0x0d] = OperationStruct { operation: M6502::op_ora, address_method: M6502::absolute_address, ticks: 4 };
             op_code_lookup[0x0e] = OperationStruct { operation: M6502::op_asl, address_method: M6502::absolute_address, ticks: 6 };
@@ -189,7 +209,7 @@ pub mod emu_cpu {
             op_code_lookup[0x20] = OperationStruct { operation: M6502::op_jsr, address_method: M6502::absolute_address, ticks: 6 };
             op_code_lookup[0x21] = OperationStruct { operation: M6502::op_and, address_method: M6502::indirect_x_address, ticks: 6 };
             op_code_lookup[0x22] = OperationStruct { operation: M6502::op_rla, address_method: M6502::indirect_x_address, ticks: 8 };
-            op_code_lookup[0x23] = OperationStruct { operation: M6502::op_brk, address_method: M6502::null_address, ticks: 7};
+            op_code_lookup[0x23] = OperationStruct { operation: M6502::op_rla, address_method: M6502::indirect_x_address, ticks: 7};
             op_code_lookup[0x24] = OperationStruct { operation: M6502::op_bit, address_method: M6502::zero_address, ticks: 3 };
             op_code_lookup[0x25] = OperationStruct { operation: M6502::op_and, address_method: M6502::zero_address, ticks: 3 };
             op_code_lookup[0x26] = OperationStruct { operation: M6502::op_rol, address_method: M6502::zero_address, ticks: 5 };
@@ -197,7 +217,7 @@ pub mod emu_cpu {
             op_code_lookup[0x28] = OperationStruct { operation: M6502::op_plp, address_method: M6502::null_address, ticks: 4 };
             op_code_lookup[0x29] = OperationStruct { operation: M6502::op_and, address_method: M6502::immediate_address, ticks: 2 };
             op_code_lookup[0x2a] = OperationStruct { operation: M6502::op_rol, address_method: M6502::accumulator_address, ticks: 2 };
-            op_code_lookup[0x2b] = OperationStruct { operation: M6502::op_brk, address_method: M6502::null_address, ticks: 7 };
+            op_code_lookup[0x2b] = OperationStruct { operation: M6502::op_anc, address_method: M6502::immediate_address, ticks: 7 };
             op_code_lookup[0x2c] = OperationStruct { operation: M6502::op_bit, address_method: M6502::absolute_address, ticks: 4 };
             op_code_lookup[0x2d] = OperationStruct { operation: M6502::op_and, address_method: M6502::absolute_address, ticks: 4 };
             op_code_lookup[0x2e] = OperationStruct { operation: M6502::op_rol, address_method: M6502::absolute_address, ticks: 6 };
@@ -223,7 +243,7 @@ pub mod emu_cpu {
             op_code_lookup[0x40] = OperationStruct { operation: M6502::op_rti, address_method: M6502::null_address, ticks: 6 };
             op_code_lookup[0x41] = OperationStruct { operation: M6502::op_eor, address_method: M6502::indirect_x_address, ticks: 6 };
             op_code_lookup[0x42] = OperationStruct { operation: M6502::op_brk, address_method: M6502::null_address, ticks: 7 };
-            op_code_lookup[0x43] = OperationStruct { operation: M6502::op_sre, address_method: M6502::absolute_x_address, ticks: 8 };
+            op_code_lookup[0x43] = OperationStruct { operation: M6502::op_sre, address_method: M6502::indirect_x_address, ticks: 8 };
             op_code_lookup[0x44] = OperationStruct { operation: M6502::op_nop, address_method: M6502::zero_address, ticks: 3 };
             op_code_lookup[0x45] = OperationStruct { operation: M6502::op_eor, address_method: M6502::zero_address, ticks: 3 };
             op_code_lookup[0x46] = OperationStruct { operation: M6502::op_lsr, address_method: M6502::zero_address, ticks: 5 };
@@ -231,7 +251,7 @@ pub mod emu_cpu {
             op_code_lookup[0x48] = OperationStruct { operation: M6502::op_pha, address_method: M6502::null_address, ticks: 3 };
             op_code_lookup[0x49] = OperationStruct { operation: M6502::op_eor, address_method: M6502::immediate_address, ticks: 2 };
             op_code_lookup[0x4a] = OperationStruct { operation: M6502::op_lsr, address_method: M6502::accumulator_address, ticks: 2 };
-            op_code_lookup[0x4b] = OperationStruct { operation: M6502::op_brk, address_method: M6502::null_address, ticks: 7 };
+            op_code_lookup[0x4b] = OperationStruct { operation: M6502::op_asr, address_method: M6502::immediate_address, ticks: 7 };
             op_code_lookup[0x4c] = OperationStruct { operation: M6502::op_jmp, address_method: M6502::absolute_address, ticks: 3 };
             op_code_lookup[0x4d] = OperationStruct { operation: M6502::op_eor, address_method: M6502::absolute_address, ticks: 4 };
             op_code_lookup[0x4e] = OperationStruct { operation: M6502::op_lsr, address_method: M6502::absolute_address, ticks: 6 };
@@ -248,7 +268,7 @@ pub mod emu_cpu {
             op_code_lookup[0x58] = OperationStruct { operation: M6502::op_cli, address_method: M6502::null_address, ticks: 2 };
             op_code_lookup[0x59] = OperationStruct { operation: M6502::op_eor, address_method: M6502::absolute_y_address, ticks: 4 };
             op_code_lookup[0x5a] = OperationStruct { operation: M6502::op_nop, address_method: M6502::null_address, ticks: 2 };
-            op_code_lookup[0x5b] = OperationStruct { operation: M6502::op_brk, address_method: M6502::null_address, ticks: 7 };
+            op_code_lookup[0x5b] = OperationStruct { operation: M6502::op_sre, address_method: M6502::absolute_y_address, ticks: 7 };
             op_code_lookup[0x5c] = OperationStruct { operation: M6502::op_nop, address_method: M6502::absolute_x_address, ticks: 4 };
             op_code_lookup[0x5d] = OperationStruct { operation: M6502::op_eor, address_method: M6502::absolute_x_address, ticks: 4 };
             op_code_lookup[0x5e] = OperationStruct { operation: M6502::op_lsr, address_method: M6502::absolute_x_address_no_overflow, ticks: 7 };
@@ -265,7 +285,7 @@ pub mod emu_cpu {
             op_code_lookup[0x68] = OperationStruct { operation: M6502::op_pla, address_method: M6502::null_address, ticks: 4 };
             op_code_lookup[0x69] = OperationStruct { operation: M6502::op_adc, address_method: M6502::immediate_address, ticks: 2 };
             op_code_lookup[0x6a] = OperationStruct { operation: M6502::op_ror, address_method: M6502::accumulator_address, ticks: 2 };
-            op_code_lookup[0x6b] = OperationStruct { operation: M6502::op_jmp, address_method: M6502::null_address, ticks: 7 };
+            op_code_lookup[0x6b] = OperationStruct { operation: M6502::op_arr, address_method: M6502::immediate_address, ticks: 7 };
             op_code_lookup[0x6c] = OperationStruct { operation: M6502::op_jmp, address_method: M6502::indirect_address, ticks: 5 };
             op_code_lookup[0x6d] = OperationStruct { operation: M6502::op_adc, address_method: M6502::absolute_address, ticks: 4 };
             op_code_lookup[0x6e] = OperationStruct { operation: M6502::op_ror, address_method: M6502::absolute_address, ticks: 6 };
@@ -308,7 +328,7 @@ pub mod emu_cpu {
             op_code_lookup[0x90] = OperationStruct { operation: M6502::op_bcc, address_method: M6502::immediate_address, ticks: 2 };
             op_code_lookup[0x91] = OperationStruct { operation: M6502::op_sta, address_method: M6502::indirect_y_address_no_overflow, ticks: 6 };
             op_code_lookup[0x92] = OperationStruct { operation: M6502::op_brk, address_method: M6502::null_address, ticks: 7 };
-            op_code_lookup[0x93] = OperationStruct { operation: M6502::op_brk, address_method: M6502::null_address, ticks: 7 };
+            op_code_lookup[0x93] = OperationStruct { operation: M6502::op_ahx, address_method: M6502::indirect_y_address, ticks: 7 };
             op_code_lookup[0x94] = OperationStruct { operation: M6502::op_sty, address_method: M6502::zero_x_address, ticks: 4 };
             op_code_lookup[0x95] = OperationStruct { operation: M6502::op_sta, address_method: M6502::zero_x_address, ticks: 4 };
             op_code_lookup[0x96] = OperationStruct { operation: M6502::op_stx, address_method: M6502::zero_y_address, ticks: 4 };
@@ -316,11 +336,11 @@ pub mod emu_cpu {
             op_code_lookup[0x98] = OperationStruct { operation: M6502::op_tya, address_method: M6502::null_address, ticks: 2 };
             op_code_lookup[0x99] = OperationStruct { operation: M6502::op_sta, address_method: M6502::absolute_y_address_no_overflow, ticks: 5 };
             op_code_lookup[0x9a] = OperationStruct { operation: M6502::op_txs, address_method: M6502::null_address, ticks: 2 };
-            op_code_lookup[0x9b] = OperationStruct { operation: M6502::op_brk, address_method: M6502::null_address, ticks: 7 };
-            op_code_lookup[0x9c] = OperationStruct { operation: M6502::op_brk, address_method: M6502::null_address, ticks: 7 };
+            op_code_lookup[0x9b] = OperationStruct { operation: M6502::op_shs, address_method: M6502::absolute_y_address, ticks: 7 };
+            op_code_lookup[0x9c] = OperationStruct { operation: M6502::op_shy, address_method: M6502::absolute_x_address, ticks: 7 };
             op_code_lookup[0x9d] = OperationStruct { operation: M6502::op_sta, address_method: M6502::absolute_x_address_no_overflow, ticks: 5 };
-            op_code_lookup[0x9e] = OperationStruct { operation: M6502::op_brk, address_method: M6502::null_address, ticks: 7 };
-            op_code_lookup[0x9f] = OperationStruct { operation: M6502::op_brk, address_method: M6502::null_address, ticks: 7 };
+            op_code_lookup[0x9e] = OperationStruct { operation: M6502::op_shx, address_method: M6502::absolute_y_address, ticks: 7 };
+            op_code_lookup[0x9f] = OperationStruct { operation: M6502::op_ahx, address_method: M6502::absolute_y_address, ticks: 7 };
               
             op_code_lookup[0xa0] = OperationStruct { operation: M6502::op_ldy, address_method: M6502::immediate_address, ticks: 2 };
             op_code_lookup[0xa1] = OperationStruct { operation: M6502::op_lda, address_method: M6502::indirect_x_address, ticks: 6 };
@@ -333,7 +353,7 @@ pub mod emu_cpu {
             op_code_lookup[0xa8] = OperationStruct { operation: M6502::op_tay, address_method: M6502::null_address, ticks: 2 };
             op_code_lookup[0xa9] = OperationStruct { operation: M6502::op_lda, address_method: M6502::immediate_address, ticks: 2 };
             op_code_lookup[0xaa] = OperationStruct { operation: M6502::op_tax, address_method: M6502::null_address, ticks: 2 };
-            op_code_lookup[0xab] = OperationStruct { operation: M6502::op_brk, address_method: M6502::null_address, ticks: 7 };
+            op_code_lookup[0xab] = OperationStruct { operation: M6502::op_lxa, address_method: M6502::immediate_address, ticks: 7 };
             op_code_lookup[0xac] = OperationStruct { operation: M6502::op_ldy, address_method: M6502::absolute_address, ticks: 4 };
             op_code_lookup[0xad] = OperationStruct { operation: M6502::op_lda, address_method: M6502::absolute_address, ticks: 4 };
             op_code_lookup[0xae] = OperationStruct { operation: M6502::op_ldx, address_method: M6502::absolute_address, ticks: 4 };
@@ -350,7 +370,7 @@ pub mod emu_cpu {
             op_code_lookup[0xb8] = OperationStruct { operation: M6502::op_clv, address_method: M6502::null_address, ticks: 2 };
             op_code_lookup[0xb9] = OperationStruct { operation: M6502::op_lda, address_method: M6502::absolute_y_address, ticks: 4 };
             op_code_lookup[0xba] = OperationStruct { operation: M6502::op_tsx, address_method: M6502::null_address, ticks: 2 };
-            op_code_lookup[0xbb] = OperationStruct { operation: M6502::op_brk, address_method: M6502::null_address, ticks: 7 };
+            op_code_lookup[0xbb] = OperationStruct { operation: M6502::op_lae, address_method: M6502::absolute_y_address, ticks: 7 };
             op_code_lookup[0xbc] = OperationStruct { operation: M6502::op_ldy, address_method: M6502::absolute_x_address, ticks: 4 };
             op_code_lookup[0xbd] = OperationStruct { operation: M6502::op_lda, address_method: M6502::absolute_x_address, ticks: 4 };
             op_code_lookup[0xbe] = OperationStruct { operation: M6502::op_ldx, address_method: M6502::absolute_y_address, ticks: 4 };
@@ -367,7 +387,7 @@ pub mod emu_cpu {
             op_code_lookup[0xc8] = OperationStruct { operation: M6502::op_iny, address_method: M6502::null_address, ticks: 2 };
             op_code_lookup[0xc9] = OperationStruct { operation: M6502::op_cmp, address_method: M6502::immediate_address, ticks: 2 };
             op_code_lookup[0xca] = OperationStruct { operation: M6502::op_dex, address_method: M6502::null_address, ticks: 2 };
-            op_code_lookup[0xcb] = OperationStruct { operation: M6502::op_brk, address_method: M6502::null_address, ticks: 7 };
+            op_code_lookup[0xcb] = OperationStruct { operation: M6502::op_axs, address_method: M6502::immediate_address, ticks: 7 };
             op_code_lookup[0xcc] = OperationStruct { operation: M6502::op_cpy, address_method: M6502::absolute_address, ticks: 4 };
             op_code_lookup[0xcd] = OperationStruct { operation: M6502::op_cmp, address_method: M6502::absolute_address, ticks: 4 };
             op_code_lookup[0xce] = OperationStruct { operation: M6502::op_dec, address_method: M6502::absolute_address, ticks: 3 };
@@ -376,7 +396,7 @@ pub mod emu_cpu {
             op_code_lookup[0xd0] = OperationStruct { operation: M6502::op_bne, address_method: M6502::immediate_address, ticks: 2 };
             op_code_lookup[0xd1] = OperationStruct { operation: M6502::op_cmp, address_method: M6502::indirect_y_address, ticks: 5 };
             op_code_lookup[0xd2] = OperationStruct { operation: M6502::op_dcp, address_method: M6502::indirect_y_address, ticks: 8 };
-            op_code_lookup[0xd3] = OperationStruct { operation: M6502::op_brk, address_method: M6502::null_address, ticks: 7 };
+            op_code_lookup[0xd3] = OperationStruct { operation: M6502::op_dcp, address_method: M6502::indirect_y_address, ticks: 7 };
             op_code_lookup[0xd4] = OperationStruct { operation: M6502::op_nop, address_method: M6502::zero_x_address, ticks: 3 };
             op_code_lookup[0xd5] = OperationStruct { operation: M6502::op_cmp, address_method: M6502::zero_x_address, ticks: 4 };
             op_code_lookup[0xd6] = OperationStruct { operation: M6502::op_dec, address_method: M6502::zero_x_address, ticks: 6 };
@@ -1189,11 +1209,32 @@ pub mod emu_cpu {
 
         fn op_rti(&mut self, _address_method: fn(&mut M6502<T>)) {
             self.status_register = self.pop_stack();
-            //self.set_status_flag(BREAK_COMMAND, false);
+            self.set_status_flag(BREAK_COMMAND, false);
             let loadl: u8 = self.pop_stack();
             let loadh: u8 = self.pop_stack();
             let load: u16 = ((loadh as u16) << 8) + loadl as u16;
             self.program_counter = load;
+        }
+
+        // unofficial opcodes
+        fn op_ahx(&mut self, address_method: fn(&mut M6502<T>)) {
+            address_method(self);            
+        }
+
+        fn op_anc(&mut self, address_method: fn(&mut M6502<T>)) {
+            address_method(self);            
+        }
+
+        fn op_arr(&mut self, address_method: fn(&mut M6502<T>)) {
+            address_method(self);            
+        }
+
+        fn op_asr(&mut self, address_method: fn(&mut M6502<T>)) {
+            address_method(self);            
+        }
+
+        fn op_axs(&mut self, address_method: fn(&mut M6502<T>)) {
+            address_method(self);            
         }
 
         fn op_isc(&mut self, address_method: fn(&mut M6502<T>)) {
@@ -1210,10 +1251,30 @@ pub mod emu_cpu {
             self.set_negative_zero(self.accumulator);
         }
 
+        fn op_lae(&mut self, address_method: fn(&mut M6502<T>)) {
+            address_method(self);            
+        }
+
+        fn op_lxa(&mut self, address_method: fn(&mut M6502<T>)) {
+            address_method(self);            
+        }
+
         fn op_sax(&mut self, address_method: fn(&mut M6502<T>)) {
             address_method(self);
             let byte: u8 = self.accumulator & self.register_x;
             self.memory.cpu_write(self.address_bus.address(), byte);
+        }
+
+        fn op_shs(&mut self, address_method: fn(&mut M6502<T>)) {
+            address_method(self);            
+        }
+
+        fn op_shx(&mut self, address_method: fn(&mut M6502<T>)) {
+            address_method(self);            
+        }
+
+        fn op_shy(&mut self, address_method: fn(&mut M6502<T>)) {
+            address_method(self);            
         }
 
         fn op_slo(&mut self, address_method: fn(&mut M6502<T>)) {
