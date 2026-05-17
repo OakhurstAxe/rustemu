@@ -8,7 +8,8 @@ pub mod nes {
     use emumemory::memory_ram::emu_memory::MemoryRam;
     use emumemory::base_memory::emu_memory::BaseMemory;
 
-    use crate::nes_memory::nes::NesMemory;
+    use crate::nes_console::nes::TICKS_PER_FRAME;
+use crate::nes_memory::nes::NesMemory;
     use crate::nes_cartridge::nes::NesCartridge;
     use crate::nes_cartridge_000::nes::NesCartridge000;
     use crate::nes_palette::nes::NesPalette;
@@ -167,6 +168,7 @@ pub mod nes {
         ppu_oam: MemoryRam,
         cpu_ppu_registers: MemoryRam,
         ppu_io_bus: u8,
+        ppu_io_bus_ticks: u32,
         cartridge: Arc<RwLock<NesCartridge000>>,
         control_register: PpuControlRegister,
         scan_line: i32,
@@ -200,6 +202,7 @@ pub mod nes {
                 ppu_oam: MemoryRam::new(String::from("PPU OAM RAM"), 0x0100),
                 cpu_ppu_registers: MemoryRam::new(String::from("PPU Registers"), 0x0008),
                 ppu_io_bus: 0,
+                ppu_io_bus_ticks: 0,
                 cartridge: cartridge,
                 control_register: PpuControlRegister::new(),
                 scan_line: 0,
@@ -289,14 +292,17 @@ pub mod nes {
                 let latch_byte = byte & 0xe0;
                 self.ppu_io_bus &= 0x1f;
                 self.ppu_io_bus |= latch_byte;
-                return byte;
+                self.ppu_io_bus_ticks = TICKS_PER_FRAME as u32 * 30;
+                return self.ppu_io_bus;
             } else if location == 0x04 {
                 let byte = self.oam_read(self.ppu_oam_addr as u16);
                 self.ppu_io_bus = byte;
+                self.ppu_io_bus_ticks = TICKS_PER_FRAME as u32 * 30;
                 return byte;
             } else if location == 0x07 {
                 let byte = self.read(self.ppu_addr);
                 self.ppu_io_bus = byte;
+                self.ppu_io_bus_ticks = TICKS_PER_FRAME as u32 * 30;
                 return byte;
             } else {
                 self.debug = 1;
@@ -309,6 +315,7 @@ pub mod nes {
 
             location %= 8;
             self.ppu_io_bus = byte;
+            self.ppu_io_bus_ticks = TICKS_PER_FRAME as u32 * 30;
 
             if location == 0x00 {
                 self.cpu_ppu_registers.write(0, byte);
@@ -634,6 +641,12 @@ pub mod nes {
         }
         
         pub fn execute_tick(&mut self) {
+
+            if self.ppu_io_bus_ticks == 0 {
+                self.ppu_io_bus = 0;
+            } else {
+                self.ppu_io_bus_ticks -= 1;
+            }
 
             self.cycle += 1;
             if self.cycle >= 340 {

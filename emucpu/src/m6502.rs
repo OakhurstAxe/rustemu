@@ -68,7 +68,7 @@ pub mod emu_cpu {
 
         fn execute_tick(&mut self) {
 
-            if self.is_nmi_set {
+            if self.is_nmi_set && self.get_status_flag(INTERRUPT_FLAG) > 0 {
                 self.is_nmi_set = false;
                 let (value, _overflow) = self.program_counter.overflowing_sub(1);
                 self.program_counter = value;
@@ -299,7 +299,7 @@ pub mod emu_cpu {
             op_code_lookup[0x88] = OperationStruct { operation: M6502::op_dey, address_method: M6502::null_address, ticks: 2 };
             op_code_lookup[0x89] = OperationStruct { operation: M6502::op_nop, address_method: M6502::immediate_address, ticks: 2 };
             op_code_lookup[0x8a] = OperationStruct { operation: M6502::op_txa, address_method: M6502::null_address, ticks: 2 };
-            op_code_lookup[0x8b] = OperationStruct { operation: M6502::op_brk, address_method: M6502::null_address, ticks: 7 };
+            op_code_lookup[0x8b] = OperationStruct { operation: M6502::op_ane, address_method: M6502::immediate_address, ticks: 2 };
             op_code_lookup[0x8c] = OperationStruct { operation: M6502::op_sty, address_method: M6502::absolute_address, ticks: 4 };
             op_code_lookup[0x8d] = OperationStruct { operation: M6502::op_sta, address_method: M6502::absolute_address, ticks: 4 };
             op_code_lookup[0x8e] = OperationStruct { operation: M6502::op_stx, address_method: M6502::absolute_address, ticks: 4 };
@@ -428,6 +428,9 @@ pub mod emu_cpu {
         }
 
         fn call_op_method(&mut self, op: fn(&mut M6502<T>, fn(&mut M6502<T>)), address_method: fn(&mut M6502<T>)) {
+            if self.program_counter == 55400 {
+                self.debug = 1;
+            }
             op(self, address_method);         
         }
 
@@ -903,6 +906,7 @@ pub mod emu_cpu {
         fn op_inc(&mut self, address_method: fn(&mut M6502<T>)) {
             address_method(self);
             let byte: u8 = self.memory.cpu_read(self.address_bus.address());
+            self.memory.cpu_write(self.address_bus.address(), byte);
             let(byte2, _overflow) = byte.overflowing_add(1);
             self.memory.cpu_write(self.address_bus.address(), byte2);
             self.set_negative_zero(byte2);
@@ -923,6 +927,7 @@ pub mod emu_cpu {
         fn op_dec(&mut self, address_method: fn(&mut M6502<T>)) {
             address_method(self);
             let byte: u8 = self.memory.cpu_read(self.address_bus.address());
+            self.memory.cpu_write(self.address_bus.address(), byte);
             let (byte, _overflow) = byte.overflowing_sub(1);
             self.memory.cpu_write(self.address_bus.address(), byte);
             self.set_negative_zero(byte);
@@ -950,6 +955,7 @@ pub mod emu_cpu {
             else {
                 address_method(self);
                 byte = self.memory.cpu_read(self.address_bus.address());
+                self.memory.cpu_write(self.address_bus.address(), byte);
             }
             self.set_status_flag(CARRY_FLAG, (byte & 0x80) != 0);
             byte = byte << 1;
@@ -972,6 +978,7 @@ pub mod emu_cpu {
             else {
                 address_method(self);
                 byte = self.memory.cpu_read(self.address_bus.address());
+                self.memory.cpu_write(self.address_bus.address(), byte);
             }
             self.set_status_flag(CARRY_FLAG, (byte & 0x01) != 0);
             byte = byte >> 1;
@@ -999,6 +1006,7 @@ pub mod emu_cpu {
             else {
                 address_method(self);
                 byte = self.memory.cpu_read(self.address_bus.address());
+                self.memory.cpu_write(self.address_bus.address(), byte);
             }
             self.set_status_flag(CARRY_FLAG, (byte & 0x80) != 0);
             let temp: u8 = (byte << 1) | carry;
@@ -1027,6 +1035,7 @@ pub mod emu_cpu {
             else {
                 address_method(self);
                 byte = self.memory.cpu_read(self.address_bus.address());
+                self.memory.cpu_write(self.address_bus.address(), byte);
             }
             self.set_status_flag(CARRY_FLAG, byte & 0x01 != 0);
             let temp: u8 = (byte >> 1) | carry;
@@ -1180,7 +1189,7 @@ pub mod emu_cpu {
 
         fn op_rti(&mut self, _address_method: fn(&mut M6502<T>)) {
             self.status_register = self.pop_stack();
-            self.set_status_flag(BREAK_COMMAND, false);
+            //self.set_status_flag(BREAK_COMMAND, false);
             let loadl: u8 = self.pop_stack();
             let loadh: u8 = self.pop_stack();
             let load: u16 = ((loadh as u16) << 8) + loadl as u16;
@@ -1216,6 +1225,14 @@ pub mod emu_cpu {
             self.memory.cpu_write(address, byte);
 
             self.accumulator |= byte;
+            self.set_negative_zero(self.accumulator);
+        }     
+
+        fn op_ane(&mut self, address_method: fn(&mut M6502<T>)) {
+            address_method(self);
+            let byte = self.memory.cpu_read(self.address_bus.address());
+            self.accumulator &= self.register_x;
+            self.accumulator &= byte;
             self.set_negative_zero(self.accumulator);
         }     
 
