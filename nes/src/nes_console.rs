@@ -91,12 +91,7 @@ pub mod nes {
                 }
 
                 if (ticks % 3) == 0 {
-                    if self.ppu.read().unwrap().dma_suspend == 0 {
-                        self.cpu.execute_tick();
-                    }
-                    else {
-                        self.ppu.write().unwrap().dma_suspend -= 1;
-                    }
+                    self.cpu.execute_tick();
                 }
 
                 self.ppu.write().unwrap().execute_tick();

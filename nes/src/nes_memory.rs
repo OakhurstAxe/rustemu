@@ -16,8 +16,11 @@ pub mod nes {
         cpu_work_ram: MemoryRam,
         ppu: Arc<RwLock<NesPpu>>,
         apu: Arc<RwLock<NesApu>>,
-        dma_suspend: u8,
         read_bus: u8,
+        ppu_dma_address: u16,
+        ppu_dma_write: u16,
+        apu_dma_address: u16,
+        apu_dma_write: u16,
         _debug: u8,
     }   
 
@@ -28,16 +31,46 @@ pub mod nes {
                 cpu_work_ram: MemoryRam::new(String::from("CPU Work RAM"), 0x0800),
                 ppu: ppu,
                 apu: apu,
-                dma_suspend: 0,
                 read_bus: 0,
+                ppu_dma_address: 0,
+                ppu_dma_write: 0,
+                apu_dma_address: 0,
+                apu_dma_write: 0,
                 _debug: 0,
             }
         }
+
     }
 
     unsafe impl Send for NesMemory {}
 
     impl MemoryMapper for NesMemory {
+
+        fn get_dma_write(&self) -> u16 {
+            self.ppu_dma_write + self.apu_dma_write
+        }
+
+        fn execute_tick(&mut self) {
+
+            // Execute PPU DMA
+            if self.apu_dma_write > 0 {
+                let byte: u8 = self.cpu_read(self.apu_dma_address);
+                self.read_bus = byte;
+                self.apu_dma_address += 1;
+                self.apu_dma_write -= 1;
+                if self.apu_dma_write == 0 {
+                    self.apu.write().unwrap().write(0, 0);
+                }
+
+            }
+            else if self.ppu_dma_write > 0 {
+                let byte: u8 = self.cpu_read(self.ppu_dma_address);
+                self.ppu.write().unwrap().oam_write(256 - self.ppu_dma_write, byte);
+                self.read_bus = byte;
+                self.ppu_dma_address += 1;
+                self.ppu_dma_write -= 1;
+            }
+        }
 
         fn cpu_read(&mut self, mut location: u16) -> u8 {
 
@@ -112,18 +145,18 @@ pub mod nes {
             // APU and IO Registers            
             else if location < 0x401f {
 
+                // PPU DMA
                 if location == 0x4014 {
-                    self.dma_suspend = 154;
-                    self.ppu.write().unwrap().dma_suspend += 154;
-//                    self.cpu.DmaSuspend();
-                    let cpu_addr: u16 = (byte as u16) << 8;
-
-                    for i in 0..256 {
-                        let sprite_data: u8 = self.cpu_read(cpu_addr + i);
-                        self.ppu.write().unwrap().oam_write(i, sprite_data);
-                    }
-                    
+                    self.ppu_dma_write = 256;
+                    self.ppu_dma_address = (byte as u16) << 8;
                     return;
+                }
+
+                if location == 0x4015 && ((byte & 0x10) > 0) {
+                    let apu_address: u16 = self.apu.write().unwrap().read(0x12) as u16;
+                    self.apu_dma_address = 0xC0 + (apu_address << 6);
+                    let length = self.apu.write().unwrap().read(0x13) as u16;
+                    self.apu_dma_write = (length << 4) + 1;
                 }
                 
                 location -= 0x4000;

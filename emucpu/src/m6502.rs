@@ -70,6 +70,11 @@ pub mod emu_cpu {
 
         fn execute_tick(&mut self) {
 
+            if self.memory.get_dma_write() > 0 {
+                self.memory.execute_tick();
+                return;
+            }
+
             if self.is_nmi_set {
                 self.is_nmi_set = false;
                 self.handle_interrupt(0xfffa);
@@ -446,7 +451,7 @@ pub mod emu_cpu {
         }
 
         fn call_op_method(&mut self, op: fn(&mut M6502<T>, fn(&mut M6502<T>)), address_method: fn(&mut M6502<T>)) {
-            op(self, address_method);         
+            op(self, address_method);
         }
 
         pub fn get_next_operation(&mut self) {
@@ -1080,12 +1085,18 @@ pub mod emu_cpu {
         }
 
         fn op_jsr(&mut self, address_method: fn(&mut M6502<T>)) {
-            address_method(self);
+            // Address method is always absolute, 
+            // but JSR pushes stack between 2 reads.
+            self.address_bus.loadl = self.memory.cpu_read(self.program_counter);
+            self.program_counter += 1;
+
+            self.push_stack((((self.program_counter) & 0xff00) >> 8) as u8);
+            self.push_stack(((self.program_counter) & 0x00ff) as u8);
+   
+            self.address_bus.loadh = self.memory.cpu_read(self.program_counter);
+            self.program_counter += 1;
             let jump_address: u16 = self.address_bus.address();
-            self.program_counter -= 1;
-            self.push_stack(((self.program_counter & 0xff00) >> 8) as u8);
-            self.push_stack((self.program_counter & 0x00ff) as u8);
-            self.memory.cpu_read(self.program_counter);
+
             self.program_counter = jump_address;
         }
 
@@ -1280,11 +1291,10 @@ pub mod emu_cpu {
 
         fn op_slo(&mut self, address_method: fn(&mut M6502<T>)) {
             address_method(self);
-            let address: u16 = self.memory.cpu_read(self.address_bus.address()) as u16;
-            let mut byte: u8 = self.memory.cpu_read(address);
+            let mut byte: u8 = self.memory.cpu_read(self.address_bus.address());
             self.set_status_flag(CARRY_FLAG, (byte & 0x80) != 0);
-            byte = byte << 1;
-            self.memory.cpu_write(address, byte);
+            byte <<= 1;
+            self.memory.cpu_write(self.address_bus.address(), byte);
 
             self.accumulator |= byte;
             self.set_negative_zero(self.accumulator);

@@ -30,6 +30,14 @@ pub mod vcs {
 
     impl MemoryMapper for VcsMemory {
         
+        fn get_dma_write(&self) -> u16 {
+            0
+        }
+
+        fn execute_tick(&mut self) {
+
+        }
+
         fn cpu_read(&mut self, mut location: u16) -> u8 {
             let result: u8;
             location = location & 0x1FFF;
