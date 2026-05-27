@@ -331,7 +331,7 @@ pub mod emu_cpu {
             op_code_lookup[0x90] = OperationStruct { operation: M6502::op_bcc, address_method: M6502::immediate_address, ticks: 2 };
             op_code_lookup[0x91] = OperationStruct { operation: M6502::op_sta, address_method: M6502::indirect_y_address_no_overflow, ticks: 6 };
             op_code_lookup[0x92] = OperationStruct { operation: M6502::op_brk, address_method: M6502::null_address, ticks: 7 };
-            op_code_lookup[0x93] = OperationStruct { operation: M6502::op_ahx, address_method: M6502::indirect_y_address, ticks: 7 };
+            op_code_lookup[0x93] = OperationStruct { operation: M6502::op_sha, address_method: M6502::indirect_y_address, ticks: 7 };
             op_code_lookup[0x94] = OperationStruct { operation: M6502::op_sty, address_method: M6502::zero_x_address, ticks: 4 };
             op_code_lookup[0x95] = OperationStruct { operation: M6502::op_sta, address_method: M6502::zero_x_address, ticks: 4 };
             op_code_lookup[0x96] = OperationStruct { operation: M6502::op_stx, address_method: M6502::zero_y_address, ticks: 4 };
@@ -343,7 +343,7 @@ pub mod emu_cpu {
             op_code_lookup[0x9c] = OperationStruct { operation: M6502::op_shy, address_method: M6502::absolute_x_address, ticks: 7 };
             op_code_lookup[0x9d] = OperationStruct { operation: M6502::op_sta, address_method: M6502::absolute_x_address_no_overflow, ticks: 5 };
             op_code_lookup[0x9e] = OperationStruct { operation: M6502::op_shx, address_method: M6502::absolute_y_address, ticks: 7 };
-            op_code_lookup[0x9f] = OperationStruct { operation: M6502::op_ahx, address_method: M6502::absolute_y_address, ticks: 7 };
+            op_code_lookup[0x9f] = OperationStruct { operation: M6502::op_sha, address_method: M6502::absolute_y_address, ticks: 7 };
               
             op_code_lookup[0xa0] = OperationStruct { operation: M6502::op_ldy, address_method: M6502::immediate_address, ticks: 2 };
             op_code_lookup[0xa1] = OperationStruct { operation: M6502::op_lda, address_method: M6502::indirect_x_address, ticks: 6 };
@@ -678,48 +678,83 @@ pub mod emu_cpu {
 
         // NES specific operations
         fn op_rla(&mut self, address_method: fn(&mut M6502<T>)) {
-            let mut byte: u8;
+            address_method(self);
+            let mut byte: u8 = self.memory.cpu_read(self.address_bus.address());
 
             let mut carry: u8 = 0;
             if self.get_status_flag(CARRY_FLAG) != 0 {
                 carry = 0x01;
             }
-
-            if fn_addr_eq(address_method, M6502::accumulator_address as fn(&mut M6502<T>)) {
-                address_method(self);
-                byte = self.address_bus.loadl;
-            }
-            else {
-                address_method(self);
-                byte = self.memory.cpu_read(self.address_bus.address());
-            }
             self.set_status_flag(CARRY_FLAG, (byte & 0x80) != 0);
+
             let temp: u8 = (byte << 1) | carry;
             byte = temp;
+
+            self.memory.cpu_write(self.address_bus.address(), byte);
+            self.accumulator &= byte;
             self.set_negative_zero(byte);
-            if fn_addr_eq(address_method, M6502::accumulator_address as fn(&mut M6502<T>)) {
-                self.accumulator &= byte;
-                self.set_negative(self.accumulator);
-            }
-            else {
-                self.memory.cpu_write(self.address_bus.address(), byte);
-            }
         }
 
         fn op_sre(&mut self, address_method: fn(&mut M6502<T>)) {
             address_method(self);
+            let mut byte: u8 = self.memory.cpu_read(self.address_bus.address());
+
+            self.set_status_flag(CARRY_FLAG, (byte & 0x01) != 0);
+
+            byte >>= 1;
+
+            self.memory.cpu_write(self.address_bus.address(), byte);
+            self.accumulator ^= byte;
+            self.set_negative_zero(self.accumulator);
         }
 
         fn op_rra(&mut self, address_method: fn(&mut M6502<T>)) {
             address_method(self);
+
+            // ROR
+            let mut byte: u8 = self.memory.cpu_read(self.address_bus.address());
+
+            let mut carry: u8 = 0;
+            if self.get_status_flag(CARRY_FLAG) != 0 {
+                carry = 0x80;
+            }
+            self.set_status_flag(CARRY_FLAG, (byte & 0x01) != 0);
+
+            byte = (byte >> 1) | carry;
+
+            self.memory.cpu_write(self.address_bus.address(), byte);
+
+            // ADC
+            carry = 0;
+            if self.get_status_flag(CARRY_FLAG) != 0 {
+                carry = 0x01;
+            }
+
+            let(value1, overflow1) = self.accumulator.overflowing_add(byte);
+            let(value2, overflow2) = value1.overflowing_add(carry);
+            let value = value2;
+            self.set_status_flag(OVERFLOW_FLAG, ((self.accumulator ^ value) & (byte ^ value) & 0x080) == 0x80);
+            self.set_status_flag(CARRY_FLAG, overflow1 || overflow2);
+            self.accumulator = value;
+            self.set_negative_zero(self.accumulator);
         }
 
         fn op_lax(&mut self, address_method: fn(&mut M6502<T>)) {
             address_method(self);
+            self.accumulator = self.memory.cpu_read(self.address_bus.address());
+            self.register_x = self.accumulator;
+            self.set_negative_zero(self.accumulator);
         }
 
         fn op_dcp(&mut self, address_method: fn(&mut M6502<T>)) {
             address_method(self);
+            let mut byte = self.memory.cpu_read(self.address_bus.address());
+            byte = byte.wrapping_sub(1);
+            self.memory.cpu_write(self.address_bus.address(), byte);
+            self.set_status_flag(CARRY_FLAG, self.accumulator >= byte);
+            self.set_status_flag(ZERO_FLAG, self.accumulator == byte);
+            let (negzerocheck, _overflow) = self.accumulator.overflowing_sub(byte);
+            self.set_status_flag(NEGATIVE_FLAG, negzerocheck & 0x80 != 0);
         }
 
         // Load Store operations
@@ -732,6 +767,9 @@ pub mod emu_cpu {
         fn op_ldx(&mut self, address_method: fn(&mut M6502<T>)) {
             address_method(self);
             self.register_x = self.memory.cpu_read(self.address_bus.address());
+            if self.register_x == 0x55 {
+                println!("Debug");
+            }
             self.set_negative_zero(self.register_x);
         }
 
@@ -1229,12 +1267,18 @@ pub mod emu_cpu {
         }
 
         // unofficial opcodes
-        fn op_ahx(&mut self, address_method: fn(&mut M6502<T>)) {
-            address_method(self);            
+        fn op_sha(&mut self, address_method: fn(&mut M6502<T>)) {
+            address_method(self);
+            let byte = self.accumulator & self.register_x & (self.address_bus.loadh + 1);
+            self.memory.cpu_write(self.address_bus.address(), byte);
         }
 
         fn op_anc(&mut self, address_method: fn(&mut M6502<T>)) {
-            address_method(self);            
+            address_method(self);    
+            let byte = self.memory.cpu_read(self.address_bus.address());
+            self.accumulator &= byte;
+            self.set_status_flag(CARRY_FLAG, (self.accumulator & 0x80) != 0);
+            self.set_negative_zero(self.accumulator);
         }
 
         fn op_arr(&mut self, address_method: fn(&mut M6502<T>)) {
@@ -1278,15 +1322,23 @@ pub mod emu_cpu {
         }
 
         fn op_shs(&mut self, address_method: fn(&mut M6502<T>)) {
-            address_method(self);            
+            address_method(self);
+            let mut byte = self.accumulator & self.register_x;
+            self.push_stack(byte);
+            byte = self.accumulator & self.register_x & (self.address_bus.loadh + 1);
+            self.memory.cpu_write(self.address_bus.address(), byte);
         }
 
         fn op_shx(&mut self, address_method: fn(&mut M6502<T>)) {
-            address_method(self);            
+            address_method(self);
+            let byte = self.register_x & (self.address_bus.loadh + 1);
+            self.memory.cpu_write(self.address_bus.address(), byte);
         }
 
         fn op_shy(&mut self, address_method: fn(&mut M6502<T>)) {
-            address_method(self);            
+            address_method(self);
+            let byte = self.register_y & (self.address_bus.loadh + 1);
+            self.memory.cpu_write(self.address_bus.address(), byte);
         }
 
         fn op_slo(&mut self, address_method: fn(&mut M6502<T>)) {
