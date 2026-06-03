@@ -55,7 +55,7 @@ pub mod nes {
         pub fn write(&mut self, location: u16, byte: u8) {
             self.apu_io_registers.write(location, byte);
 
-            if (location == 0x17) {
+            if location == 0x17 {
                 if (byte & 0x80) == 0 {
                     self.frame_counter = TICKS_PER_FRAME >> 2;
                 }
@@ -163,9 +163,9 @@ pub mod nes {
             let mut mix:Vec<u8> = Vec::with_capacity(SAMPLES_PER_FRAME);
 
             let buffer0 = self.channel0.generate_buffer_data(SAMPLES_PER_FRAME as u32).clone();
-            let buffer1 = self.channel1.generate_buffer_data(SAMPLES_PER_FRAME as u32).clone();
-            let buffer2 = self.channel2.generate_buffer_data(SAMPLES_PER_FRAME as u32).clone();
-            let buffer3 = self.channel3.generate_buffer_data(SAMPLES_PER_FRAME as u32).clone();
+            let _buffer1 = self.channel1.generate_buffer_data(SAMPLES_PER_FRAME as u32).clone();
+            let _buffer2 = self.channel2.generate_buffer_data(SAMPLES_PER_FRAME as u32).clone();
+            let _buffer3 = self.channel3.generate_buffer_data(SAMPLES_PER_FRAME as u32).clone();
 
             for i in 0..SAMPLES_PER_FRAME {
                 let volume = buffer0[i];// + buffer1[i];// + buffer2[i];// + buffer3[i];

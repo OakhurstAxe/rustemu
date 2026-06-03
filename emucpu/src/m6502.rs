@@ -1,7 +1,7 @@
 
 pub mod emu_cpu {
 
-    use std::{ops::Add, ptr::fn_addr_eq};
+    use std::{ptr::fn_addr_eq};
 
     use emumemory::memory_mapper::emu_memory::MemoryMapper;
     use crate::base_cpu::emu_cpu::BaseCpu;
@@ -46,7 +46,7 @@ pub mod emu_cpu {
     }
 
     pub struct M6502<T: MemoryMapper> {
-        memory: T,
+        pub memory: T,
         overflow_ticks: i32,
         program_counter: u16,
         stack_pointer_page: u16,
@@ -55,7 +55,7 @@ pub mod emu_cpu {
         register_x: u8,
         register_y: u8,
         status_register: u8,
-        debug: u8,
+        _debug: u8,
         op_code_lookup: [OperationStruct<T>; 0x100],
         operation: OperationStruct<T>,
         instruction: u8,
@@ -132,7 +132,7 @@ pub mod emu_cpu {
                     op_code_lookup: op_code_lookup,
                     operation: operation,
                     instruction: 0,
-                    debug: 0,
+                    _debug: 0,
                     is_nmi_set: false,
                     is_irq_set: false,
                     dec_disabled: false,
@@ -588,9 +588,9 @@ pub mod emu_cpu {
         }
 
         fn indirect_address(&mut self) {
-            let mut loadl: u8 = self.memory.cpu_read(self.program_counter);
+            let loadl: u8 = self.memory.cpu_read(self.program_counter);
             self.program_counter += 1;
-            let mut loadh: u8 = self.memory.cpu_read(self.program_counter);
+            let loadh: u8 = self.memory.cpu_read(self.program_counter);
             let mut load: u16 = ((loadh as u16) << 8) + loadl as u16;
             // Bug in M6502 if low nibble is end of page
             if loadl == 0x00ff {
@@ -767,9 +767,6 @@ pub mod emu_cpu {
         fn op_ldx(&mut self, address_method: fn(&mut M6502<T>)) {
             address_method(self);
             self.register_x = self.memory.cpu_read(self.address_bus.address());
-            if self.register_x == 0x55 {
-                println!("Debug");
-            }
             self.set_negative_zero(self.register_x);
         }
 
@@ -1122,7 +1119,7 @@ pub mod emu_cpu {
             self.program_counter = self.address_bus.address();
         }
 
-        fn op_jsr(&mut self, address_method: fn(&mut M6502<T>)) {
+        fn op_jsr(&mut self, _address_method: fn(&mut M6502<T>)) {
             // Address method is always absolute, 
             // but JSR pushes stack between 2 reads.
             self.address_bus.loadl = self.memory.cpu_read(self.program_counter);
@@ -1300,7 +1297,7 @@ pub mod emu_cpu {
             self.memory.cpu_write(self.address_bus.address(), byte);
             
             byte = !byte;
-            let value: u16 = (self.accumulator as u16 + byte as u16 + self.get_status_flag(CARRY_FLAG) as u16);
+            let value: u16 = self.accumulator as u16 + byte as u16 + self.get_status_flag(CARRY_FLAG) as u16;
             self.set_status_flag(CARRY_FLAG, value > 255);
             self.set_status_flag(OVERFLOW_FLAG, (self.accumulator as u16 ^ value) & (byte as u16 ^ value) & 0x80 != 0);
             self.accumulator = value as u8;

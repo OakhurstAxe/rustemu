@@ -6,8 +6,10 @@ pub mod vcs {
 
     use emucpu::base_cpu::emu_cpu::BaseCpu;
     use emucpu::m6502::emu_cpu::M6502;
+    use emucpu::n6502::emu_cpu::{Runner, AddressBus};
     use crate::vcs_audio_channel::vcs::{NTSC_SAMPLES_PER_FRAME, PAL_SAMPLES_PER_FRAME};
     use crate::vcs_memory::vcs::VcsMemory;
+    use crate::vcs_nmemory::vcs::VcsNMemory;
     use crate::vcs_parameters::vcs::VcsParameters;
     use crate::vcs_console_type::vcs::VcsConsoleType;
     use crate::vcs_riot::vcs::VcsRiot;
@@ -37,6 +39,9 @@ pub mod vcs {
         total_ticks: u32,
         image: Vec<u8>,
         frame_rendered: bool,
+        cpu_runner: Runner,
+        nmemory: VcsNMemory,
+        addr: AddressBus,
     }
 
     impl VcsConsole {
@@ -66,6 +71,9 @@ pub mod vcs {
                 total_ticks: 0,
                 image: Vec::with_capacity(0),
                 frame_rendered: false,
+                cpu_runner: Runner::new(),
+                nmemory: VcsNMemory::new(Arc::clone(&parameters), Arc::clone(&tia), Arc::clone(&riot)),
+                addr: AddressBus { address: 0 , write: false, byte: 0, is_accumulator: false },
             };
 
             temp_instance.image = Vec::with_capacity(x_resolution as usize * y_resolution as usize * 4);
@@ -125,11 +133,16 @@ pub mod vcs {
             self.vcs_audio.execute_tick();
 
             while frame_ticks < self.console_type.read().unwrap().get_ticks_per_frame() as u32 {
+                
+                self.nmemory.execute(&mut self.addr);
+                
                 if self.total_ticks % 3 == 0 {
 
-                    if !self.vcs_tia.read().unwrap().is_cpu_blocked() {
-                        self.cpu.execute_tick();
-                    }
+                    self.cpu_runner.execute_tick(&mut self.addr);
+
+                    //if !self.vcs_tia.read().unwrap().is_cpu_blocked() {
+                    //    self.cpu.execute_tick();
+                    //}
                     self.vcs_riot.write().unwrap().execute_tick();
                 }
 

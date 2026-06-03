@@ -110,7 +110,7 @@ pub mod nes {
                     self.noise_timer |= (feedback as u16) << 15;
                     self.frequency = self.frequency_from_timer(self.noise_timer) as u16;
 
-                    if (self.frequency > 0){
+                    if self.frequency > 0 {
                         wavelength = (DATA_SAMPLE_RATE_HZ / self.frequency as usize) as u16;
                         
                         if self.load_counter > 0 && self.halt_flag == false {

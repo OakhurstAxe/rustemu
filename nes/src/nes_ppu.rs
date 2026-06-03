@@ -4,12 +4,10 @@ pub mod nes {
     use std::sync::Arc;
     use std::sync::RwLock;
 
-    use emumemory::{memory_mapper::emu_memory::MemoryMapper};
     use emumemory::memory_ram::emu_memory::MemoryRam;
     use emumemory::base_memory::emu_memory::BaseMemory;
 
     use crate::nes_console::nes::TICKS_PER_FRAME;
-use crate::nes_memory::nes::NesMemory;
     use crate::nes_cartridge::nes::NesCartridge;
     use crate::nes_cartridge_000::nes::NesCartridge000;
     use crate::nes_palette::nes::NesPalette;
@@ -461,7 +459,7 @@ use crate::nes_memory::nes::NesMemory;
             let mut priority: u8 = 0;
 
             let mut sprite_attribute: PpuSpriteAttributeRegister = PpuSpriteAttributeRegister::new();
-            for i in (0..=7) {
+            for i in 0..=7 {
 
                 let sprite_pos: i32 = self.render_sprites[i] as i32;
                 if sprite_pos == -1 {
@@ -475,7 +473,7 @@ use crate::nes_memory::nes::NesMemory;
 
                 let y_pos: i32 = (self.oam_read((sprite_pos * PPU_SPRITE_SIZE) as u16) + 1) as i32;
 
-                let mut pattern_address: u16 = (self.oam_read((sprite_pos * PPU_SPRITE_SIZE + 1) as u16) as u16) << 4;
+                let pattern_address: u16 = (self.oam_read((sprite_pos * PPU_SPRITE_SIZE + 1) as u16) as u16) << 4;
                 let mut sprite_pattern_address: u16 = pattern_address + ((screen_row - y_pos as u16) & 0x07) as u16;
 
                 sprite_attribute.reg(self.oam_read((sprite_pos * PPU_SPRITE_SIZE + 2) as u16));

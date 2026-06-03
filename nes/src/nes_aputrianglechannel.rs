@@ -95,7 +95,7 @@ pub mod nes {
                     buffer[sample_index as usize] = 0;
                 }                
                 else {
-                    buffer[sample_index as usize] = (((self.counter / 2.0) * 254.0) as u8);
+                    buffer[sample_index as usize] = ((self.counter / 2.0) * 254.0) as u8;
                 }
                 
                 if self.reverse {

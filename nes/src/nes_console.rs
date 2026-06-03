@@ -3,6 +3,8 @@
 pub mod nes {
 
     use std::sync::{ Arc, RwLock };
+    use std::rc::Rc;
+    use std::cell::RefCell;
 
     use emucpu::base_cpu::emu_cpu::BaseCpu;
     use emucpu::m6502::emu_cpu::M6502;
@@ -21,7 +23,6 @@ pub mod nes {
 
     pub struct NesConsole {
         cpu: M6502<NesMemory>,
-        ppu: Arc<RwLock<NesPpu>>,
         apu: Arc<RwLock<NesApu>>,
         left_controller: u8,
         right_controller: u8,
@@ -40,16 +41,15 @@ pub mod nes {
             cartridge.write().unwrap().load_prog_rom(ines_file.get_prog_rom_data());
             cartridge.write().unwrap().load_char_rom(ines_file.get_char_rom_data());
 
-            let ppu: Arc<RwLock<NesPpu>> = Arc::new(RwLock::new(NesPpu::new(Arc::clone(&cartridge))));
+            let ppu: NesPpu = NesPpu::new(Arc::clone(&cartridge));
             let apu: Arc<RwLock<NesApu>> = Arc::new(RwLock::new(NesApu::new()));
-            let memory = NesMemory::new (Arc::clone(&cartridge), Arc::clone(&ppu), Arc::clone(&apu));
+            let memory = NesMemory::new (Arc::clone(&cartridge), ppu, Arc::clone(&apu));
             let mut cpu: M6502<NesMemory> = M6502::new(memory);
             cpu.reset();
             cpu.disable_dec();
 
             let mut temp_instance = Self {
                 cpu: cpu,
-                ppu: Arc::clone(&ppu),
                 apu: Arc::clone(&apu),
                 left_controller: 0,
                 right_controller: 0,
@@ -66,7 +66,7 @@ pub mod nes {
         fn start_up(&mut self)
         {
             self.cpu.reset();
-            self.ppu.write().unwrap().reset();
+            self.cpu.memory.ppu.reset();
         }
 
         fn get_audio(&mut self) -> Vec<u8> {
@@ -94,17 +94,17 @@ pub mod nes {
                     self.cpu.execute_tick();
                 }
 
-                self.ppu.write().unwrap().execute_tick();
+                self.cpu.memory.ppu.execute_tick();
 
-                if self.ppu.write().unwrap().is_nmi_set() {
+                if self.cpu.memory.ppu.is_nmi_set() {
                     self.cpu.set_nmi();
-                    self.ppu.write().unwrap().reset_nmi();
+                    self.cpu.memory.ppu.reset_nmi();
                 }
                 self.read_gamepad();
                 ticks += 1;
             }
             
-            let video = self.ppu.read().unwrap().get_screen();
+            let video = self.cpu.memory.ppu.get_screen();
             let audio = self.get_audio();
             (video, audio)
         }

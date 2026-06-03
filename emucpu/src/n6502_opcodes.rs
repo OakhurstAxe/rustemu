@@ -1,0 +1,568 @@
+
+pub mod nopcodes {
+
+    use crate::n6502::emu_cpu::N6502;
+    use crate::n6502::emu_cpu::AddressBus;
+    use crate::n6502::emu_cpu::{CARRY_FLAG, ZERO_FLAG, INTERRUPT_FLAG, DECIMAL_MODE, BREAK_COMMAND, IGNORED, OVERFLOW_FLAG, NEGATIVE_FLAG};
+
+    const RESET_FIRST_READ: u16 = 0xFFFC;
+    const RESET_SECOND_READ: u16 = 0xFFFD;
+
+    pub struct OpCodesUtils {}
+    impl OpCodesUtils {
+        pub fn get_opcodes() -> Vec<Box<dyn CpuOperation>> {
+            let mut op_code_lookup: Vec<Box<dyn CpuOperation>> = Vec::with_capacity(0x200);
+            for _i in 0..0x200 {
+                op_code_lookup.push(Box::new(CpuOpNop {}));
+            }
+            op_code_lookup[0x0a] = Box::new(CpuOpAsl {});
+
+            op_code_lookup[0x10] = Box::new(CpuOpBpl {});
+            op_code_lookup[0x19] = Box::new(CpuOpOra {});
+
+            op_code_lookup[0x20] = Box::new(CpuOpJsr {});
+            op_code_lookup[0x25] = Box::new(CpuOpAnd {});
+            op_code_lookup[0x29] = Box::new(CpuOpAnd {});
+
+            op_code_lookup[0x30] = Box::new(CpuOpBmi {});
+            op_code_lookup[0x38] = Box::new(CpuOpSec {});
+
+            op_code_lookup[0x49] = Box::new(CpuOpEor {});
+            op_code_lookup[0x4a] = Box::new(CpuOpLsr {});
+            op_code_lookup[0x4c] = Box::new(CpuOpJmp {});
+
+            op_code_lookup[0x60] = Box::new(CpuOpRts {});
+            op_code_lookup[0x65] = Box::new(CpuOpAdc {});
+
+            op_code_lookup[0x78] = Box::new(CpuOpSei {});
+
+            op_code_lookup[0x84] = Box::new(CpuOpSty {});
+            op_code_lookup[0x85] = Box::new(CpuOpSta {});
+            op_code_lookup[0x88] = Box::new(CpuOpDey {});
+
+            op_code_lookup[0x90] = Box::new(CpuOpBcc {});
+            op_code_lookup[0x95] = Box::new(CpuOpSta {});
+            op_code_lookup[0x99] = Box::new(CpuOpSta {});
+            op_code_lookup[0x9a] = Box::new(CpuOpTxs {});
+
+            op_code_lookup[0xa0] = Box::new(CpuOpLdy {});
+            op_code_lookup[0xa2] = Box::new(CpuOpLdx {});
+            op_code_lookup[0xa4] = Box::new(CpuOpLdy {});
+            op_code_lookup[0xa5] = Box::new(CpuOpLda {});
+            op_code_lookup[0xa9] = Box::new(CpuOpLda {});
+            op_code_lookup[0xad] = Box::new(CpuOpLda {});
+
+            op_code_lookup[0xb0] = Box::new(CpuOpBcs {});
+            op_code_lookup[0xb1] = Box::new(CpuOpLda {});
+            op_code_lookup[0xb9] = Box::new(CpuOpLda {});
+
+            op_code_lookup[0xc0] = Box::new(CpuOpCpy {});
+            op_code_lookup[0xc8] = Box::new(CpuOpIny {});
+            op_code_lookup[0xc9] = Box::new(CpuOpCmp {});
+            op_code_lookup[0xca] = Box::new(CpuOpDex {});
+
+            op_code_lookup[0xd0] = Box::new(CpuOpBne {});
+            op_code_lookup[0xd8] = Box::new(CpuOpCld {});
+            op_code_lookup[0xd9] = Box::new(CpuOpCmp {});
+
+            op_code_lookup[0xe6] = Box::new(CpuOpInc {});
+            op_code_lookup[0xe9] = Box::new(CpuOpSbc {});
+
+            op_code_lookup[0xf0] = Box::new(CpuOpBeq {});
+
+            op_code_lookup[0x100] = Box::new(CpuOpReset {});
+            op_code_lookup
+        }
+
+        fn push_stack(cpu: &mut N6502, addr: &mut AddressBus, byte: u8) {
+            if cpu.stack_pointer == 0 {
+                eprintln!("Stack overflow");
+            }
+            addr.address = cpu.stack_pointer + cpu.stack_pointer_page;
+            addr.byte = byte;
+            addr.write = true;
+            cpu.stack_pointer -= 1;
+        }
+
+        fn pop_stack(cpu: &mut N6502, addr: &mut AddressBus) {
+            if cpu.stack_pointer > 255 {
+                eprintln!("Stack underflow");
+            }
+            cpu.stack_pointer += 1;
+            addr.address = cpu.stack_pointer + cpu.stack_pointer_page;
+            addr.write = false;
+        }
+
+        fn get_status_flag(cpu: &mut N6502, flag: u8) -> u8 {
+            cpu.status_register & flag
+        }
+
+        fn set_status_flag(cpu: &mut N6502, flag: u8, set_clear: bool) {
+            if set_clear {
+                cpu.status_register |= flag;
+            }
+            else {
+                cpu.status_register &= !flag;
+            }
+        }
+
+        fn set_negative(cpu: &mut N6502, byte: u8) {
+            OpCodesUtils::set_status_flag(cpu, NEGATIVE_FLAG, (byte & 0x80) != 0);
+        }
+
+        fn set_zero(cpu: &mut N6502, byte: u8) {
+            OpCodesUtils::set_status_flag(cpu, ZERO_FLAG, byte == 0);
+        }
+
+        fn set_negative_zero(cpu: &mut N6502, byte: u8) {
+            OpCodesUtils::set_negative(cpu, byte);
+            OpCodesUtils::set_zero(cpu, byte);
+        }
+    }
+
+    pub trait CpuOperation: Sync + Send {
+        fn execute(&self, cpu: &mut N6502, addr: &mut AddressBus, step: u8) -> bool {
+            let mut result = false;
+            match step {
+                0 => result = self.step_0(cpu, addr),
+                1 => result = self.step_1(cpu, addr),
+                2 => result = self.step_2(cpu, addr),
+                _ => {}
+            }
+            result            
+        }
+        fn step_0(&self, _cpu: &mut N6502, _addr: &mut AddressBus) -> bool { true }
+        fn step_1(&self, _cpu: &mut N6502, _addr: &mut AddressBus) -> bool { true }
+        fn step_2(&self, _cpu: &mut N6502, _addr: &mut AddressBus) -> bool { true }
+    }
+
+    struct CpuOpNop {}
+    impl CpuOperation for CpuOpNop {
+        fn step_0(&self, _cpu: &mut N6502, _addr: &mut AddressBus) -> bool {
+            true
+        }
+    }
+
+    struct CpuOpSec {}
+    impl CpuOperation for CpuOpSec {
+        fn step_0(&self, cpu: &mut N6502, _addr: &mut AddressBus) -> bool {
+            OpCodesUtils::set_status_flag(cpu, CARRY_FLAG, true);
+            true
+        }
+    }
+
+    struct CpuOpCld {}
+    impl CpuOperation for CpuOpCld {
+        fn step_0(&self, cpu: &mut N6502, _addr: &mut AddressBus) -> bool {
+            OpCodesUtils::set_status_flag(cpu, DECIMAL_MODE, false);
+            true
+        }
+    }
+
+    struct CpuOpSei {}
+    impl CpuOperation for CpuOpSei {
+        fn step_0(&self, cpu: &mut N6502, _addr: &mut AddressBus) -> bool {
+            OpCodesUtils::set_status_flag(cpu, INTERRUPT_FLAG, true);
+            true
+        }
+    }
+
+    struct CpuOpLda {}
+    impl CpuOperation for CpuOpLda {
+        fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            cpu.accumulator = addr.byte;
+            OpCodesUtils::set_negative_zero(cpu, cpu.accumulator);
+            true
+        }
+    }
+
+    struct CpuOpLdx {}
+    impl CpuOperation for CpuOpLdx {
+        fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            cpu.register_x = addr.byte;
+            OpCodesUtils::set_negative_zero(cpu, cpu.register_x);
+            true
+        }
+    }
+
+    struct CpuOpLdy {}
+    impl CpuOperation for CpuOpLdy {
+        fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            cpu.register_y = addr.byte;
+            OpCodesUtils::set_negative_zero(cpu, cpu.register_y);
+            true
+        }
+    }
+
+    struct CpuOpSta {}
+    impl CpuOperation for CpuOpSta {
+        fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            addr.byte = cpu.accumulator;
+            addr.write = true;
+            true
+        }
+    }
+
+    struct CpuOpSty {}
+    impl CpuOperation for CpuOpSty {
+        fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            addr.byte = cpu.register_y;
+            addr.write = true;
+            true
+        }
+    }
+
+    struct CpuOpInc {}
+    impl CpuOperation for CpuOpInc {
+        fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            addr.byte += 1;
+            addr.write = true;
+            OpCodesUtils::set_negative_zero(cpu, addr.byte);
+            true
+        }
+    }
+
+    struct CpuOpCpy {}
+    impl CpuOperation for CpuOpCpy {
+        fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            OpCodesUtils::set_status_flag(cpu, CARRY_FLAG, cpu.register_y >= addr.byte);
+            OpCodesUtils::set_status_flag(cpu, ZERO_FLAG, cpu.register_y == addr.byte);
+            let (negzerocheck, _overflow) = cpu.register_y.overflowing_sub(addr.byte);
+            OpCodesUtils::set_status_flag(cpu, NEGATIVE_FLAG, negzerocheck & 0x80 != 0);
+            true
+        }
+    }
+
+    struct CpuOpDex {}
+    impl CpuOperation for CpuOpDex {
+        fn step_0(&self, cpu: &mut N6502, _addr: &mut AddressBus) -> bool {
+            cpu.register_x = cpu.register_x.overflowing_sub(1).0;
+            OpCodesUtils::set_negative_zero(cpu, cpu.register_x);
+            true
+        }
+    }
+
+    struct CpuOpDey {}
+    impl CpuOperation for CpuOpDey {
+        fn step_0(&self, cpu: &mut N6502, _addr: &mut AddressBus) -> bool {
+            cpu.register_y = cpu.register_y.overflowing_sub(1).0;
+            OpCodesUtils::set_negative_zero(cpu, cpu.register_y);
+            true
+        }
+    }
+
+    struct CpuOpIny {}
+    impl CpuOperation for CpuOpIny {
+        fn step_0(&self, cpu: &mut N6502, _addr: &mut AddressBus) -> bool {
+            cpu.register_y = cpu.register_y.overflowing_add(1).0;
+            OpCodesUtils::set_negative_zero(cpu, cpu.register_y);
+            true
+        }
+    }
+
+    struct CpuOpCmp {}
+    impl CpuOperation for CpuOpCmp {
+        fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            OpCodesUtils::set_status_flag(cpu, CARRY_FLAG, cpu.accumulator >= addr.byte);
+            OpCodesUtils::set_status_flag(cpu,ZERO_FLAG, cpu.accumulator == addr.byte);
+            let (negzerocheck, _overflow) = cpu.accumulator.overflowing_sub(addr.byte);
+            OpCodesUtils::set_status_flag(cpu,NEGATIVE_FLAG, negzerocheck & 0x80 != 0);
+            true
+        }
+    }
+
+    struct CpuOpTxs {}
+    impl CpuOperation for CpuOpTxs {
+        fn step_0(&self, cpu: &mut N6502, _addr: &mut AddressBus) -> bool {
+            cpu.stack_pointer = cpu.register_x as u16;
+            true
+        }
+    }
+
+    struct CpuOpAdc {}
+    impl CpuOperation for CpuOpAdc {
+        fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            let byte: u8 = addr.byte;
+            let mut value: u8;
+
+            let mut carry: u8 = 0;
+            if OpCodesUtils::get_status_flag(cpu, CARRY_FLAG) != 0 {
+                carry = 1;
+            }
+
+            let(value1, overflow1) = cpu.accumulator.overflowing_add(byte);
+            let(value2, overflow2) = value1.overflowing_add(carry);
+            value = value2;
+
+            if OpCodesUtils::get_status_flag(cpu, DECIMAL_MODE) != 0 {
+                if ((cpu.accumulator ^ byte ^ value) & 0x10) == 0x10 {
+                    value += 0x06;
+                }
+                if (value & 0xf0) > 0x90 {
+                    value += 0x60;
+                }
+            }
+            OpCodesUtils::set_status_flag(cpu, OVERFLOW_FLAG, ((cpu.accumulator ^ value) & (byte ^ value) & 0x080) == 0x80);
+            OpCodesUtils::set_status_flag(cpu, CARRY_FLAG, overflow1 || overflow2);
+            OpCodesUtils::set_negative_zero(cpu, value);
+            cpu.accumulator = value;
+            true
+        }
+    }
+
+    struct CpuOpSbc {}
+    impl CpuOperation for CpuOpSbc {
+        fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            let byte: u8 = !addr.byte;
+            let mut value: u8;
+
+            let mut carry: u8 = 0;
+            if OpCodesUtils::get_status_flag(cpu, CARRY_FLAG) != 0 {
+                carry = 1;
+            }
+
+            let(value1, overflow1) = cpu.accumulator.overflowing_add(byte);
+            let(value2, overflow2) = value1.overflowing_add(carry);
+            value = value2;
+
+            if OpCodesUtils::get_status_flag(cpu, DECIMAL_MODE) != 0 {
+                if ((cpu.accumulator ^ byte ^ value) & 0x10) == 0x10 {
+                    value += 0x06;
+                }
+                if (value & 0xf0) > 0x90 {
+                    value += 0x60;
+                }
+            }
+            OpCodesUtils::set_status_flag(cpu, OVERFLOW_FLAG, ((cpu.accumulator ^ value) & (byte ^ value) & 0x080) == 0x80);
+            OpCodesUtils::set_status_flag(cpu, CARRY_FLAG, overflow1 || overflow2);
+            OpCodesUtils::set_negative_zero(cpu, value);
+            cpu.accumulator = value;
+            true
+        }
+    }
+
+    struct CpuOpAsl {}
+    impl CpuOperation for CpuOpAsl {
+        fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            let mut byte: u8 = addr.byte;
+
+            OpCodesUtils::set_status_flag(cpu,CARRY_FLAG, (byte & 0x80) != 0);
+            byte <<= 1;
+            OpCodesUtils::set_negative_zero(cpu, byte);
+
+            if addr.is_accumulator {
+                cpu.accumulator = byte;
+            } else {
+                addr.byte = byte;
+                addr.write = true;
+            }
+            true
+        }
+    }
+
+    struct CpuOpLsr {}
+    impl CpuOperation for CpuOpLsr {
+        fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            let mut byte: u8 = addr.byte;
+
+            OpCodesUtils::set_status_flag(cpu,CARRY_FLAG, (byte & 0x80) != 0);
+            byte >>= 1;
+            OpCodesUtils::set_negative_zero(cpu, byte);
+
+            if addr.is_accumulator {
+                cpu.accumulator = byte;
+            } else {
+                addr.byte = byte;
+                addr.write = true;
+            }
+            true
+        }
+    }
+
+    struct CpuOpAnd {}
+    impl CpuOperation for CpuOpAnd {
+        fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            let byte: u8 = addr.byte;
+            cpu.accumulator &= byte;
+            OpCodesUtils::set_negative_zero(cpu, cpu.accumulator);
+            true
+        }
+    }
+
+    struct CpuOpOra {}
+    impl CpuOperation for CpuOpOra {
+        fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            cpu.accumulator |= addr.byte;
+            OpCodesUtils::set_negative_zero(cpu, cpu.accumulator);
+            true
+        }
+    }
+    
+    struct CpuOpEor {}
+    impl CpuOperation for CpuOpEor {
+        fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            cpu.accumulator ^= addr.byte;
+            OpCodesUtils::set_negative_zero(cpu, cpu.accumulator);
+            true
+        }
+    }
+
+    struct CpuOpBeq {}
+    impl CpuOperation for CpuOpBeq {
+        fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            let relative_address: i8 = addr.byte as i8;
+            if OpCodesUtils::get_status_flag(cpu, ZERO_FLAG) != 0 {
+                cpu.program_counter = (cpu.program_counter as i16 + relative_address as i16) as u16;
+                return false;
+            }
+            true
+        }
+        // extra tick if taking jump
+        fn step_1(&self, _cpu: &mut N6502, _addr: &mut AddressBus) -> bool {
+            true
+        }
+    }
+
+    struct CpuOpBpl {}
+    impl CpuOperation for CpuOpBpl {
+        fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            let relative_address: i8 = addr.byte as i8;
+            if OpCodesUtils::get_status_flag(cpu, NEGATIVE_FLAG) == 0 {
+                cpu.program_counter = (cpu.program_counter as i16 + relative_address as i16) as u16;
+                return false;
+            }
+            true
+        }
+        fn step_1(&self, _cpu: &mut N6502, _addr: &mut AddressBus) -> bool {
+            true
+        }
+    }
+
+    struct CpuOpBcs {}
+    impl CpuOperation for CpuOpBcs {
+        fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            let relative_address: i8 = addr.byte as i8;
+            if OpCodesUtils::get_status_flag(cpu, CARRY_FLAG) != 0 {
+                cpu.program_counter = (cpu.program_counter as i16 + relative_address as i16) as u16;
+                return false;
+            }
+            true
+        }
+        fn step_1(&self, _cpu: &mut N6502, _addr: &mut AddressBus) -> bool {
+            true
+        }
+    }
+
+    struct CpuOpBmi {}
+    impl CpuOperation for CpuOpBmi {
+        fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            let relative_address: i8 = addr.byte as i8;
+            if OpCodesUtils::get_status_flag(cpu, NEGATIVE_FLAG) != 0 {
+                cpu.program_counter = (cpu.program_counter as i16 + relative_address as i16) as u16;
+                return false;
+            }
+            true
+        }
+        fn step_1(&self, _cpu: &mut N6502, _addr: &mut AddressBus) -> bool {
+            true
+        }
+    }
+
+    struct CpuOpBne {}
+    impl CpuOperation for CpuOpBne {
+        fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            let relative_address: i8 = addr.byte as i8;
+            if OpCodesUtils::get_status_flag(cpu, ZERO_FLAG) == 0 {
+                cpu.program_counter = (cpu.program_counter as i16 + relative_address as i16) as u16;
+                return false;
+            }
+            true
+        }
+        fn step_1(&self, _cpu: &mut N6502, _addr: &mut AddressBus) -> bool {
+            true
+        }
+    }
+
+    struct CpuOpBcc {}
+    impl CpuOperation for CpuOpBcc {
+        fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            let relative_address: i8 = addr.byte as i8;
+            if OpCodesUtils::get_status_flag(cpu, CARRY_FLAG) == 0 {
+                cpu.program_counter = (cpu.program_counter as i16 + relative_address as i16) as u16;
+                return false;
+            }
+            true
+        }
+        fn step_1(&self, _cpu: &mut N6502, _addr: &mut AddressBus) -> bool {
+            true
+        }
+    }
+
+    struct CpuOpJmp {}
+    impl CpuOperation for CpuOpJmp {
+        fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            cpu.program_counter = addr.address;
+            true
+        }
+    }
+
+    struct CpuOpJsr {}
+    impl CpuOperation for CpuOpJsr {
+        fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            cpu.program_counter += 1;
+            OpCodesUtils::push_stack(cpu, addr, ((cpu.program_counter & 0xff00) >> 8) as u8);
+            false
+        }
+        fn step_1(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            OpCodesUtils::push_stack(cpu, addr, (cpu.program_counter & 0x00ff) as u8);
+            false
+        }
+        fn step_2(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            cpu.program_counter = addr.address;
+            true
+        }
+    }
+
+    struct CpuOpRts {}
+    impl CpuOperation for CpuOpRts {
+        fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            OpCodesUtils::pop_stack(cpu, addr);
+            false
+        }
+        fn step_1(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            cpu.program_counter = addr.byte as u16;
+            OpCodesUtils::pop_stack(cpu, addr);
+            false
+        }
+        fn step_2(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            cpu.program_counter |= (addr.byte as u16) << 8;
+            cpu.program_counter -= 1;
+            true
+        }
+    }
+
+    struct CpuOpReset {}
+    impl CpuOperation for CpuOpReset {
+        fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            cpu.stack_pointer_page = 0x100;  // should be 0100 but is 0x00 for atari
+            cpu.stack_pointer = 0xff;
+            cpu.accumulator = 0;
+            cpu.register_x = 0;
+            cpu.register_y = 0;
+            cpu.status_register = 0;
+            addr.address = RESET_FIRST_READ;
+            addr.write = false;
+            false
+        }
+        fn step_1(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            cpu.program_counter = addr.byte as u16;
+            addr.address = RESET_SECOND_READ;
+            addr.write = false;
+            false
+        } 
+        fn step_2(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            cpu.program_counter += (addr.byte as u16) << 8;
+            true
+        }
+    }
+}

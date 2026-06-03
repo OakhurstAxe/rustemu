@@ -3,6 +3,8 @@ pub mod nes {
 
     use std::sync::Arc;
     use std::sync::RwLock;
+    use std::rc::Rc;
+    use std::cell::RefCell;
 
     use emumemory::{memory_mapper::emu_memory::MemoryMapper, memory_ram::emu_memory::MemoryRam};
     use emumemory::base_memory::emu_memory::BaseMemory;
@@ -14,7 +16,7 @@ pub mod nes {
     pub struct NesMemory {
         cartridge: Arc<RwLock<NesCartridge000>>,
         cpu_work_ram: MemoryRam,
-        ppu: Arc<RwLock<NesPpu>>,
+        pub ppu: NesPpu,
         apu: Arc<RwLock<NesApu>>,
         read_bus: u8,
         ppu_dma_address: u16,
@@ -25,7 +27,7 @@ pub mod nes {
     }   
 
     impl NesMemory { 
-        pub fn new(cartridge: Arc<RwLock<NesCartridge000>>, ppu: Arc<RwLock<NesPpu>>, apu: Arc<RwLock<NesApu>>) -> NesMemory {
+        pub fn new(cartridge: Arc<RwLock<NesCartridge000>>, ppu: NesPpu, apu: Arc<RwLock<NesApu>>) -> NesMemory {
             Self {
                 cartridge: cartridge,
                 cpu_work_ram: MemoryRam::new(String::from("CPU Work RAM"), 0x0800),
@@ -65,7 +67,7 @@ pub mod nes {
             }
             else if self.ppu_dma_write > 0 {
                 let byte: u8 = self.cpu_read(self.ppu_dma_address);
-                self.ppu.write().unwrap().oam_write(256 - self.ppu_dma_write, byte);
+                self.ppu.oam_write(256 - self.ppu_dma_write, byte);
                 self.read_bus = byte;
                 self.ppu_dma_address += 1;
                 self.ppu_dma_write -= 1;
@@ -84,7 +86,7 @@ pub mod nes {
 
             // PPU Registers
             else if location < 0x4000 {
-                let byte = self.ppu.write().unwrap().ppu_register_read(location);
+                let byte = self.ppu.ppu_register_read(location);
                 self.read_bus = byte;
                 return byte;
             }
@@ -138,7 +140,7 @@ pub mod nes {
             
             // PPU Registers
             else if location < 0x4000 {
-                self.ppu.write().unwrap().ppu_register_write(location, byte);
+                self.ppu.ppu_register_write(location, byte);
                 return;
             }
             
