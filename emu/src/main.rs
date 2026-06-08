@@ -47,7 +47,7 @@ impl<S: States> Plugin for VcsPlugin<S> {
     fn build(&self, app: &mut App) {
         app
         .insert_resource(VcsRomFile::new("roms/Donkey_kong.nes".to_string()))
-        .insert_resource(Time::<Fixed>::from_duration(Duration::from_millis(17)))
+        .insert_resource(Time::<Fixed>::from_duration(Duration::from_millis(100)))
         .add_systems(OnEnter(EmuAppState::VcsGame), VcsBevy::setup.run_if(in_state(EmuAppState::VcsGame)))
         .add_systems(FixedUpdate, VcsBevy::frame.run_if(in_state(EmuAppState::VcsGame)))
         .add_systems(Update, VcsBevy::gamepad_system.run_if(in_state(EmuAppState::VcsGame)));

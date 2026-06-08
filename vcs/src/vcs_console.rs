@@ -2,7 +2,7 @@
 pub mod vcs {
 
     use std::fs;
-    use std::sync::{ Arc, RwLock };
+    use std::sync::{ Arc, RwLock, Mutex };
 
     use emucpu::base_cpu::emu_cpu::BaseCpu;
     use emucpu::m6502::emu_cpu::M6502;
@@ -35,13 +35,14 @@ pub mod vcs {
         vcs_tia: Arc<RwLock<VcsTia>>,
         console_type: Arc<RwLock<VcsConsoleType>>,
         vcs_audio: VcsAudio,
-        cpu: M6502<VcsMemory>,
+        //cpu: M6502<VcsMemory>,
         total_ticks: u32,
         image: Vec<u8>,
         frame_rendered: bool,
         cpu_runner: Runner,
         nmemory: VcsNMemory,
         addr: AddressBus,
+        inframe: RwLock<bool>,
     }
 
     impl VcsConsole {
@@ -55,8 +56,8 @@ pub mod vcs {
             let console_type: Arc<RwLock<VcsConsoleType>> = Arc::new(RwLock::new(VcsConsoleType::new(parameters.read().unwrap().console_type)));
             let riot: Arc<RwLock<VcsRiot>> = Arc::new(RwLock::new(VcsRiot::new()));
             let tia: Arc<RwLock<VcsTia>> = Arc::new(RwLock::new(VcsTia::new(Arc::clone(&console_type))));
-            let memory: VcsMemory = VcsMemory::new (Arc::clone(&parameters), Arc::clone(&tia), Arc::clone(&riot));
-            let cpu: M6502<VcsMemory> = M6502::new(memory);
+            //let memory: VcsMemory = VcsMemory::new (Arc::clone(&parameters), Arc::clone(&tia), Arc::clone(&riot));
+            //let cpu: M6502<VcsMemory> = M6502::new(memory);
             let frames_per_second = console_type.read().unwrap().get_frames_per_second();
             let x_resolution = console_type.read().unwrap().get_x_resolution();
             let y_resolution = console_type.read().unwrap().get_y_resolution();
@@ -67,13 +68,14 @@ pub mod vcs {
                 vcs_tia: Arc::clone(&tia),
                 console_type: Arc::clone(&console_type),
                 vcs_audio: audio,
-                cpu: cpu,
+                //cpu: cpu,
                 total_ticks: 0,
                 image: Vec::with_capacity(0),
                 frame_rendered: false,
                 cpu_runner: Runner::new(),
                 nmemory: VcsNMemory::new(Arc::clone(&parameters), Arc::clone(&tia), Arc::clone(&riot)),
                 addr: AddressBus { address: 0 , write: false, byte: 0, is_accumulator: false },
+                inframe: RwLock::new(false),
             };
 
             temp_instance.image = Vec::with_capacity(x_resolution as usize * y_resolution as usize * 4);
@@ -99,7 +101,7 @@ pub mod vcs {
 
         fn start_up(&mut self) {
             //self.vcs_audio.write().unwrap().setup();
-            self.cpu.reset();
+            //self.cpu.reset();
             self.vcs_riot.write().unwrap().reset();
             self.vcs_tia.write().unwrap().reset();
 
@@ -127,11 +129,16 @@ pub mod vcs {
             mix
         }
 
-        pub fn run_frame (&mut self) -> (Vec<u8>, Vec<f32>) {
+        pub fn run_frame (&mut self) -> (Option<Vec<u8>>, Option<Vec<f32>>) {
             let mut frame_ticks: u32 = 0;
 
             self.vcs_audio.execute_tick();
 
+            if *self.inframe.read().unwrap() {
+                return (None, None);
+            }
+
+            *self.inframe.write().unwrap() = true;
             while frame_ticks < self.console_type.read().unwrap().get_ticks_per_frame() as u32 {
                 
                 self.nmemory.execute(&mut self.addr);
@@ -158,7 +165,9 @@ pub mod vcs {
             let video = self.vcs_tia.read().unwrap().get_screen();
             let audio = self.get_audio();
 
-            (video, audio)
+            *self.inframe.write().unwrap() = false;
+
+            (Some(video), Some(audio))
         }
 
         pub fn left_controler_select(&mut self, value: bool) {

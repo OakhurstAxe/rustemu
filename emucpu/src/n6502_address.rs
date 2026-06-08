@@ -13,13 +13,16 @@ pub mod naddress{
             for _i in 0..256 {
                 op_code_lookup.push(Box::new(AddressMethodAbsolute {}));
             }
+            op_code_lookup[0x09] = Box::new(AddressMethodImmediate {});
             op_code_lookup[0x0a] = Box::new(AddressMethodAccumulator {});
 
             op_code_lookup[0x10] = Box::new(AddressMethodImmediate {});
+            op_code_lookup[0x18] = Box::new(AddressMethodNull {});
             op_code_lookup[0x19] = Box::new(AddressMethodAbsoluteY {});
 
             op_code_lookup[0x20] = Box::new(AddressMethodAbsolute {});
             op_code_lookup[0x25] = Box::new(AddressMethodZero {});
+            op_code_lookup[0x26] = Box::new(AddressMethodZero {});
             op_code_lookup[0x29] = Box::new(AddressMethodImmediate {});
 
             op_code_lookup[0x30] = Box::new(AddressMethodImmediate {});
@@ -31,189 +34,279 @@ pub mod naddress{
 
             op_code_lookup[0x60] = Box::new(AddressMethodNull {});
             op_code_lookup[0x65] = Box::new(AddressMethodZero {});
+            op_code_lookup[0x66] = Box::new(AddressMethodZero {});
+            op_code_lookup[0x69] = Box::new(AddressMethodImmediate {});
 
             op_code_lookup[0x78] = Box::new(AddressMethodNull {});
 
             op_code_lookup[0x84] = Box::new(AddressMethodZero {});
             op_code_lookup[0x85] = Box::new(AddressMethodZero {});
+            op_code_lookup[0x86] = Box::new(AddressMethodZero {});
             op_code_lookup[0x88] = Box::new(AddressMethodNull {});
+            op_code_lookup[0x8d] = Box::new(AddressMethodAbsolute {});
 
             op_code_lookup[0x90] = Box::new(AddressMethodImmediate {});
+            op_code_lookup[0x91] = Box::new(AddressMethodIndirectY {});
             op_code_lookup[0x95] = Box::new(AddressMethodZeroX {});
+            op_code_lookup[0x98] = Box::new(AddressMethodNull {});
             op_code_lookup[0x99] = Box::new(AddressMethodAbsoluteY {});
             op_code_lookup[0x9a] = Box::new(AddressMethodNull {});
 
             op_code_lookup[0xa0] = Box::new(AddressMethodImmediate {});
+            op_code_lookup[0xa1] = Box::new(AddressMethodIndirectX {});
             op_code_lookup[0xa2] = Box::new(AddressMethodImmediate {});
             op_code_lookup[0xa4] = Box::new(AddressMethodZero {});
             op_code_lookup[0xa5] = Box::new(AddressMethodZero {});
+            op_code_lookup[0xa6] = Box::new(AddressMethodZero {});
+            op_code_lookup[0xa8] = Box::new(AddressMethodNull {});
             op_code_lookup[0xa9] = Box::new(AddressMethodImmediate {});
+            op_code_lookup[0xaa] = Box::new(AddressMethodNull {});
             op_code_lookup[0xad] = Box::new(AddressMethodAbsolute {});
 
             op_code_lookup[0xb0] = Box::new(AddressMethodImmediate {});
             op_code_lookup[0xb1] = Box::new(AddressMethodIndirectY {});
+            op_code_lookup[0xb5] = Box::new(AddressMethodZeroX {});
             op_code_lookup[0xb9] = Box::new(AddressMethodAbsoluteY {});
+            op_code_lookup[0xbd] = Box::new(AddressMethodAbsoluteX {});
+            op_code_lookup[0xbe] = Box::new(AddressMethodAbsoluteX {});
 
             op_code_lookup[0xc0] = Box::new(AddressMethodImmediate {});
+            op_code_lookup[0xc4] = Box::new(AddressMethodZero {});
+            op_code_lookup[0xc5] = Box::new(AddressMethodZero {});
+            op_code_lookup[0xc6] = Box::new(AddressMethodZero {});
             op_code_lookup[0xc8] = Box::new(AddressMethodNull {});
             op_code_lookup[0xc9] = Box::new(AddressMethodImmediate {});
             op_code_lookup[0xca] = Box::new(AddressMethodNull {});
 
             op_code_lookup[0xd0] = Box::new(AddressMethodImmediate {});
+            op_code_lookup[0xd1] = Box::new(AddressMethodIndirectY {});
+            op_code_lookup[0xd5] = Box::new(AddressMethodZeroX {});
+            op_code_lookup[0xd6] = Box::new(AddressMethodZeroX {});
             op_code_lookup[0xd8] = Box::new(AddressMethodNull {});
             op_code_lookup[0xd9] = Box::new(AddressMethodAbsoluteY {});
 
+            op_code_lookup[0xe0] = Box::new(AddressMethodImmediate {});
+            op_code_lookup[0xe4] = Box::new(AddressMethodZero {});
+            op_code_lookup[0xe5] = Box::new(AddressMethodZero {});
             op_code_lookup[0xe6] = Box::new(AddressMethodZero {});
             op_code_lookup[0xe9] = Box::new(AddressMethodImmediate {});
 
             op_code_lookup[0xf0] = Box::new(AddressMethodImmediate {});
+            op_code_lookup[0xf6] = Box::new(AddressMethodZeroX {});
             op_code_lookup
         }
     }
 
     pub trait AddressMethod: Sync + Send {
-        fn execute(&self, cpu: &mut N6502, addr: &mut AddressBus, step: u8, lookup: &mut AddressBus) -> bool {
+        fn execute(&self, cpu: &mut N6502, addr: &mut AddressBus, step: u8) -> bool {
             let mut result = false;
             match step {
-                0 => result = self.step_0(cpu, addr, lookup),
-                1 => result = self.step_1(cpu, addr, lookup),
-                2 => result = self.step_2(cpu, addr, lookup),
-                3 => result = self.step_3(cpu, addr, lookup),
+                0 => result = self.step_0(cpu, addr),
+                1 => result = self.step_1(cpu, addr),
+                2 => result = self.step_2(cpu, addr),
+                3 => result = self.step_3(cpu, addr),
                 _ => {}
             }
             result            
         }
-        fn step_0(&self, _cpu: &mut N6502, _addr: &mut AddressBus, _lookup: &mut AddressBus) -> bool { true }
-        fn step_1(&self, _cpu: &mut N6502, _addr: &mut AddressBus, _lookup: &mut AddressBus) -> bool { true }
-        fn step_2(&self, _cpu: &mut N6502, _addr: &mut AddressBus, _lookup: &mut AddressBus) -> bool { true }
-        fn step_3(&self, _cpu: &mut N6502, _addr: &mut AddressBus, _lookup: &mut AddressBus) -> bool { true }
+        fn step_0(&self, _cpu: &mut N6502, _addr: &mut AddressBus) -> bool { true }
+        fn step_1(&self, _cpu: &mut N6502, _addr: &mut AddressBus) -> bool { true }
+        fn step_2(&self, _cpu: &mut N6502, _addr: &mut AddressBus) -> bool { true }
+        fn step_3(&self, _cpu: &mut N6502, _addr: &mut AddressBus) -> bool { true }
     }
 
     pub struct AddressMethodNull {}
     impl AddressMethod for AddressMethodNull {
-        fn step_0(&self, _cpu: &mut N6502, _addr: &mut AddressBus, lookup: &mut AddressBus) -> bool {
-            lookup.address = 0;
+        fn step_0(&self, cpu: &mut N6502, _addr: &mut AddressBus) -> bool {
+            cpu.lookup_address.address = 0;
             true
         }
     }
 
     pub struct AddressMethodZero {}
     impl AddressMethod for AddressMethodZero {
-        fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus, _lookup: &mut AddressBus) -> bool {
+        fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
             addr.address = cpu.program_counter;
-            addr.write = false;
             cpu.program_counter += 1;
             false
         }
-        fn step_1(&self, _cpu: &mut N6502, addr: &mut AddressBus, lookup: &mut AddressBus) -> bool {
-            lookup.address = addr.byte as u16;
+        fn step_1(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            addr.address = addr.byte as u16;
+            cpu.lookup_address.address = addr.byte as u16;
+            cpu.lookup_address.byte = addr.byte;
+            cpu.lookup_address.is_accumulator = addr.is_accumulator;
             true
         }
     }
 
     pub struct AddressMethodAccumulator {}
     impl AddressMethod for AddressMethodAccumulator {
-        fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus, lookup: &mut AddressBus) -> bool {
-            lookup.address = cpu.accumulator as u16;
+        fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            addr.address = cpu.accumulator as u16;
+            addr.is_accumulator = true;
+            cpu.lookup_address.address = addr.address;
+            cpu.lookup_address.byte = addr.byte;
+            cpu.lookup_address.is_accumulator = addr.is_accumulator;
             true
         }
     }
 
     pub struct AddressMethodImmediate {}
     impl AddressMethod for AddressMethodImmediate {
-        fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus, lookup: &mut AddressBus) -> bool {
-            lookup.address = cpu.program_counter;
+        fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            addr.address = cpu.program_counter;
             cpu.program_counter += 1;
+            cpu.lookup_address.address = addr.address;
+            cpu.lookup_address.byte = addr.byte;
+            cpu.lookup_address.is_accumulator = addr.is_accumulator;
             true
         }
     }
 
     pub struct AddressMethodZeroX {}
     impl AddressMethod for AddressMethodZeroX {
-        fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus, _lookup: &mut AddressBus) -> bool {
+        fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
             addr.address = cpu.program_counter;
-            addr.write = false;
             cpu.program_counter += 1;
             false
         }
-        fn step_1(&self, cpu: &mut N6502, addr: &mut AddressBus, lookup: &mut AddressBus) -> bool {
-            lookup.address = addr.byte as u16 + cpu.register_x as u16;
+        fn step_1(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            cpu.lookup_address.address = addr.byte as u16 + cpu.register_x as u16;
             if addr.byte as u16 & 0x00ff + (cpu.register_x as u16) > 0x00ff {
                 return false;
             }
+            cpu.lookup_address.byte = addr.byte;
+            cpu.lookup_address.is_accumulator = addr.is_accumulator;
             true
         }
-        fn step_2(&self, _cpu: &mut N6502, _addr: &mut AddressBus, _lookup: &mut AddressBus) -> bool {
+        fn step_2(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            cpu.lookup_address.address = addr.address;
+            cpu.lookup_address.byte = addr.byte;
+            cpu.lookup_address.is_accumulator = addr.is_accumulator;
             true
         }
     }
 
     pub struct AddressMethodAbsolute {}
     impl AddressMethod for AddressMethodAbsolute {
-        fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus, lookup: &mut AddressBus) -> bool {
+        fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            cpu.lookup_address.address = 0;
             addr.address = cpu.program_counter;
             cpu.program_counter += 1;
-            lookup.address = 0;
             false
         }
-        fn step_1(&self, cpu: &mut N6502, addr: &mut AddressBus, lookup: &mut AddressBus) -> bool {
+        fn step_1(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            cpu.lookup_address.address = addr.byte as u16;
             addr.address = cpu.program_counter;
             cpu.program_counter += 1;
-            lookup.address |= addr.byte as u16;
             false
         }
-        fn step_2(&self, _cpu: &mut N6502, addr: &mut AddressBus, lookup: &mut AddressBus) -> bool {
-            lookup.address |= (addr.byte as u16) << 8;
+        fn step_2(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            cpu.lookup_address.address |= (addr.byte as u16) << 8;
+            cpu.lookup_address.byte = addr.byte;
+            cpu.lookup_address.is_accumulator = addr.is_accumulator;
+            addr.address = cpu.lookup_address.address;
+            true
+        }
+    }
+
+    pub struct AddressMethodAbsoluteX {}
+    impl AddressMethod for AddressMethodAbsoluteX {
+        fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            addr.address = cpu.program_counter;
+            cpu.program_counter += 1;
+            cpu.lookup_address.address = 0;
+            false
+        }
+        fn step_1(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            addr.address = cpu.program_counter;
+            cpu.program_counter += 1;
+            cpu.lookup_address.address = addr.byte as u16;
+            false
+        }
+        fn step_2(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            cpu.lookup_address.address += (addr.byte as u16) << 8;
+            cpu.lookup_address.address += cpu.register_x as u16;
+            cpu.lookup_address.byte = addr.byte;
+            cpu.lookup_address.is_accumulator = addr.is_accumulator;
+            addr.address = cpu.lookup_address.address;
             true
         }
     }
 
     pub struct AddressMethodAbsoluteY {}
     impl AddressMethod for AddressMethodAbsoluteY {
-        fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus, lookup: &mut AddressBus) -> bool {
+        fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            cpu.lookup_address.address = 0;
             addr.address = cpu.program_counter;
-            addr.write = false;
             cpu.program_counter += 1;
-            lookup.address = 0;
             false
         }
-        fn step_1(&self, cpu: &mut N6502, addr: &mut AddressBus, lookup: &mut AddressBus) -> bool {
+        fn step_1(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            cpu.lookup_address.address = addr.byte as u16;
             addr.address = cpu.program_counter;
-            addr.write = false;
             cpu.program_counter += 1;
-            lookup.address = addr.byte as u16;
             false
         }
-        fn step_2(&self, cpu: &mut N6502, addr: &mut AddressBus, lookup: &mut AddressBus) -> bool {
-            lookup.address += (addr.byte as u16) << 8;
-            lookup.address += cpu.register_y as u16;
+        fn step_2(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            cpu.lookup_address.address += (addr.byte as u16) << 8;
+            cpu.lookup_address.address += cpu.register_y as u16;
+            cpu.lookup_address.byte = addr.byte;
+            cpu.lookup_address.is_accumulator = addr.is_accumulator;
+            addr.address = cpu.lookup_address.address;
+            true
+        }
+    }
+
+    pub struct AddressMethodIndirectX {}
+    impl AddressMethod for AddressMethodIndirectX {
+        fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            addr.address = cpu.program_counter + cpu.register_x as u16;
+            cpu.program_counter += 1;
+            cpu.lookup_address.address = 0;
+            false
+        }
+        fn step_1(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            addr.address = addr.byte as u16;
+            false
+        }
+        fn step_2(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            cpu.lookup_address.address = addr.byte as u16;
+            addr.address += 1;
+            false
+        }
+        fn step_3(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            cpu.lookup_address.address += (addr.byte as u16) << 8;
+            cpu.lookup_address.byte = addr.byte;
+            cpu.lookup_address.is_accumulator = addr.is_accumulator;
+            addr.address = cpu.lookup_address.address;
             true
         }
     }
 
     pub struct AddressMethodIndirectY {}
     impl AddressMethod for AddressMethodIndirectY {
-        fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus, lookup: &mut AddressBus) -> bool {
+        fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
             addr.address = cpu.program_counter;
-            addr.write = false;
             cpu.program_counter += 1;
-            lookup.address = 0;
+            cpu.lookup_address.address = 0;
             false
         }
-        fn step_1(&self, cpu: &mut N6502, addr: &mut AddressBus, lookup: &mut AddressBus) -> bool {
+        fn step_1(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
             addr.address = addr.byte as u16;
-            addr.write = false;
             false
         }
-        fn step_2(&self, cpu: &mut N6502, addr: &mut AddressBus, lookup: &mut AddressBus) -> bool {
-            lookup.address = addr.byte as u16;
+        fn step_2(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            cpu.lookup_address.address = addr.byte as u16;
             addr.address += 1;
-            addr.write = false;
             false
         }
-        fn step_3(&self, cpu: &mut N6502, addr: &mut AddressBus, lookup: &mut AddressBus) -> bool {
-            lookup.address += (addr.byte as u16) << 8;
-            lookup.address += cpu.register_y as u16;
+        fn step_3(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            cpu.lookup_address.address += (addr.byte as u16) << 8;
+            cpu.lookup_address.address += cpu.register_y as u16;
+            cpu.lookup_address.byte = addr.byte;
+            cpu.lookup_address.is_accumulator = addr.is_accumulator;
+            addr.address = cpu.lookup_address.address;
             true
         }
     }

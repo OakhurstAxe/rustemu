@@ -41,6 +41,7 @@ pub mod emu_cpu{
         pub register_x: u8,
         pub register_y: u8,
         pub status_register: u8,
+        pub lookup_address: AddressBus,
         _debug: u8,
     }
 
@@ -54,6 +55,7 @@ pub mod emu_cpu{
                 register_x: 0,
                 register_y: 0,
                 status_register: 0,
+                lookup_address: AddressBus::new(0, false, 0),
                 _debug: 0,
             }
         }
@@ -62,8 +64,11 @@ pub mod emu_cpu{
     #[derive(PartialEq)]
     enum RunnerStep {
         ReadOpCode,
+        ReadPc,
         AddressStep,
+        AddressStepLoadByte,
         OpCodeStep,
+        OpCodeWrite,
     }
 
     pub struct Runner {
@@ -75,7 +80,7 @@ pub mod emu_cpu{
         is_reset_set: bool,
         op_code_lookup: Vec<Box<dyn CpuOperation>>,
         address_method_lookup: Vec<Box<dyn AddressMethod>>,
-        address_lookup: AddressBus,
+        _debug: u8,
     }
 
     impl Runner {
@@ -85,18 +90,24 @@ pub mod emu_cpu{
                 op_code: 0x100,
                 op_step: 0,
                 address_step: 0,
-                runner_step: RunnerStep::ReadOpCode,
+                runner_step: RunnerStep::ReadPc,
                 is_reset_set: true,
                 op_code_lookup: OpCodesUtils::get_opcodes(),
                 address_method_lookup: AddressOpCodes::get_address_methods(),
-                address_lookup: AddressBus::new(0, false, 0),
+                _debug: 0,
             }
         }
 
         pub fn execute_tick(&mut self, addr: &mut AddressBus) {
             
+
+            if self.runner_step == RunnerStep::AddressStepLoadByte {
+                self.cpu.lookup_address.byte = addr.byte;
+                self.runner_step = RunnerStep::OpCodeStep;
+            }
+
             // Geting new op code
-            if self.op_step == 0 && self.runner_step == RunnerStep::ReadOpCode {
+            if self.runner_step == RunnerStep::ReadPc {
                 addr.is_accumulator = false;
                 if self.is_reset_set {
                     self.op_code = 0x100;
@@ -106,34 +117,43 @@ pub mod emu_cpu{
                     self.runner_step = RunnerStep::AddressStep;
                     self.op_code = addr.byte as u16;
                     self.cpu.program_counter += 1;
+                    //print!("PC: {:x}, opcode: {:x}\n", self.cpu.program_counter, self.op_code);
                 }
             }
 
             // Calling address/op tick
             if self.runner_step == RunnerStep::AddressStep {
-                if self.address_method_lookup[self.op_code as usize].execute(&mut self.cpu, addr, self.address_step, &mut self.address_lookup) {
+                if self.address_method_lookup[self.op_code as usize].execute(&mut self.cpu, addr, self.address_step) {
                     self.address_step = 0;
-                    self.runner_step = RunnerStep::OpCodeStep;
-                    addr.address = self.address_lookup.address;
-                    addr.write = false;
+                    self.runner_step = RunnerStep::AddressStepLoadByte;
                 } else {
                     self.address_step += 1;
                 }
-            } else if self.runner_step == RunnerStep::OpCodeStep {
-                addr.address = self.address_lookup.address;
+            } 
+
+            if self.runner_step == RunnerStep::AddressStepLoadByte && self.op_code_lookup[self.op_code as usize].needs_addr_byte() == false {
+                self.cpu.lookup_address.byte = addr.byte;
+                self.runner_step = RunnerStep::OpCodeStep;
+            }
+
+            if self.runner_step == RunnerStep::OpCodeStep {
                 if self.op_code_lookup[self.op_code as usize].execute(&mut self.cpu, addr, self.op_step) {
                     self.op_step = 0;
-                    self.runner_step = RunnerStep::ReadOpCode;
+                    self.runner_step = RunnerStep::OpCodeWrite;
                 } else {
                     self.op_step += 1;
                 }
-            }
-            
-            // read next opcode
-            if self.runner_step == RunnerStep::ReadOpCode {
+            } 
+
+            if self.runner_step == RunnerStep::OpCodeWrite &&
+                addr.write == false {
+                if self.cpu.program_counter < 0xf000 {
+                    print!("error");
+                }
+                self.runner_step = RunnerStep::ReadPc;
                 addr.address = self.cpu.program_counter;
-                addr.write = false;
             }
+
         }
 
     }
