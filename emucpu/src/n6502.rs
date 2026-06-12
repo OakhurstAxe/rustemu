@@ -42,6 +42,7 @@ pub mod emu_cpu{
         pub register_y: u8,
         pub status_register: u8,
         pub lookup_address: AddressBus,
+        pub in_interrupt: bool,
         _debug: u8,
     }
 
@@ -56,6 +57,7 @@ pub mod emu_cpu{
                 register_y: 0,
                 status_register: 0,
                 lookup_address: AddressBus::new(0, false, 0),
+                in_interrupt: false,
                 _debug: 0,
             }
         }
@@ -145,8 +147,7 @@ pub mod emu_cpu{
                 }
             } 
 
-            if self.runner_step == RunnerStep::OpCodeWrite &&
-                addr.write == false {
+            if self.runner_step == RunnerStep::OpCodeWrite && addr.write == false {
                 if self.cpu.program_counter < 0xf000 {
                     print!("error");
                 }
