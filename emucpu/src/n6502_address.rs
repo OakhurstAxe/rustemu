@@ -48,6 +48,7 @@ pub mod naddress{
             op_code_lookup[0x70] = Box::new(AddressMethodImmediate {});
             op_code_lookup[0x75] = Box::new(AddressMethodZeroX {});
             op_code_lookup[0x78] = Box::new(AddressMethodNull {});
+            op_code_lookup[0x78] = Box::new(AddressMethodAbsoluteY {});
 
             op_code_lookup[0x84] = Box::new(AddressMethodZero {});
             op_code_lookup[0x85] = Box::new(AddressMethodZero {});
@@ -190,14 +191,10 @@ pub mod naddress{
         }
         fn step_1(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
             addr.address = (addr.byte.overflowing_add(cpu.register_x).0) as u16;
-            if ((addr.byte as u16 & 0x00ff) + (cpu.register_x as u16)) > 0x00ff {
-                addr.address = cpu.lookup_address.address;
-                return false;
-            }
             cpu.lookup_address.address = addr.address;
             cpu.lookup_address.byte = addr.byte;
             cpu.lookup_address.is_accumulator = addr.is_accumulator;
-            true
+            false
         }
         fn step_2(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
             cpu.lookup_address.address = addr.address;
@@ -311,7 +308,7 @@ pub mod naddress{
             false
         }
         fn step_1(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
-            addr.address = addr.byte as u16 + cpu.register_x as u16;
+            addr.address = addr.byte.overflowing_add(cpu.register_x).0 as u16;
             false
         }
         fn step_2(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {

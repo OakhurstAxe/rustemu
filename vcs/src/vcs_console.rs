@@ -145,7 +145,9 @@ pub mod vcs {
                 
                 if self.total_ticks % 3 == 0 {
 
-                    self.cpu_runner.execute_tick(&mut self.addr);
+                    if !self.vcs_tia.read().unwrap().is_cpu_blocked() {
+                        self.cpu_runner.execute_tick(&mut self.addr);
+                    }
 
                     //if !self.vcs_tia.read().unwrap().is_cpu_blocked() {
                     //    self.cpu.execute_tick();

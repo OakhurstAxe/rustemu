@@ -876,7 +876,7 @@ pub mod emu_cpu {
         fn op_bit(&mut self, address_method: fn(&mut M6502<T>)) {
             address_method(self);
             let byte: u8 = self.memory.cpu_read(self.address_bus.address());
-            self.set_status_flag(OVERFLOW_FLAG, (byte & 0x40) != 0);
+            self.set_status_flag(OVERFLOW_FLAG, (byte & 0x80) != 0);
             self.set_negative(byte);
             self.set_zero(byte & self.accumulator);
         }

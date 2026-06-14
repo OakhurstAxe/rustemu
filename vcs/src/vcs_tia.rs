@@ -224,7 +224,6 @@ pub mod vcs {
             }
             else if location == REG_RESP0 {
                 self.res_p0_cycle = self.cycle + SPRITEOFFSET;
-//print!("set p0 cycle {:x}\n", self.res_p0_cycle);
                 if self.res_p0_cycle < 68 {
                     self.res_p0_cycle = 71;
                 }
