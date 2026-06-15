@@ -65,7 +65,6 @@ pub mod emu_cpu{
 
     #[derive(PartialEq)]
     enum RunnerStep {
-        ReadOpCode,
         ReadPc,
         AddressStep,
         AddressStepLoadByte,

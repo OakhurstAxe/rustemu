@@ -3,7 +3,8 @@ pub mod vcs {
         
     use std::sync::{ Arc, RwLock };
 
-    use emumemory::memory_mapper::emu_memory::MemoryMapper;
+    use emumemory::prelude::*;
+    
     use crate::{vcs_cartridge::vcs::VcsCartridge, vcs_parameters::vcs::VcsParameters, vcs_riot::vcs::VcsRiot};
     use crate::vcs_tia::vcs::VcsTia;
     use crate::vcs_cartridge_detector::vcs::VcsCartridgeDetector;
@@ -70,7 +71,7 @@ pub mod vcs {
             result
         }
 
-        fn cpu_write(&mut self, mut location: u16, byte: u8) {
+        fn cpu_write(&mut self, mut location: u16, byte: u8) -> bool{
 
             location = location & 0x1FFF;
             
@@ -110,7 +111,7 @@ pub mod vcs {
             else {
                 panic!("Invalid VCS memory location for write");
             }
-
+            true
         }
 
     }

@@ -2,13 +2,11 @@
 pub mod vcs {
 
     use std::fs;
-    use std::sync::{ Arc, RwLock, Mutex };
+    use std::sync::{ Arc, RwLock };
 
-    use emucpu::base_cpu::emu_cpu::BaseCpu;
-    use emucpu::m6502::emu_cpu::M6502;
-    use emucpu::n6502::emu_cpu::{Runner, AddressBus};
+    use emucpu::prelude::*;
+    
     use crate::vcs_audio_channel::vcs::{NTSC_SAMPLES_PER_FRAME, PAL_SAMPLES_PER_FRAME};
-    use crate::vcs_memory::vcs::VcsMemory;
     use crate::vcs_nmemory::vcs::VcsNMemory;
     use crate::vcs_parameters::vcs::VcsParameters;
     use crate::vcs_console_type::vcs::VcsConsoleType;
@@ -31,11 +29,10 @@ pub mod vcs {
     }
 
     pub struct VcsConsole {
-        vcs_riot: Arc<RwLock<VcsRiot>>,
+        vcs_riot: VcsRiot,
         vcs_tia: Arc<RwLock<VcsTia>>,
         console_type: Arc<RwLock<VcsConsoleType>>,
         vcs_audio: VcsAudio,
-        //cpu: M6502<VcsMemory>,
         total_ticks: u32,
         image: Vec<u8>,
         frame_rendered: bool,
@@ -54,26 +51,23 @@ pub mod vcs {
             parameters = Arc::new(RwLock::new(VcsParameters::new(rom.unwrap())));
 
             let console_type: Arc<RwLock<VcsConsoleType>> = Arc::new(RwLock::new(VcsConsoleType::new(parameters.read().unwrap().console_type)));
-            let riot: Arc<RwLock<VcsRiot>> = Arc::new(RwLock::new(VcsRiot::new()));
+            let riot: VcsRiot = VcsRiot::new();
             let tia: Arc<RwLock<VcsTia>> = Arc::new(RwLock::new(VcsTia::new(Arc::clone(&console_type))));
-            //let memory: VcsMemory = VcsMemory::new (Arc::clone(&parameters), Arc::clone(&tia), Arc::clone(&riot));
-            //let cpu: M6502<VcsMemory> = M6502::new(memory);
             let frames_per_second = console_type.read().unwrap().get_frames_per_second();
             let x_resolution = console_type.read().unwrap().get_x_resolution();
             let y_resolution = console_type.read().unwrap().get_y_resolution();
             let audio: VcsAudio = VcsAudio::new(Arc::clone(&tia), frames_per_second);
 
             let mut temp_instance = Self {
-                vcs_riot: Arc::clone(&riot),
+                vcs_riot: riot,
                 vcs_tia: Arc::clone(&tia),
                 console_type: Arc::clone(&console_type),
                 vcs_audio: audio,
-                //cpu: cpu,
                 total_ticks: 0,
                 image: Vec::with_capacity(0),
                 frame_rendered: false,
                 cpu_runner: Runner::new(),
-                nmemory: VcsNMemory::new(Arc::clone(&parameters), Arc::clone(&tia), Arc::clone(&riot)),
+                nmemory: VcsNMemory::new(Arc::clone(&parameters), Arc::clone(&tia)),
                 addr: AddressBus { address: 0 , write: false, byte: 0, is_accumulator: false },
                 inframe: RwLock::new(false),
             };
@@ -102,7 +96,7 @@ pub mod vcs {
         fn start_up(&mut self) {
             //self.vcs_audio.write().unwrap().setup();
             //self.cpu.reset();
-            self.vcs_riot.write().unwrap().reset();
+            self.vcs_riot.reset();
             self.vcs_tia.write().unwrap().reset();
 
             self.total_ticks = 0;
@@ -143,16 +137,13 @@ pub mod vcs {
                 
                 self.nmemory.execute(&mut self.addr);
                 
-                if self.total_ticks % 3 == 0 {
+                if self.total_ticks.is_multiple_of(3) {
+
+                    self.vcs_riot.execute_tick(&mut self.addr);
 
                     if !self.vcs_tia.read().unwrap().is_cpu_blocked() {
                         self.cpu_runner.execute_tick(&mut self.addr);
                     }
-
-                    //if !self.vcs_tia.read().unwrap().is_cpu_blocked() {
-                    //    self.cpu.execute_tick();
-                    //}
-                    self.vcs_riot.write().unwrap().execute_tick();
                 }
 
                 self.vcs_tia.write().unwrap().execute_tick();
@@ -173,11 +164,11 @@ pub mod vcs {
         }
 
         pub fn left_controler_select(&mut self, value: bool) {
-            self.vcs_riot.write().unwrap().select_pressed(value);
+            self.vcs_riot.select_pressed(value);
         }
 
         pub fn left_controler_start(&mut self, value: bool) {
-            self.vcs_riot.write().unwrap().reset_pressed(value);
+            self.vcs_riot.reset_pressed(value);
         }
 
         pub fn left_controler_a(&mut self, value: bool) {
@@ -185,11 +176,11 @@ pub mod vcs {
         }
 
         pub fn left_controler_up_down(&mut self, value: i8) {
-            self.vcs_riot.write().unwrap().left_controller_up_down(value);
+            self.vcs_riot.left_controller_up_down(value);
         }
 
         pub fn left_controler_left_right(&mut self, value: i8) {
-            self.vcs_riot.write().unwrap().left_controller_left_right(value);
+            self.vcs_riot.left_controller_left_right(value);
         }
     }
 

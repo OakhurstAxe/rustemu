@@ -7,7 +7,7 @@ use bevy_file_dialog::prelude::*;
 
 use ui::*;
 use nes::nes_bevy::nes::{NesBevy, NesRomFile};
-use vcs::vcs_bevy::vcs::{VcsBevy, VcsRomFile};
+use vcs::prelude::*;
 
 #[derive(Debug, Clone, Copy, Default, Eq, PartialEq, Hash, States)]
 enum EmuAppState {

@@ -1,7 +1,7 @@
 
 pub mod vcs {
 
-    use emumemory::base_memory::emu_memory::BaseMemory;
+    use emumemory::prelude::*;
     
     pub trait VcsCartridge: BaseMemory {
         

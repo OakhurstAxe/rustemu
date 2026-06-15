@@ -127,7 +127,7 @@ pub mod nes {
             
         }
 
-        fn cpu_write(&mut self, mut location: u16, byte: u8) {
+        fn cpu_write(&mut self, mut location: u16, byte: u8) -> bool {
             
             self.read_bus = byte;
 
@@ -135,13 +135,13 @@ pub mod nes {
             if location < 0x2000 {
                 location = location % 0x800;  // mirroring
                 self.cpu_work_ram.write(location, byte);
-                return;
+                return true;
             }
             
             // PPU Registers
             else if location < 0x4000 {
                 self.ppu.ppu_register_write(location, byte);
-                return;
+                return true;
             }
             
             // APU and IO Registers            
@@ -151,7 +151,7 @@ pub mod nes {
                 if location == 0x4014 {
                     self.ppu_dma_write = 256;
                     self.ppu_dma_address = (byte as u16) << 8;
-                    return;
+                    return true;
                 }
 
                 if location == 0x4015 && ((byte & 0x10) > 0) {
@@ -163,12 +163,13 @@ pub mod nes {
                 
                 location -= 0x4000;
                 self.apu.write().unwrap().write(location, byte);
-                return;
+                return true;
             }
             
             // Cartridge RAM/ROM
             self.cartridge.write().unwrap().cpu_write(location, byte);
 
+            true
         }
 
     }

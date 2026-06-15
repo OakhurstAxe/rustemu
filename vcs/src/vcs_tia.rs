@@ -2,8 +2,8 @@
 pub mod vcs {
 
     use std::sync::{ Arc, RwLock };
+    use emumemory::prelude::*;
 
-    use emumemory::{base_memory::emu_memory::BaseMemory, memory_ram::emu_memory::MemoryRam};
     use crate::{vcs_console_type::{vcs::VcsConsoleType}, vcs_palette::vcs::VcsPalette};
 
     const REG_VSYNC: u16 =    0x00;

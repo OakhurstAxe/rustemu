@@ -333,7 +333,7 @@ pub mod naddress{
             cpu.lookup_address.address = 0;
             false
         }
-        fn step_1(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+        fn step_1(&self, _cpu: &mut N6502, addr: &mut AddressBus) -> bool {
             addr.address = addr.byte as u16;
             false
         }

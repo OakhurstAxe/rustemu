@@ -1,7 +1,9 @@
 
 pub mod vcs {
 
-    use emumemory::{base_memory::emu_memory::BaseMemory, memory_ram::emu_memory::MemoryRam};
+    use bevy::render::render_resource::AsBindGroupShaderType;
+use emumemory::prelude::*;
+    use emucpu::prelude::*;
 
     const REG_OFFSET: u16 = 0x280;
 
@@ -106,7 +108,41 @@ pub mod vcs {
             self.riot_ram.write(REG_SWCHA, byte);
         }
 
-        pub fn execute_tick(&mut self) {
+        pub fn execute_tick(&mut self, addr: &mut AddressBus) {
+
+            let mut location = addr.address & 0x1FFF;
+
+            if addr.write {
+                if location & 0x1280 == 0x0080 {
+                    location &= 0x7F;
+                    self.write_ram(location, addr.byte);
+                    addr.write = false;
+                }
+                else if location & 0x1280 == 0x0280 {
+                    // copies of PIA
+                    location &= 0x7F;
+                    
+                    // Timer locations duplicated in each block
+                    if location == 0x06 || location == 0x07 {
+                        location -= 2;
+                    }
+                    self.write(location, addr.byte);
+                    addr.write = false;
+                }
+            } else {
+                if location & 0x1280 == 0x0080 {
+                    location &= 0x7F;
+                    addr.byte = self.read_ram(location)
+                }
+                else if location & 0x1280 == 0x0280 {
+                    location &= 0x1F;
+                    if location == 0x06 || location == 0x07 {
+                        location -= 2;
+                    }
+                    addr.byte = self.read(location);
+                }
+            }
+ 
             self.step_count += 1;
             if self.step_count < self.step {
                 return;

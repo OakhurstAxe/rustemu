@@ -1,11 +1,10 @@
 
 
 pub mod vcs {
-    use emumemory::base_memory::emu_memory::BaseMemory;
-    use emumemory::memory_rom::emu_memory::MemoryRom;
+
+    use emumemory::prelude::*;
 
     use crate::vcs_cartridge::vcs::VcsCartridge;
-
 
     pub struct VcsCartridge2k {
         pub memory: Vec<u8>,

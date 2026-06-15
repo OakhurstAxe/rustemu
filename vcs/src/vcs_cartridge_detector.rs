@@ -7,7 +7,7 @@ pub mod vcs {
     use crate::vcs_cartridge2k::vcs::VcsCartridge2k;
     use crate::vcs_cartridge4k::vcs::VcsCartridge4k;
     use crate::vcs_cartridgef8::vcs::VcsCartridgeF8;
-    use emumemory::base_memory::emu_memory::BaseMemory;
+    use emumemory::prelude::*;
 
     pub struct VcsCartridgeDetector {
     }
