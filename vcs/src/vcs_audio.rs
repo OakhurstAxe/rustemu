@@ -23,7 +23,7 @@ pub mod vcs {
             }
         }
 
-        pub fn execute_tick(&mut self, audio_regs: TiaAudio) {
+        pub fn execute_frame(&mut self, audio_regs: TiaAudio) {
             let mut register1: u8 = audio_regs.v0;
             let mut register2: u8 = audio_regs.f0;
             let mut register3: u8 = audio_regs.c0;

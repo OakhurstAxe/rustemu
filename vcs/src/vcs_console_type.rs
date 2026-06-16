@@ -71,8 +71,8 @@ pub mod vcs {
             result
         }
 
-        pub fn get_ticks_per_frame(&self) -> i32 {
-            self.ticks_per_second() / self.get_frames_per_second() as i32
+        pub fn get_ticks_per_frame(&self) -> u32 {
+            self.ticks_per_second() as u32 / self.get_frames_per_second()
         }
 
         pub fn audio_samples_per_frame(&self) -> usize {
