@@ -1,8 +1,7 @@
 
 pub mod vcs {
 
-    use bevy::render::render_resource::AsBindGroupShaderType;
-use emumemory::prelude::*;
+    use emumemory::prelude::*;
     use emucpu::prelude::*;
 
     const REG_OFFSET: u16 = 0x280;

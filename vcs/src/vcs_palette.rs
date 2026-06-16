@@ -1,8 +1,6 @@
 
 pub mod vcs {
 
-    use std::sync::{ Arc, RwLock };
-
     use crate::vcs_console_type::vcs::VcsConsoleType;
     use crate::vcs_console_type::vcs::ConsoleType;
 
@@ -70,10 +68,10 @@ pub mod vcs {
 
     impl VcsPalette {
 
-        pub fn new(console_type: Arc<RwLock<VcsConsoleType>>) -> Self {
+        pub fn new(console_type: &VcsConsoleType) -> Self {
             let mut temp_instance: VcsPalette;
             
-            let video_type = console_type.read().unwrap().get_video_type();
+            let video_type = console_type.get_video_type();
 
             temp_instance = VcsPalette { 
                 palette: [[0u8; 128 * 3]; 3],

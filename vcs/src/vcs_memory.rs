@@ -17,11 +17,11 @@ pub mod vcs {
     }
 
     impl VcsMemory {
-        pub fn new(vcs_parameters: Arc<RwLock<VcsParameters>>, tia:Arc<RwLock<VcsTia>>, riot: Arc<RwLock<VcsRiot>>) -> VcsMemory {
+        pub fn new(vcs_parameters: &VcsParameters, tia:Arc<RwLock<VcsTia>>, riot: Arc<RwLock<VcsRiot>>) -> VcsMemory {
             Self {
                 vcs_tia: tia,
                 vcs_riot: riot,
-                vcs_cartridge: VcsCartridgeDetector::detect_cartridge(Arc::clone(&vcs_parameters)),
+                vcs_cartridge: VcsCartridgeDetector::detect_cartridge(&vcs_parameters),
                 _debug: 0,
             }
         }

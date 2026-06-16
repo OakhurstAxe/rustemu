@@ -1,8 +1,8 @@
 
 pub mod vcs {
 
-    use std::sync::{ Arc, RwLock };
     use emumemory::prelude::*;
+    use emucpu::prelude::*;
 
     use crate::{vcs_console_type::{vcs::VcsConsoleType}, vcs_palette::vcs::VcsPalette};
 
@@ -76,6 +76,17 @@ pub mod vcs {
     const WIDE: u16 =         72;
 
     const SPRITEOFFSET: u16 =  5;
+
+
+    pub struct TiaAudio {
+        pub v0: u8,
+        pub f0: u8,
+        pub c0: u8,
+        pub v1: u8,
+        pub f1: u8,
+        pub c1: u8,
+    }
+
     pub struct VcsTia {
         registers: MemoryRam,
         cycle: u16,
@@ -100,17 +111,17 @@ pub mod vcs {
 
     impl VcsTia {
 
-        pub fn new(console_type: Arc<RwLock<VcsConsoleType>>) -> Self {
-            let v_blank: u8 = console_type.read().unwrap().get_v_blank_lines();
-            let x_resolution: u32 = console_type.read().unwrap().get_x_resolution();
-            let y_resolution: u32 = console_type.read().unwrap().get_y_resolution();
+        pub fn new(console_type: &VcsConsoleType) -> Self {
+            let v_blank: u8 = console_type.get_v_blank_lines();
+            let x_resolution: u32 = console_type.get_x_resolution();
+            let y_resolution: u32 = console_type.get_y_resolution();
             Self {
                 registers: MemoryRam::new(String::from("TIA Registers"), 0x7f),
                 cycle: 0,
                 scan_line: 0,
                 screen: vec![0u8; (x_resolution as u32 * y_resolution as u32 * 3) as usize],
                 screen_display: vec![0u8; (x_resolution as u32 * y_resolution as u32 * 3) as usize],
-                vcs_palette: VcsPalette::new(Arc::clone(&console_type)),
+                vcs_palette: VcsPalette::new(&console_type),
                 w_sync_set: false,
                 res_p0_cycle: 0,
                 res_p1_cycle: 0,
@@ -303,7 +314,31 @@ pub mod vcs {
             self.registers.write(REG_AUDV1, 0);
         }
 
-        pub fn execute_tick(&mut self) {
+        pub fn execute_addr(&mut self, addr: &mut AddressBus) {
+
+            let mut location = addr.address & 0x1FFF;
+
+            if addr.write {
+                if location & 0x1080 == 0 {
+                    location &= 0xFF;
+                    if location >= 0x40
+                    {
+                        location -= 0x40;
+                    }
+                    self.write(location, addr.byte);
+                    addr.write = false;
+                }
+            } else {
+                if location & 0x1080 == 0 {
+                    location &= 0x0F;
+                    location += 0x30;
+                    addr.byte = self.read(location);
+                }
+            }
+        }
+
+        pub fn execute_tick(&mut self, addr: &mut AddressBus) {
+
             self.cycle += 1;
             if self.cycle > 67 + self.x_resolution as u16 {
                 // Set rendering registers for when scrolling happens
@@ -804,6 +839,16 @@ pub mod vcs {
             }
 
             result
+        }
+
+        pub fn get_tia_audio(&mut self) -> TiaAudio {
+            TiaAudio { 
+                v0: self.registers.read(REG_AUDV0),
+                f0: self.registers.read(REG_AUDF0),
+                c0: self.registers.read(REG_AUDC0),
+                v1: self.registers.read(REG_AUDV1),
+                f1: self.registers.read(REG_AUDF1),
+                c1: self.registers.read(REG_AUDC1)}
         }
 
         pub fn get_audio_c0(&mut self) -> u8 {

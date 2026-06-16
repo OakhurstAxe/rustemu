@@ -1,8 +1,6 @@
 
 pub mod vcs {
 
-    use std::sync::{ Arc, RwLock };
-
     use crate::vcs_cartridge::vcs::VcsCartridge;
     use crate::vcs_cartridge2k::vcs::VcsCartridge2k;
     use crate::vcs_cartridge4k::vcs::VcsCartridge4k;
@@ -14,10 +12,10 @@ pub mod vcs {
 
     impl VcsCartridgeDetector {
 
-        pub fn detect_cartridge(vcs_parameters: Arc<RwLock<crate::vcs_parameters::vcs::VcsParameters>>) 
+        pub fn detect_cartridge(vcs_parameters: &crate::vcs_parameters::vcs::VcsParameters) 
             -> Box<dyn VcsCartridge + Send + Sync> {
 
-            let image = vcs_parameters.read().unwrap().cart_data.clone();
+            let image = vcs_parameters.cart_data.clone();
             let size = image.len();
 
             if (size <= 2048) || (size == 4096 && image[0..2048] == image[2048..4096])
@@ -32,7 +30,7 @@ pub mod vcs {
                         name: String::from("2k Cartridge"),
                         has_super_chip: false
                     };
-                    cart2k.load_data(&vcs_parameters.read().unwrap().cart_data);
+                    cart2k.load_data(&vcs_parameters.cart_data);
 
                     return Box::new(cart2k);
                 }
@@ -57,7 +55,7 @@ pub mod vcs {
                         name: String::from("4k Cartridge"),
                         has_super_chip: false
                     };
-                    cart4k.load_data(&vcs_parameters.read().unwrap().cart_data);
+                    cart4k.load_data(&vcs_parameters.cart_data);
 
                     return Box::new(cart4k);
                 }
@@ -79,7 +77,7 @@ pub mod vcs {
                         name: String::from("4k Cartridge"),
                         has_super_chip: false
                     };
-                    cart4k.load_data(&vcs_parameters.read().unwrap().cart_data);
+                    cart4k.load_data(&vcs_parameters.cart_data);
 
                     return Box::new(cart4k);                    
                 }
@@ -126,7 +124,7 @@ pub mod vcs {
                         has_super_chip: false,
                         memory_offset: 0,
                     };
-                    cartf8.load_data(&vcs_parameters.read().unwrap().cart_data);
+                    cartf8.load_data(&vcs_parameters.cart_data);
 
                     return Box::new(cartf8);  
                 }
