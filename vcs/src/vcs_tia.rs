@@ -119,9 +119,9 @@ pub mod vcs {
                 registers: MemoryRam::new(String::from("TIA Registers"), 0x7f),
                 cycle: 0,
                 scan_line: 0,
-                screen: vec![0u8; (x_resolution as u32 * y_resolution as u32 * 3) as usize],
-                screen_display: vec![0u8; (x_resolution as u32 * y_resolution as u32 * 3) as usize],
-                vcs_palette: VcsPalette::new(&console_type),
+                screen: vec![0u8; (x_resolution * y_resolution * 3) as usize],
+                screen_display: vec![0u8; (x_resolution * y_resolution * 3) as usize],
+                vcs_palette: VcsPalette::new(console_type),
                 w_sync_set: false,
                 res_p0_cycle: 0,
                 res_p1_cycle: 0,
@@ -131,9 +131,9 @@ pub mod vcs {
                 grp_0_delay: 0,
                 grp_1_delay: 0,
                 enable_delay: 0,
-                v_blank: v_blank,
-                x_resolution: x_resolution,
-                y_resolution: y_resolution,
+                v_blank,
+                x_resolution,
+                y_resolution,
                 _debug: 0
             }
         }
@@ -155,7 +155,7 @@ pub mod vcs {
 
         pub fn read(&mut self, location: u16) -> u8 {
             
-            if location < 0x30 || location > 0x3D {
+            if (0x30..=0x3D).contains(&location) {
                 // Undefined TIA read returns address 0x30
                 return self.registers.read(0x30);
             }
@@ -337,7 +337,7 @@ pub mod vcs {
             }
         }
 
-        pub fn execute_tick(&mut self, addr: &mut AddressBus) {
+        pub fn execute_tick(&mut self, _addr: &mut AddressBus) {
 
             self.cycle += 1;
             if self.cycle > 67 + self.x_resolution as u16 {
@@ -594,7 +594,7 @@ pub mod vcs {
                 }
             }
             
-            return result;
+            result
         }
 
         fn get_missle_pixel(&mut self, enable: u8, missle_reset: u8, missle_size: u8, missle_color: u8, missle_cycle: u16) -> i16 {
@@ -710,7 +710,7 @@ pub mod vcs {
             if pf_above {                
                 // Ball
                 if ball_pixel >= 0 && current_color == -1 {
-                    current_color = ball_pixel as i16;
+                    current_color = ball_pixel;
                 }
                 // Playfield
                 if playfield_pixel >= 0 && current_color == -1 {
@@ -719,25 +719,25 @@ pub mod vcs {
             }
             // P0
             if p0_pixel >= 0 && current_color == -1 {
-                current_color = p0_pixel as i16;
+                current_color = p0_pixel;
             }
             // M0
             if m0_pixel >= 0 && current_color == -1 {
-                current_color = m0_pixel as i16;
+                current_color = m0_pixel;
             }
             
             // P1
             if p1_pixel >= 0 && current_color == -1 {
-                current_color = p1_pixel as i16;
+                current_color = p1_pixel;
             }
             // M1
             if m1_pixel >= 0 && current_color == -1 {
-                current_color = m1_pixel as i16;
+                current_color = m1_pixel;
             }
 
             // Ball
             if ball_pixel >= 0 && current_color == -1 {
-                current_color = ball_pixel as i16;
+                current_color = ball_pixel;
             }
 
             // Playfield
@@ -875,7 +875,7 @@ pub mod vcs {
             let mut ans: u8 = 0;
             for i in (0..8).rev() {
                 ans |= (input & 1) << i;
-                input = input >> 1;
+                input >>= 1;
             }
             ans
         }

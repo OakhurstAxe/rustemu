@@ -134,7 +134,7 @@ pub mod vcs {
 
         }
 
-        fn search_for_bytes(image: &Vec<u8>, signature: Vec<u8>, minhits: u32) -> bool {
+        fn search_for_bytes(image: &[u8], signature: Vec<u8>, minhits: u32) -> bool {
 
             let mut count: u32 = 0;
 
@@ -162,7 +162,7 @@ pub mod vcs {
         
         }
 
-        fn is_probably_sc(image: &Vec<u8>) -> bool {
+        fn is_probably_sc(image: &[u8]) -> bool {
             // We assume a Superchip cart repeats the first 128 bytes for the second
             // 128 bytes in the RAM area, which is the first 256 bytes of each 4K bank
             let mut position = 0;
@@ -176,21 +176,21 @@ pub mod vcs {
             true
         }
 
-        fn _is_probably_arm(image: &Vec<u8>) -> bool {
+        fn _is_probably_arm(image: &[u8]) -> bool {
             // ARM code contains the following 'loader' patterns in the first 1K
             // Thanks to Thomas Jentzsch of AtariAge for this advice
             let constexpr1: Vec<u8> = vec![ 0xA0, 0xC1, 0x1F, 0xE0 ]; 
             let constexpr2: Vec<u8> = vec![ 0x00, 0x80, 0x02, 0xE0 ]; 
 
             if VcsCartridgeDetector::search_for_bytes(image, constexpr1, 1) {
-                return true;
+                true
             }
             else {
-                return VcsCartridgeDetector::search_for_bytes(image, constexpr2, 1)
+                VcsCartridgeDetector::search_for_bytes(image, constexpr2, 1)
             }
         }
 
-        fn is_probably_03e0(image: &Vec<u8>) -> bool {
+        fn is_probably_03e0(image: &[u8]) -> bool {
             // 03E0 cart bankswitching for Brazilian Parker Bros ROMs, switches segment
             // 0 into bank 0 by accessing address 0x3E0 using 'LDA $3E0' or 'ORA $3E0'.
             let constexpr1: Vec<u8> = vec![ 0x0D, 0xE0, 0x03, 0x0D ]; // ORA $3E0, ORA (Popeye)
@@ -204,7 +204,7 @@ pub mod vcs {
             false
         }
 
-        fn is_probably_0840(image: &Vec<u8>) -> bool {
+        fn is_probably_0840(image: &[u8]) -> bool {
             // 0840 cart bankswitching is triggered by accessing addresses 0x0800
             // or 0x0840 at least twice
             let constexpr1: Vec<u8> = vec![ 0xAD, 0x00, 0x08 ]; // LDA $0800
@@ -228,7 +228,7 @@ pub mod vcs {
             false
         }
 
-        fn is_probably_0fa0(image: &Vec<u8>) -> bool {
+        fn is_probably_0fa0(image: &[u8]) -> bool {
             // Other Brazilian (Fotomania) ROM's bankswitching switches to bank 1 by
             // accessing address 0xFC0 using 'BIT $FC0', 'BIT $FC0' or 'STA $FC0'
             // Also a game (Motocross) using 'BIT $EFC0' has been found
@@ -247,7 +247,7 @@ pub mod vcs {
             false
         }
 
-        fn is_probably_3e(image: &Vec<u8>) -> bool {
+        fn is_probably_3e(image: &[u8]) -> bool {
             // 3E cart RAM bankswitching is triggered by storing the bank number
             // in address 3E using 'STA $3E', ROM bankswitching is triggered by
             // storing the bank number in address 3F using 'STA $3F'.
@@ -261,13 +261,13 @@ pub mod vcs {
                 && VcsCartridgeDetector::search_for_bytes(image, constexpr2, 2)
         }
 
-        fn is_probably_3ex(image: &Vec<u8>) -> bool {
+        fn is_probably_3ex(image: &[u8]) -> bool {
             // 3EX cart have at least 2 occurrences of the string "3EX"
-            let constexpr1: Vec<u8> = vec![ '3' as u8, 'E' as u8, 'X' as u8 ]; 
+            let constexpr1: Vec<u8> = vec![ b'3', b'E', b'X' ]; 
             VcsCartridgeDetector::search_for_bytes(image, constexpr1, 2)
         }
 
-        fn is_probably_3f(image: &Vec<u8>) -> bool {
+        fn is_probably_3f(image: &[u8]) -> bool {
             // 3F cart bankswitching is triggered by storing the bank number
             // in address 3F using 'STA $3F'
             // We expect it will be present at least 2 times, since there are
@@ -276,36 +276,34 @@ pub mod vcs {
             VcsCartridgeDetector::search_for_bytes(image, constexpr1, 2)
         }
 
-        fn is_probably_4ksc(image: &Vec<u8>) -> bool{
+        fn is_probably_4ksc(image: &[u8]) -> bool{
             // We check if the first 256 bytes are identical *and* if there's
             // an "SC" signature for one of our larger SC types at 1FFA.
             let first: u8 = image[0];
 
-            for i in 1..256 {
-                if image[i] != first {
-                    return false;
-                }
+            if image.iter().any(|&x| x != first) {
+                return false;
             }
 
             let size = image.len();
             image[size-6] == b'S' && image[size-5] == b'C'
         }
 
-        fn is_probably_cv(image: &Vec<u8>) -> bool {
+        fn is_probably_cv(image: &[u8]) -> bool {
             // CV RAM access occurs at addresses $f3ff and $f400
             // These signatures are attributed to the MESS project
             let magicard_signature: Vec<u8> = vec![ 0x9D, 0xFF, 0xF3 ];  // STA $F3FF,X  MagiCard
             let videolife_signature: Vec<u8> = vec![ 0x99, 0x00, 0xF4 ];  // STA $F3FF,X  MagiCard
             
-            if VcsCartridgeDetector::search_for_bytes(&image, magicard_signature, 1) {
-                return true;
+            if VcsCartridgeDetector::search_for_bytes(image, magicard_signature, 1) {
+                true
             }
             else {
-                return VcsCartridgeDetector::search_for_bytes(&image, videolife_signature, 1);
+                VcsCartridgeDetector::search_for_bytes(image, videolife_signature, 1)
             }
         }
 
-        fn is_probably_e0(image: &Vec<u8>) -> bool {
+        fn is_probably_e0(image: &[u8]) -> bool {
             // E0 cart bankswitching is triggered by accessing addresses
             // $FE0 to $FF9 using absolute non-indexed addressing
             // To eliminate false positives (and speed up processing), we
@@ -335,7 +333,7 @@ pub mod vcs {
             false
         }
 
-        fn is_probably_e78k(image: &Vec<u8>) -> bool {
+        fn is_probably_e78k(image: &[u8]) -> bool {
             // E78K cart bankswitching is triggered by accessing addresses
             // $FE4 to $FE6 using absolute non-indexed addressing
             // To eliminate false positives (and speed up processing), we
@@ -353,22 +351,22 @@ pub mod vcs {
             false
         }
 
-        fn is_probably_fc(image: &Vec<u8>) -> bool {
+        fn is_probably_fc(image: &[u8]) -> bool {
             // FC bankswitching uses consecutive writes to 3 hotspots
             let constexpr1: Vec<u8> = vec![ 0x8d, 0xf8, 0x1f, 0x4a, 0x4a, 0x8d ]; // STA $1FF8, LSR, LSR, STA... Power Play Arcade Menus, 3-D Ghost Attack
             let constexpr2: Vec<u8> = vec![ 0x8d, 0xf8, 0xff, 0x8d, 0xfc, 0xff ]; // STA $FFF8, STA $FFFC        Surf's Up (4K)
             let constexpr3: Vec<u8> = vec![ 0x8c, 0xf9, 0xff, 0xad, 0xfc, 0xff ];  // STY $FFF9, LDA $FFFC        3-D Havoc
             
-            if VcsCartridgeDetector::search_for_bytes(&image, constexpr1, 1) ||
-                VcsCartridgeDetector::search_for_bytes(&image, constexpr2, 1) ||
-                VcsCartridgeDetector::search_for_bytes(&image, constexpr3, 1) {
+            if VcsCartridgeDetector::search_for_bytes(image, constexpr1, 1) ||
+                VcsCartridgeDetector::search_for_bytes(image, constexpr2, 1) ||
+                VcsCartridgeDetector::search_for_bytes(image, constexpr3, 1) {
                     return true;
             }
 
             false
         }
 
-        fn is_probably_fe(image: &Vec<u8>) -> bool {
+        fn is_probably_fe(image: &[u8]) -> bool {
             // FE bankswitching is very weird, but always seems to include a
             // 'JSR $xxxx'
             // These signatures are (mostly) attributed to the MESS project
@@ -389,13 +387,13 @@ pub mod vcs {
             false
         }
 
-        fn is_probably_gl(image: &Vec<u8>) -> bool {
+        fn is_probably_gl(image: &[u8]) -> bool {
             let constexpr: Vec<u8> = vec![ 0xad, 0xb8, 0x0c ]; // LDA $0CB8
 
-            VcsCartridgeDetector::search_for_bytes(&image, constexpr, 1)
+            VcsCartridgeDetector::search_for_bytes(image, constexpr, 1)
         }
 
-        fn is_probably_ua(image: &Vec<u8>) -> bool {
+        fn is_probably_ua(image: &[u8]) -> bool {
             // UA cart bankswitching switches to bank 1 by accessing address 0x240
             // using 'STA $240' or 'LDA $240'.
             // Brazilian (Digivison) cart bankswitching switches to bank 1 by accessing address 0x2C0
@@ -416,10 +414,10 @@ pub mod vcs {
                 return true;
             }
 
-            return false
+            false
         }
 
-        fn is_probably_wd(image: &Vec<u8>) -> bool {
+        fn is_probably_wd(image: &[u8]) -> bool {
             // WD cart bankswitching switches banks by accessing address 0x30..0x3f
             let constexpr1: Vec<u8> = vec![ 0xA5, 0x39, 0x4C ]; // LDA $39, JMP
 

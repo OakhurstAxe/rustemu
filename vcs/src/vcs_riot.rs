@@ -29,6 +29,12 @@ pub mod vcs {
         _debug: u8,
     }
 
+    impl Default for VcsRiot {
+        fn default() -> Self {
+            VcsRiot::new()
+        }
+    }
+
     impl VcsRiot {
 
         pub fn new() -> Self {
@@ -55,22 +61,12 @@ pub mod vcs {
         }
 
         pub fn reset_pressed(&mut self, value: bool) {
-            if value {
-                self.reset_pressed = true;
-            }
-            else {
-                self.reset_pressed = false;
-            }
+            self.reset_pressed = value;
         }
 
         pub fn select_pressed(&mut self, value: bool)
         {
-            if value {
-                self.select_pressed = true;
-            }
-            else {
-                self.select_pressed = false;
-            }
+            self.select_pressed = value;
         }
 
         // up + down -
@@ -155,7 +151,7 @@ pub mod vcs {
             if overflow {
                 timer = 0;
                 let mut status_byte: u8 = self.system_ram.read(REG_INSTAT);
-                status_byte = status_byte | 0xFF;
+                status_byte |= 0xFF;
                 self.riot_ram.write(REG_INSTAT, status_byte);
                 self.step = 1;
                 self.overflow_tick = true;
@@ -229,7 +225,7 @@ pub mod vcs {
         {
             if !self.overflow_tick {
                 let mut status_byte: u8 = self.system_ram.read(REG_INSTAT);
-                status_byte = status_byte & 0xBF;
+                status_byte &= 0xBF;
                 self.riot_ram.write(REG_INSTAT, status_byte);
             }
         }
@@ -238,7 +234,7 @@ pub mod vcs {
         {
             if !self.overflow_tick {
                 let mut status_byte: u8 = self.system_ram.read(REG_INSTAT);
-                status_byte = status_byte & 0x7F;
+                status_byte &= 0x7F;
                 self.riot_ram.write(REG_INSTAT, status_byte);
             }
         }

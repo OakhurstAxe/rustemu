@@ -13,14 +13,15 @@ pub mod vcs {
         fn execute_tick(&mut self, addr: &mut AddressBus) {
 
             let mut location = addr.address & 0x1FFF;
+            let address_range = 0x1000..0x2000;
 
             if addr.write {
-                if location >= 0x1000 && location < 0x2000 {
+                if address_range.contains(&location) {
                     eprintln!("Cannot write to VCS standard cartridges");
                 }
             }
             else {
-                if location >= 0x1000 && location < 0x2000 {
+                if address_range.contains(&location) {
                     location -= 0x1000;
                     let a_13_set = (0x2000 & location) > 0;
                     addr.byte = self.read_a13(location, a_13_set);

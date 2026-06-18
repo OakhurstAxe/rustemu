@@ -25,9 +25,9 @@ pub mod emu_cpu{
     impl AddressBus {
         fn new(address: u16, write: bool, byte: u8) -> AddressBus {
             Self {
-                address: address,
-                write: write,
-                byte: byte,
+                address,
+                write,
+                byte,
                 is_accumulator: false,
             }
         }
@@ -85,6 +85,12 @@ pub mod emu_cpu{
         _debug: u8,
     }
 
+    impl Default for Runner {
+        fn default() -> Self {
+            Runner::new()
+        }
+    }
+    
     impl Runner {
         pub fn new () -> Runner {
             Self {

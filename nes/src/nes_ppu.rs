@@ -23,10 +23,10 @@ pub mod nes {
     const PPU_DATA_ADDR: u16 =     0x2007;
     const PPU_OAM_ADDR: u16 =      0x2003;
     const PPU_OAM_DATA_ADDR: u16 = 0x2004;
-    const PPU_OAM_DMA_ADDR: u16 =  0x4014;
+    const _PPU_OAM_DMA_ADDR: u16 =  0x4014;
 
     const PPU_ATTRIBUTE_ADDR: u16 = 0x23c0;
-    const PPU_ATTRIBUTE_SIZE: u16 = 0x0040;
+    const _PPU_ATTRIBUTE_SIZE: u16 = 0x0040;
     const PPU_NAMETABLE_ADDR: u16 = 0x2000;
     const PPU_NAMETABLE_SIZE: u16 = 0x0400;
     const PPU_PATTERN_SIZE: u16 =   0x1000;
@@ -35,6 +35,7 @@ pub mod nes {
     const PPU_SPRITE_SIZE: i32 =         0x0004;
     const PPU_SPRITE_PATTERN_SIZE: u16 = 0x0008;
 
+    #[derive(Default)]
     pub struct PpuControlRegister {
         pub nametable_x: u8,
         pub nametable_y: u8,
@@ -129,6 +130,7 @@ pub mod nes {
         }
     }
 
+    #[derive(Default)]
     pub struct PpuSpriteAttributeRegister {
         pub sprite_palette: u8,
         pub unimplemented: u8,
@@ -187,7 +189,7 @@ pub mod nes {
         ppu_addr_count: u8,
         ppu_oam_addr: u8,
         pub dma_suspend: u16,
-        debug: u8,
+        _debug: u8,
     }
 
     impl NesPpu {
@@ -201,7 +203,7 @@ pub mod nes {
                 cpu_ppu_registers: MemoryRam::new(String::from("PPU Registers"), 0x0008),
                 ppu_io_bus: 0,
                 ppu_io_bus_ticks: 0,
-                cartridge: cartridge,
+                cartridge,
                 control_register: PpuControlRegister::new(),
                 scan_line: 0,
                 nmi_set: false,
@@ -221,7 +223,7 @@ pub mod nes {
                 ppu_addr_count: 0,
                 ppu_oam_addr: 0,
                 dma_suspend: 0,
-                debug: 0,
+                _debug: 0,
             }
         }
         
@@ -240,7 +242,7 @@ pub mod nes {
             else if location < 0x4000 {
                 location -= 0x3f00;
 
-                if (location % 4) == 0 {
+                if location.is_multiple_of(4) {
                     self.ppu_palette.read(0);
                 }
 
@@ -267,7 +269,7 @@ pub mod nes {
             else if location < 0x4000 {
                 location -= 0x3f00;
 
-                if (location % 4) == 0 {
+                if location.is_multiple_of(4) {
                     self.ppu_palette.write(0, byte);
                 }
 
@@ -333,7 +335,7 @@ pub mod nes {
 
                 if self.ppu_addr_count == 2 {
                     self.ppu_addr_l = byte;
-                    self.ppu_addr = (((self.ppu_addr_h as u16) << 8) + self.ppu_addr_l as u16) as u16;
+                    self.ppu_addr = ((self.ppu_addr_h as u16) << 8) + self.ppu_addr_l as u16;
                     self.ppu_addr_count = 0;
                 }
             } else if location == 0x07 { // && ppuAddr_ != 0)
@@ -372,13 +374,10 @@ pub mod nes {
 
         pub fn set_ppu_sprite_overflow(&mut self, value: u8) {
 
-            let byte: u8;
+            let mut byte: u8 = self.cpu_ppu_registers.read(2) & 0xdf;
 
             if value > 0 {
                 byte = self.cpu_ppu_registers.read(2) | 0x20;
-            }
-            else {
-                byte = self.cpu_ppu_registers.read(2) & 0xdf;
             }
             
             self.cpu_ppu_registers.write(2, byte);
@@ -386,13 +385,10 @@ pub mod nes {
 
         pub fn set_ppu_sprite_zero_hit(&mut self, value: u8) {
 
-            let byte: u8;
+            let mut byte: u8 = self.cpu_ppu_registers.read(2) & 0xbf;
 
             if value > 0 {
                 byte = self.cpu_ppu_registers.read(2) & 0x40;
-            }
-            else {
-                byte = self.cpu_ppu_registers.read(2) & 0xbf;
             }
 
             self.cpu_ppu_registers.write(2, byte);
@@ -401,11 +397,11 @@ pub mod nes {
         pub fn ppu_scroll_read(&mut self) -> u8 {
             if self.ppu_x_scroll_read {
                 self.ppu_x_scroll_read = false;
-                return self.ppu_x_scroll;
+                self.ppu_x_scroll
             }
             else {
                 self.ppu_x_scroll_read = true;
-                return self.ppu_y_scroll;
+                self.ppu_y_scroll
             }
         }
 
@@ -474,11 +470,11 @@ pub mod nes {
                 let y_pos: i32 = (self.oam_read((sprite_pos * PPU_SPRITE_SIZE) as u16) + 1) as i32;
 
                 let pattern_address: u16 = (self.oam_read((sprite_pos * PPU_SPRITE_SIZE + 1) as u16) as u16) << 4;
-                let mut sprite_pattern_address: u16 = pattern_address + ((screen_row - y_pos as u16) & 0x07) as u16;
+                let mut sprite_pattern_address: u16 = pattern_address + ((screen_row - y_pos as u16) & 0x07);
 
                 sprite_attribute.reg(self.oam_read((sprite_pos * PPU_SPRITE_SIZE + 2) as u16));
                 if sprite_attribute.flip_vertically > 0 {// flip verticle
-                    sprite_pattern_address = pattern_address + ((7 - screen_row - y_pos as u16) & 0x07) as u16;
+                    sprite_pattern_address = pattern_address + ((7 - screen_row - y_pos as u16) & 0x07);
                 }
 
                 priority = sprite_attribute.priority;
@@ -492,8 +488,8 @@ pub mod nes {
                 }
 
                 let slide = screen_column - x_pos as i16;
-                sprite_lsb = sprite_lsb << slide;
-                sprite_msb = sprite_msb << slide;
+                sprite_lsb <<= slide;
+                sprite_msb <<= slide;
 
                 let pixel: u8 = ((sprite_msb >> 6) & 0x02) + ((sprite_lsb >> 7) & 0x01);
                 let palette: u8 = ((sprite_attribute.sprite_palette) + 0x04) << 2;
@@ -507,7 +503,7 @@ pub mod nes {
                 }
             }
 
-            return (0,priority)
+            (0, priority)
         }
 
         fn render_pixel(&mut self) {
@@ -600,7 +596,7 @@ pub mod nes {
             if ((screen_row % 32) < 16) && (screen_column % 32) < 16 {
                 attribute_shift = 0;
             }
-            else if ((screen_row % 32) < 16) && (screen_column % 32) >=- 16 {
+            else if ((screen_row % 32) < 16) && (screen_column % 32) >= -16 {
                 attribute_shift = 2;
             }
             else if ((screen_row % 32) >= 16) && (screen_column % 32) < 16 {

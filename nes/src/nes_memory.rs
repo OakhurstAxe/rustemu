@@ -3,8 +3,6 @@ pub mod nes {
 
     use std::sync::Arc;
     use std::sync::RwLock;
-    use std::rc::Rc;
-    use std::cell::RefCell;
 
     use emumemory::{memory_mapper::emu_memory::MemoryMapper, memory_ram::emu_memory::MemoryRam};
     use emumemory::base_memory::emu_memory::BaseMemory;
@@ -29,10 +27,10 @@ pub mod nes {
     impl NesMemory { 
         pub fn new(cartridge: Arc<RwLock<NesCartridge000>>, ppu: NesPpu, apu: Arc<RwLock<NesApu>>) -> NesMemory {
             Self {
-                cartridge: cartridge,
+                cartridge,
                 cpu_work_ram: MemoryRam::new(String::from("CPU Work RAM"), 0x0800),
-                ppu: ppu,
-                apu: apu,
+                ppu,
+                apu,
                 read_bus: 0,
                 ppu_dma_address: 0,
                 ppu_dma_write: 0,
@@ -78,7 +76,7 @@ pub mod nes {
 
             // Working RAM
             if location < 0x2000 {
-                location = location % 0x800;  // mirroring
+                location %= 0x800;  // mirroring
                 let byte = self.cpu_work_ram.read(location);
                 self.read_bus = byte;
                 return byte;
@@ -133,7 +131,7 @@ pub mod nes {
 
             // Working RAM
             if location < 0x2000 {
-                location = location % 0x800;  // mirroring
+                location %= 0x800;  // mirroring
                 self.cpu_work_ram.write(location, byte);
                 return true;
             }

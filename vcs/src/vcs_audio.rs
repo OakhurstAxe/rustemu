@@ -13,32 +13,28 @@ pub mod vcs {
 
         pub fn new(frames_per_second: u32) -> VcsAudio {
 
-            let mut achannels: Vec<VcsAudioChannel> = Vec::with_capacity(2);
-            achannels.push(VcsAudioChannel::new(frames_per_second));
-            achannels.push(VcsAudioChannel::new(frames_per_second));
+            let channels: Vec<VcsAudioChannel> = vec![
+            VcsAudioChannel::new(frames_per_second),
+            VcsAudioChannel::new(frames_per_second)];
 
             Self {
-                channels: achannels,
-                frames_per_second: frames_per_second,
+                channels,
+                frames_per_second,
             }
         }
 
-        pub fn execute_frame(&mut self, audio_regs: TiaAudio) {
-            let mut register1: u8 = audio_regs.v0;
-            let mut register2: u8 = audio_regs.f0;
-            let mut register3: u8 = audio_regs.c0;
-            self.channels[0].set_channel_settings(register1, register2, register3);
+        pub fn samples_per_frame(&self) -> usize {
+            DATA_SAMPLE_RATE_HZ / self.frames_per_second as usize
+        }
 
-            register1 = audio_regs.v1;
-            register2 = audio_regs.f1;
-            register3 = audio_regs.c1;
-            self.channels[1].set_channel_settings(register1, register2, register3);
+        pub fn execute_frame(&mut self, audio_regs: TiaAudio) {
+            self.channels[0].set_channel_settings(audio_regs.v0, audio_regs.f0, audio_regs.c0);
+            self.channels[1].set_channel_settings(audio_regs.v1, audio_regs.f1, audio_regs.c1);
         }
 
         pub fn get_audio_buffer(&mut self, channel: usize) -> Vec<f32> {
-            let buffer = self.channels[channel].callback(DATA_SAMPLE_RATE_HZ / self.frames_per_second as usize).clone();
-
-            buffer
+            let samples_per_frame = self.samples_per_frame();
+            self.channels[channel].get_buffer(samples_per_frame).clone()
         }
 
     }

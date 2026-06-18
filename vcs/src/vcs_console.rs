@@ -6,13 +6,12 @@ pub mod vcs {
 
     use emucpu::prelude::*;
     
-    use crate::vcs_audio_channel::vcs::{NTSC_SAMPLES_PER_FRAME, PAL_SAMPLES_PER_FRAME};
+    //use crate::vcs_audio_channel::vcs::{NTSC_SAMPLES_PER_FRAME, PAL_SAMPLES_PER_FRAME};
     use crate::vcs_parameters::vcs::VcsParameters;
     use crate::vcs_console_type::vcs::VcsConsoleType;
     use crate::vcs_riot::vcs::VcsRiot;
     use crate::vcs_tia::vcs::VcsTia;
     use crate::vcs_audio::vcs::VcsAudio;
-    use crate::vcs_console_type::vcs::ConsoleType;
 
     use crate::vcs_cartridge::vcs::VcsCartridge;
     use crate::vcs_cartridge_detector::vcs::VcsCartridgeDetector;
@@ -35,7 +34,6 @@ pub mod vcs {
 
             let rom = fs::read(rom_file);
             let parameters: VcsParameters = VcsParameters::new(rom.unwrap());
-
             let console_type: VcsConsoleType = VcsConsoleType::new(parameters.console_type);
             let vcs_riot: VcsRiot = VcsRiot::new();
             let vcs_tia: VcsTia = VcsTia::new(&console_type);
@@ -71,12 +69,8 @@ pub mod vcs {
         fn get_audio(&mut self) -> Vec<f32> {
             let channel0 = self.vcs_audio.get_audio_buffer(0);
             let channel1 = self.vcs_audio.get_audio_buffer(1);
-            let mut samples_per_frame: usize = NTSC_SAMPLES_PER_FRAME;
+            let samples_per_frame = self.vcs_audio.samples_per_frame();
             
-            if self.console_type.get_console_type() == ConsoleType::PAL {
-                samples_per_frame = PAL_SAMPLES_PER_FRAME;
-            }
-
             let mut mix:Vec<f32> = Vec::with_capacity(samples_per_frame);
 
             for i in 0..samples_per_frame {

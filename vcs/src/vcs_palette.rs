@@ -1,8 +1,7 @@
 
 pub mod vcs {
 
-    use crate::vcs_console_type::vcs::VcsConsoleType;
-    use crate::vcs_console_type::vcs::ConsoleType;
+    use crate::vcs_console_type::vcs::{ VcsConsoleType, ConsoleType };
 
     const ENTRIES_NTSC: [u32; 128] = [
         0x000000, 0x404040, 0x6C6C6C, 0x909090, 0xB0B0B0, 0xC8C8C8, 0xDCDCDC, 0xECECEC,
@@ -75,7 +74,7 @@ pub mod vcs {
 
             temp_instance = VcsPalette { 
                 palette: [[0u8; 128 * 3]; 3],
-                video_type: video_type,
+                video_type,
             };
             temp_instance.setup_palettes();
 
@@ -90,8 +89,8 @@ pub mod vcs {
             else if self.video_type == ConsoleType::SECAM {
                 pallette_choice = 2;
             }
-            position = position >> 1;
-            position = position * 3;
+            position >>= 1;
+            position *= 3;
             (self.palette[pallette_choice][position],
              self.palette[pallette_choice][position + 1],
              self.palette[pallette_choice][position + 2])
@@ -103,14 +102,13 @@ pub mod vcs {
             self.setup_palette(ENTRIES_SECAM, 2);
         }
 
-        fn setup_palette(&mut self, entries: [u32; 128], palette: usize) {
-            for index in 0..128 {
-                let entry: u32 = entries[index];
+        fn setup_palette(&mut self, entries: [u32; 128], palette: usize) {            
+            for (index, entry) in entries.iter().enumerate() {
                 self.set_color(entry, index * 3, palette);
             }
         }
         
-        fn set_color(&mut self, color_byte: u32, position: usize, palette: usize) {
+        fn set_color(&mut self, color_byte: &u32, position: usize, palette: usize) {
             self.palette[palette][position]     = ((color_byte & 0xff0000) >> 16) as u8;
             self.palette[palette][position + 1] = ((color_byte & 0x00ff00) >> 8) as u8;
             self.palette[palette][position + 2] =  (color_byte & 0x0000ff) as u8;

@@ -3,8 +3,6 @@
 pub mod nes {
 
     use std::sync::{ Arc, RwLock };
-    use std::rc::Rc;
-    use std::cell::RefCell;
 
     use emucpu::base_cpu::emu_cpu::BaseCpu;
     use emucpu::m6502::emu_cpu::M6502;
@@ -25,7 +23,7 @@ pub mod nes {
         cpu: M6502<NesMemory>,
         apu: Arc<RwLock<NesApu>>,
         left_controller: u8,
-        right_controller: u8,
+        _right_controller: u8,
         _debug: u8,
         pub frame: u32,
     }
@@ -49,10 +47,10 @@ pub mod nes {
             cpu.disable_dec();
 
             let mut temp_instance = Self {
-                cpu: cpu,
+                cpu,
                 apu: Arc::clone(&apu),
                 left_controller: 0,
-                right_controller: 0,
+                _right_controller: 0,
                 _debug: 0,
                 frame: 0,
             };
@@ -70,9 +68,7 @@ pub mod nes {
         }
 
         fn get_audio(&mut self) -> Vec<u8> {
-
-            let buffer = self.apu.write().unwrap().get_audio_buffer();
-            buffer
+            self.apu.write().unwrap().get_audio_buffer()
         }
 
         pub fn run_frame(&mut self) -> (Vec<u8>, Vec<u8>) {
@@ -112,7 +108,7 @@ pub mod nes {
         pub fn left_controler_a(&mut self, value: bool) {
             self.left_controller &= 0xfe;
 
-            if value == true {
+            if value {
                 self.left_controller |= 0x01;
             }
         }
@@ -120,7 +116,7 @@ pub mod nes {
         pub fn left_controler_b(&mut self, value: bool) {
             self.left_controller &= 0xfd;
 
-            if value == true {
+            if value {
                 self.left_controller |= 0x02;
             }
         }
@@ -128,7 +124,7 @@ pub mod nes {
         pub fn left_controler_select(&mut self, value: bool) {
             self.left_controller &= 0xfb;
 
-            if value == true {
+            if value {
                 self.left_controller |= 0x04;
             }
         }
@@ -136,7 +132,7 @@ pub mod nes {
         pub fn left_controler_start(&mut self, value: bool) {
             self.left_controller &= 0xf7;
 
-            if value == true {
+            if value {
                 self.left_controller |= 0x08;
             }
         }
