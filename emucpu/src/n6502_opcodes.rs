@@ -391,7 +391,7 @@ pub mod nopcodes {
     impl CpuOperation for CpuOpBit {
         fn step_0(&self, cpu: &mut N6502, _addr: &mut AddressBus) -> bool {
             let byte = cpu.lookup_address.byte;
-            OpCodesUtils::set_status_flag(cpu, OVERFLOW_FLAG, (byte & 0x80) != 0);
+            OpCodesUtils::set_status_flag(cpu, OVERFLOW_FLAG, (byte & 0x40) != 0);
             OpCodesUtils::set_negative(cpu, byte);
             OpCodesUtils::set_zero(cpu, byte & cpu.accumulator);
             false

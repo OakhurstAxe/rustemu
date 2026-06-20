@@ -75,8 +75,7 @@ pub mod vcs {
     const MEDIUM: u16 =       40;
     const WIDE: u16 =         72;
 
-    const SPRITEOFFSET: u16 =  5;
-
+    const SPRITEOFFSET: u16 =  4;
 
     pub struct TiaAudio {
         pub v0: u8,
@@ -92,7 +91,6 @@ pub mod vcs {
         cycle: u16,
         scan_line: u16,
         screen: Vec<u8>,
-        screen_display: Vec<u8>,
         vcs_palette: VcsPalette,
         w_sync_set: bool,
         res_p0_cycle: u16,
@@ -120,7 +118,6 @@ pub mod vcs {
                 cycle: 0,
                 scan_line: 0,
                 screen: vec![0u8; (x_resolution * y_resolution * 3) as usize],
-                screen_display: vec![0u8; (x_resolution * y_resolution * 3) as usize],
                 vcs_palette: VcsPalette::new(console_type),
                 w_sync_set: false,
                 res_p0_cycle: 0,
@@ -139,7 +136,21 @@ pub mod vcs {
         }
 
         pub fn get_screen(&self) -> Vec<u8> {
-            self.screen_display.clone()
+            self.screen.clone()
+        }
+
+        pub fn is_cpu_blocked(&self) -> bool {
+            self.w_sync_set
+        }
+
+        pub fn get_tia_audio(&mut self) -> TiaAudio {
+            TiaAudio { 
+                v0: self.registers.read(REG_AUDV0),
+                f0: self.registers.read(REG_AUDF0),
+                c0: self.registers.read(REG_AUDC0),
+                v1: self.registers.read(REG_AUDV1),
+                f1: self.registers.read(REG_AUDF1),
+                c1: self.registers.read(REG_AUDC1)}
         }
 
         pub fn left_controller_trigger(&mut self, value: bool) {
@@ -151,141 +162,6 @@ pub mod vcs {
                 reg_input_4 |= 0x80;                
             }
             self.registers.write(REG_INPT4, reg_input_4);
-        }
-
-        pub fn read(&mut self, location: u16) -> u8 {
-            
-            if (0x30..=0x3D).contains(&location) {
-                // Undefined TIA read returns address 0x30
-                return self.registers.read(0x30);
-            }
-
-            self.registers.read(location)
-        }
-
-        pub fn write(&mut self, location: u16, byte: u8) {
-            if location > 0x2C {
-                // Undefined write, does nothing.
-                // Sometimes used to waste specific cycle count.
-                return; 
-            }
-
-            if location == REG_GRP0 {
-                if (self.registers.read(REG_VDELP0) & 0x01) > 0 {
-                    self.grp_0_delay = byte;
-                }
-                else {
-                    self.registers.write(REG_GRP0, byte);
-                }
-
-                if (self.registers.read(REG_VDELP1) & 0x01) > 0 {
-                    self.registers.write(REG_GRP1, self.grp_1_delay);
-                    self.grp_1_delay = 0;
-                }
-            }
-            else if location == REG_GRP1
-            {
-                if (self.registers.read(REG_VDELP1) & 0x01) > 0 {
-                    self.grp_1_delay = byte;
-                }
-                else {
-                    self.registers.write(REG_GRP1, byte);
-                }
-
-                if (self.registers.read(REG_VDELP0) & 0x01) > 0 {
-                    self.registers.write(REG_GRP0, self.grp_0_delay);
-                    self.grp_0_delay = 0;
-                }
-
-                if (self.registers.read(REG_VDELBL) & 0x01) > 0 {
-                    self.registers.write(REG_ENABL, self.enable_delay);
-                    self.enable_delay = 0;
-                }
-            }
-            else if location == REG_ENABL {
-                if (self.registers.read(REG_VDELBL) & 0x01) > 0 {
-                    self.enable_delay = byte;
-                }
-                else {
-                    self.registers.write(REG_ENABL, byte);
-                }
-            }
-            else if location == REG_VSYNC {
-                if (byte & 0x02 == 0) && (self.registers.read(REG_VSYNC) & 0x02) > 0 {
-                    self.scan_line = 2;
-                    let byte = self.registers.read(REG_VBLANK) | 0x02;
-                    self.registers.write(REG_VBLANK, byte);
-                }
-
-                self.registers.write(REG_VSYNC, byte);
-            }
-            else if location == REG_VBLANK {
-
-                // the scanLine_ > 30 is a hack that seems to work,  Probably a more accurate way to do it
-                if (byte & 0x02) == 0 && (self.registers.read(REG_VBLANK) & 0x02 > 0) && self.scan_line > 30 {
-                    self.scan_line = 2 + self.v_blank as u16;
-                }
-                self.registers.write(REG_VBLANK, byte);
-            }
-            else if location == REG_WSYNC {
-                self.w_sync_set = true;
-            }
-            else if location == REG_RSYNC {
-                self.cycle = 0;
-            }
-            else if location == REG_RESP0 {
-                self.res_p0_cycle = self.cycle + SPRITEOFFSET;
-                if self.res_p0_cycle < 68 {
-                    self.res_p0_cycle = 71;
-                }
-            }
-            else if location == REG_RESP1 {
-                self.res_p1_cycle = self.cycle + SPRITEOFFSET;
-
-                if self.res_p1_cycle < 68 {
-                    self.res_p1_cycle = 71;
-                }
-            }
-            else if location == REG_RESM0 {
-                self.res_m0_cycle = self.cycle + SPRITEOFFSET - 1;
-
-                if self.res_m0_cycle < 68 {
-                    self.res_m0_cycle = 71;
-                }
-            }
-            else if location == REG_RESM1 {
-                self.res_m1_cycle = self.cycle + SPRITEOFFSET - 1;
-
-                if self.res_m1_cycle < 68 {
-                    self.res_m1_cycle = 71;
-                }
-            }
-            else if location == REG_RESBL {
-                self.res_bl_cycle = self.cycle + SPRITEOFFSET;
-
-                if self.res_bl_cycle < 68 {
-                    self.res_bl_cycle = 71;
-                }
-            }
-            else if location == REG_HMOVE {
-                self.apply_movement();
-            }
-            else if location == REG_HMCLR {
-                self.clear_move_registers();
-            }
-            else if location == REG_CXCLR {
-                self.registers.write(REG_CXM0P, 0);
-                self.registers.write(REG_CXM1P, 0);
-                self.registers.write(REG_CXP0FB, 0);
-                self.registers.write(REG_CXP1FB, 0);
-                self.registers.write(REG_CXM0FB, 0);
-                self.registers.write(REG_CXM1FB, 0);
-                self.registers.write(REG_CXBLPF, 0);
-                self.registers.write(REG_CXPPMM, 0);
-            }
-            else {
-                self.registers.write(location, byte);
-            }
         }
 
         pub fn reset(&mut self) {
@@ -314,7 +190,57 @@ pub mod vcs {
             self.registers.write(REG_AUDV1, 0);
         }
 
-        pub fn execute_addr(&mut self, addr: &mut AddressBus) {
+        pub fn execute_tick(&mut self, addr: &mut AddressBus) {
+
+            self.execute_addr(addr);
+
+            // Move to next pixel
+            self.cycle += 1;
+            if self.cycle > 67 + self.x_resolution as u16 {
+                self.cycle = 0;
+                self.scan_line += 1;
+            }
+
+            // If on screen, render pixel
+            if (self.scan_line > (2 + self.v_blank as u16)) && 
+                (self.scan_line <= (2 + self.v_blank as u16 + 
+                    self.y_resolution as u16)) && (self.cycle > 67) {
+                self.render_pixel();
+            }
+            
+            if self.registers.read(REG_RESMP0) & 0x02 > 0 {
+                let size: u8 = self.registers.read(REG_NUSIZ0);
+                self.res_m0_cycle = self.res_p0_cycle;
+                
+                if size & 0x07 == 5 { // size 2
+                    self.res_m0_cycle += 6;
+                } else if size & 0x07 == 7 { // size 4
+                    self.res_m0_cycle += 10;
+                } else { // size 1
+                    self.res_m0_cycle += 3;
+                }
+            }
+
+            if self.registers.read(REG_RESMP1) & 0x02 > 0 {
+                let size: u8 = self.registers.read(REG_NUSIZ1);
+                self.res_m1_cycle = self.res_p1_cycle;
+                
+                if size & 0x07 == 5 { // size 2
+                    self.res_m1_cycle += 6;
+                } else if size & 0x07 == 7 { // size 4
+                    self.res_m1_cycle += 10;
+                } else { // size 1
+                    self.res_m1_cycle += 3;
+                }
+            }
+            
+            // WSYNC 
+            if self.cycle == 3 { // Not sure this should be 8, but works pretty good
+                self.w_sync_set = false;
+            }
+        }
+
+        fn execute_addr(&mut self, addr: &mut AddressBus) {
 
             let mut location = addr.address & 0x1FFF;
 
@@ -337,61 +263,145 @@ pub mod vcs {
             }
         }
 
-        pub fn execute_tick(&mut self, _addr: &mut AddressBus) {
-
-            self.cycle += 1;
-            if self.cycle > 67 + self.x_resolution as u16 {
-                // Set rendering registers for when scrolling happens
-                self.cycle = 0;
-                self.scan_line += 1;
-            }
+        fn read(&mut self, location: u16) -> u8 {
             
-            if (self.scan_line > (2 + self.v_blank as u16)) && 
-                (self.scan_line <= (2 + self.v_blank as u16 + 
-                    self.y_resolution as u16)) && (self.cycle > 67) {
-                self.render_pixel();
-            }
-            
-            if self.registers.read(REG_RESMP0) & 0x02 > 0 {
-                let size: u8 = self.registers.read(REG_NUSIZ0);
-                self.res_m0_cycle = self.res_p0_cycle;
-                if size & 0x07 == 5 { // size 2
-                    self.res_m0_cycle += 6;
-                }
-                else if size & 0x07 == 7 { // size 4
-                    self.res_m0_cycle += 10;
-                }
-                else // size 1
-                {
-                    self.res_m0_cycle += 3;
-                }
+            if (0x30..=0x3D).contains(&location) == false {
+                // Undefined TIA read returns address 0x30
+                return self.registers.read(0x30);
             }
 
-            if self.registers.read(REG_RESMP1) & 0x02 > 0 {
-                let size: u8 = self.registers.read(REG_NUSIZ1);
-                self.res_m1_cycle = self.res_p1_cycle;
-                if size & 0x07 == 5 { // size 2
-                    self.res_m1_cycle += 6;
-                }
-                else if size & 0x07 == 7 { // size 4
-                    self.res_m1_cycle += 10;
-                }
-                else { // size 1
-                    self.res_m1_cycle += 3;
-                }
-            }
-            
-            // WSYNC 
-            if self.cycle == 3 { // Not sure this should be 8, but works pretty good
-                self.w_sync_set = false;
-            }
+            self.registers.read(location)
         }
 
-        pub fn repaint(&mut self) -> bool {
-            if self.cycle == 0 && self.scan_line == 3 {
-                self.screen_display.copy_from_slice(&self.screen[..]);
+        fn write(&mut self, location: u16, byte: u8) {
+
+            // Undefined write, does nothing.
+            // Sometimes used to waste specific cycle count.
+            if location > 0x2C {
+                return; 
             }
-            self.cycle == 0 && self.scan_line == 3
+
+            match location {
+                REG_GRP0 => {
+                    if (self.registers.read(REG_VDELP0) & 0x01) > 0 {
+                        self.grp_0_delay = byte;
+                    }
+                    else {
+                        self.registers.write(REG_GRP0, byte);
+                    }
+
+                    if (self.registers.read(REG_VDELP1) & 0x01) > 0 {
+                        self.registers.write(REG_GRP1, self.grp_1_delay);
+                        self.grp_1_delay = 0;
+                    }
+
+                    if (self.registers.read(REG_VDELBL) & 0x01) > 0 {
+                        self.registers.write(REG_ENABL, self.enable_delay);
+                        self.enable_delay = 0;
+                    }
+                },
+                REG_GRP1 => {
+                    if (self.registers.read(REG_VDELP1) & 0x01) > 0 {
+                        self.grp_1_delay = byte;
+                    }
+                    else {
+                        self.registers.write(REG_GRP1, byte);
+                    }
+
+                    if (self.registers.read(REG_VDELP0) & 0x01) > 0 {
+                        self.registers.write(REG_GRP0, self.grp_0_delay);
+                        self.grp_0_delay = 0;
+                    }
+
+                    if (self.registers.read(REG_VDELBL) & 0x01) > 0 {
+                        self.registers.write(REG_ENABL, self.enable_delay);
+                        self.enable_delay = 0;
+                    }
+                },
+                REG_ENABL => {
+                    if (self.registers.read(REG_VDELBL) & 0x01) > 0 {
+                        self.enable_delay = byte;
+                    }
+                    else {
+                        self.registers.write(REG_ENABL, byte);
+                    }
+                },
+                REG_VSYNC => {
+                    if (byte & 0x02 == 0) && (self.registers.read(REG_VSYNC) & 0x02) > 0 {
+                        self.scan_line = 2;
+                        let byte = self.registers.read(REG_VBLANK) | 0x02;
+                        self.registers.write(REG_VBLANK, byte);
+                    }
+
+                    self.registers.write(REG_VSYNC, byte);
+                },
+                REG_VBLANK => {
+                    // the scanLine_ > 30 is a hack that seems to work,  Probably a more accurate way to do it
+                    if (byte & 0x02) == 0 && (self.registers.read(REG_VBLANK) & 0x02 > 0) && self.scan_line > 30 {
+                        self.scan_line = 2 + self.v_blank as u16;
+                    }
+                    self.registers.write(REG_VBLANK, byte);
+                },
+                REG_WSYNC => {
+                    self.w_sync_set = true;
+                },
+                REG_RSYNC => {
+                    self.cycle = 0;
+                },
+                REG_RESP0 => {
+                    self.res_p0_cycle = self.cycle + SPRITEOFFSET;
+                    if self.res_p0_cycle < 68 {
+                        self.res_p0_cycle = 71;
+                    }
+                },
+                REG_RESP1 => {
+                    self.res_p1_cycle = self.cycle + SPRITEOFFSET;
+
+                    if self.res_p1_cycle < 68 {
+                        self.res_p1_cycle = 71;
+                    }
+                },
+                REG_RESM0 => {
+                    self.res_m0_cycle = self.cycle + SPRITEOFFSET - 1;
+
+                    if self.res_m0_cycle < 68 {
+                        self.res_m0_cycle = 71;
+                    }
+                },
+                REG_RESM1 => {
+                    self.res_m1_cycle = self.cycle + SPRITEOFFSET - 1;
+
+                    if self.res_m1_cycle < 68 {
+                        self.res_m1_cycle = 71;
+                    }
+                },
+                REG_RESBL => {
+                    self.res_bl_cycle = self.cycle + SPRITEOFFSET;
+
+                    if self.res_bl_cycle < 68 {
+                        self.res_bl_cycle = 71;
+                    }
+                },
+                REG_HMOVE => {
+                    self.apply_movement();
+                },
+                REG_HMCLR => {
+                    self.clear_move_registers();
+                },
+                REG_CXCLR => {
+                    self.registers.write(REG_CXM0P, 0);
+                    self.registers.write(REG_CXM1P, 0);
+                    self.registers.write(REG_CXP0FB, 0);
+                    self.registers.write(REG_CXP1FB, 0);
+                    self.registers.write(REG_CXM0FB, 0);
+                    self.registers.write(REG_CXM1FB, 0);
+                    self.registers.write(REG_CXBLPF, 0);
+                    self.registers.write(REG_CXPPMM, 0);
+                },
+                _ => {
+                    self.registers.write(location, byte);
+                }
+            }
         }
 
         fn move_object(&mut self, mov: u8, object_cycle: u16) -> u16 {
@@ -400,7 +410,7 @@ pub mod vcs {
                 // twos compliment
                 move_value = (move_value as u8 | 0xf8) as i8;
             }
-            let (mut new_value, _overflow) = object_cycle.overflowing_sub(move_value as u16);
+            let mut new_value = object_cycle.overflowing_sub(move_value as u16).0;
 
             if new_value > 68 + self.x_resolution as u16 {
                 new_value = 68;
@@ -432,13 +442,16 @@ pub mod vcs {
             self.registers.write(REG_HMBL, 0);
         }
 
-        fn get_player_pixel(&self, graphics_player: u8, player_size: u8, reflect_player: u8, color: u8, player_cycle: u16) -> i16 {
-            let mut result: i16 = -1;
-            
-            let mut sprite_data: u8 = graphics_player;
-            if sprite_data == 0 {
-                return result;
+        fn get_player_pixel(&self, graphics_player: u8, player_size: u8, reflect_player: u8, 
+            color: u8, player_cycle: u16) -> i16 {
+
+            if graphics_player == 0 {
+                return -1;
             }
+
+            let mut result: i16 = -1;            
+            let mut sprite_data: u8 = graphics_player;
+
             if (reflect_player & 0x08) == 0 {
                 sprite_data = VcsTia::reverse_bits(sprite_data);
             }
@@ -446,47 +459,38 @@ pub mod vcs {
             let mut position2_cycle: u16 = player_cycle;
             let mut position3_cycle: u16 = player_cycle;
             let mut size_multiple: u8 = 1;
-            let size: u8 = player_size;
-            if (size & 0x07) == 0 {
-                size_multiple = 1;
-            }
-            else if (size & 0x07) == 1 {
-                position2_cycle = player_cycle + CLOSE;
-            }
-            else if (size & 0x07) == 2 {
-                position2_cycle = player_cycle + MEDIUM;
-            }
-            else if (size & 0x07) == 3 {
-                position2_cycle = player_cycle + CLOSE;
-                position3_cycle = position2_cycle + CLOSE;
-            }
-            else if (size & 0x07) == 4 {
-                position2_cycle = player_cycle + WIDE;
-            }
-            else if (size & 0x07) == 5 {
-                size_multiple = 2;
-            }
-            else if (size & 0x07) == 6 {
-                position2_cycle = player_cycle + MEDIUM;
-                position3_cycle = position2_cycle + MEDIUM;
-            }
-            else if (size & 0x07) == 7 {
-                size_multiple = 4;
+
+            match player_size & 0x07 {
+                0 => { size_multiple = 1; },
+                1 => { position2_cycle = player_cycle + CLOSE; },
+                2 => { position2_cycle = player_cycle + MEDIUM; },
+                3 => {
+                    position2_cycle = player_cycle + CLOSE;
+                    position3_cycle = position2_cycle + CLOSE;
+                },
+                4 => { position2_cycle = player_cycle + WIDE; },
+                5 => { size_multiple = 2; },
+                6 => {
+                    position2_cycle = player_cycle + MEDIUM;
+                    position3_cycle = position2_cycle + MEDIUM;
+                },
+                7 => { size_multiple = 4; },
+                _ => {}
             }
 
-            let (value, mut _overflow) = self.cycle.overflowing_sub(player_cycle);
+            let value = self.cycle.overflowing_sub(player_cycle).0;
             let mut shift: u32 = (value/ size_multiple as u16) as u32;
             if shift < 8 && (((sprite_data >> shift) & 0x01) > 0) {
                 result = color as i16;
                 return result;
             }
-            let (value2, _overflow) = self.cycle.overflowing_sub(position2_cycle);
+            let value2 = self.cycle.overflowing_sub(position2_cycle).0;
             shift = (value2/ size_multiple as u16) as u32;
             if shift < 8 && (((sprite_data >> shift) & 0x01) > 0) {
                 result = color as i16;
                 return result;
             }
-            let (value3, _overflow) = self.cycle.overflowing_sub(position3_cycle);
+            let value3 = self.cycle.overflowing_sub(position3_cycle).0;
             shift = (value3/ size_multiple as u16) as u32;
             if shift < 8 && (((sprite_data >> shift) & 0x01) > 0) {
                 result = color as i16;
@@ -506,163 +510,134 @@ pub mod vcs {
             if (control_playfield & 0x02) > 0 {
                 if screen_x < 80 {
                     playfield_color = self.registers.read(REG_COLUP0);
-                }
-                else {
+                } else {
                     playfield_color = self.registers.read(REG_COLUP1);
                 }
             }
 
-            if screen_x < 16 {
-                byte = (self.registers.read(REG_PF0) >> 4) & 0x0f;
-                byte = (byte >> (screen_x >> 2)) & 0x01;
-                if byte > 0 {
-                    result = playfield_color as i16;
+            match (screen_x, control_playfield & 0x01 > 0) {
+                (..16, _) => {
+                    byte = (self.registers.read(REG_PF0) >> 4) & 0x0f;
+                    byte = (byte >> (screen_x >> 2)) & 0x01;
+                },
+                (16..48, _) => {
+                    byte = self.registers.read(REG_PF1);
+                    byte = VcsTia::reverse_bits(byte);
+                    byte = (byte >> ((screen_x - 16) >> 2)) & 0x01;
+                },
+                (48..80, _) => {
+                    byte = self.registers.read(REG_PF2);
+                    byte = (byte >> ((screen_x - 48) >> 2)) & 0x01;
+                },
+                (80..112, true) => {
+                    byte = self.registers.read(REG_PF2);
+                    byte = VcsTia::reverse_bits(byte);
+                    byte = (byte >> ((screen_x - 80) >> 2)) & 0x01;
+                },
+                (112..144, true) => {
+                    byte = self.registers.read(REG_PF1);
+                    byte = (byte >> ((screen_x - 112) >> 2)) & 0x01;
+                },
+                (144.., true) => {
+                    byte = (self.registers.read(REG_PF0) >> 4) & 0x0f;
+                    byte = VcsTia::reverse_bits(byte) >> 4;
+                    byte = (byte >> ((screen_x - 144) >> 2)) & 0x01;
+                },
+                (80..96, false) => {
+                    byte = (self.registers.read(REG_PF0) >> 4) & 0x0f;
+                    byte = (byte >> ((screen_x - 80) >> 2)) & 0x01;
+                },
+                (96..128, false) => {
+                    byte = self.registers.read(REG_PF1);
+                    byte = VcsTia::reverse_bits(byte);
+                    byte = (byte >> ((screen_x - 96) >> 2)) & 0x01;
+                },
+                (128.., false) => {
+                    byte = self.registers.read(REG_PF2);
+                    byte = (byte >> ((screen_x - 128) >> 2)) & 0x01;
                 }
             }
-            else if screen_x < 48 {
-                byte = self.registers.read(REG_PF1);
-                byte = VcsTia::reverse_bits(byte);
-                let shift: u8 = ((screen_x - 16) >> 2) as u8;
-                byte = (byte >> shift) & 0x01;
-                if byte > 0 {
-                    result = playfield_color as i16;
-                }
-            }
-            else if screen_x < 80 {
-                byte = self.registers.read(REG_PF2);
-                let shift: u8 = ((screen_x - 48) >> 2) as u8;
-                byte = (byte >> shift) & 0x01;
-                if byte > 0 {
-                    result = playfield_color as i16;
-                }
-            }
-            if screen_x >= 80 {
-                if control_playfield & 0x01 > 0 {
-                    if screen_x < 112 {
-                        byte = self.registers.read(REG_PF2);
-                        byte = VcsTia::reverse_bits(byte);
-                        let shift: u8 = ((screen_x - 80) >> 2) as u8;
-                        byte = (byte >> shift) & 0x01;
-                        if byte > 0 {
-                            result = playfield_color as i16;
-                        }
-                    }
-                    else if screen_x < 144 {
-                        byte = self.registers.read(REG_PF1);
-                        let shift: u8 = ((screen_x - 112) >> 2) as u8;
-                        byte = (byte >> shift) & 0x01;
-                        if byte > 0 {
-                            result = playfield_color as i16;
-                        }
-                    }
-                    else if screen_x <= self.x_resolution as u16{
-                        byte = (self.registers.read(REG_PF0) >> 4) & 0x0f;
-                        byte = VcsTia::reverse_bits(byte) >> 4;
-                        let shift: u8 = ((screen_x - 144) >> 2) as u8;
-                        byte = (byte >> shift) & 0x01;
-                        if byte > 0 {
-                            result = playfield_color as i16;
-                        }
-                    }
-                }
-                else {
-                    if screen_x < 96 {
-                        byte = (self.registers.read(REG_PF0) >> 4) & 0x0f;
-                        let shift: u8 = ((screen_x - 80) >> 2) as u8;
-                        byte = (byte >> shift) & 0x01;
-                        if byte > 0 {
-                            result = playfield_color as i16;
-                        }
-                    }
-                    else if screen_x < 128 {
-                        byte = self.registers.read(REG_PF1);
-                        byte = VcsTia::reverse_bits(byte);
-                        let shift: u8 = ((screen_x - 96) >> 2) as u8;
-                        byte = (byte >> shift) & 0x01;
-                        if byte > 0 {
-                            result = playfield_color as i16;
-                        }
-                    }
-                    else if screen_x < self.x_resolution as u16 {
-                        byte = self.registers.read(REG_PF2);
-                        let shift: u8 = ((screen_x - 128) >> 2) as u8;
-                        byte = (byte >> shift) & 0x01;
-                        if byte > 0 {
-                            result = playfield_color as i16;
-                        }                
-                    }
-                }
-            }
+
+            if byte > 0 {
+                result = playfield_color as i16;
+            }                
             
             result
         }
 
-        fn get_missle_pixel(&mut self, enable: u8, missle_reset: u8, missle_size: u8, missle_color: u8, missle_cycle: u16) -> i16 {
-            let mut result: i16 = -1;
+        fn get_missle_pixel(&mut self, enable: u8, missle_reset: u8, missle_size: u8, 
+            missle_color: u8, missle_cycle: u16) -> i16 {
             
-            if (enable & 0x02) > 0 && (missle_reset & 0x02) == 0 {
-                let mut position_2_cycle: u16 = missle_cycle;
-                let mut position_3_cycle: u16 = missle_cycle;
-                let mut size: u8 = missle_size;
+            if enable & 0x02 == 0 || missle_reset & 0x02 != 0 {
+                return -1;
+            }
 
-                if size & 0x07 == 1 {
+            let mut result: i16 = -1;            
+            let mut position_2_cycle: u16 = missle_cycle;
+            let mut position_3_cycle: u16 = missle_cycle;
+            let mut size: u8 = missle_size;
+
+            match size & 0x07 {
+                1 => {
                     position_2_cycle = missle_cycle + CLOSE;
-                }
-                else if size & 0x07 == 2 {
+                },
+                2 => {
                     position_2_cycle = missle_cycle + MEDIUM;
-                }
-                else if size & 0x07 == 3 {
+                },
+                3 => {
                     position_2_cycle = missle_cycle + CLOSE;
                     position_3_cycle = missle_cycle + MEDIUM;
-                }
-                else if size & 0x07 == 4 {
+                },
+                4 => {
                     position_2_cycle = missle_cycle + WIDE;
-                }
-                else if size & 0x07 == 6 {
+                },
+                6 => {
                     position_2_cycle = missle_cycle + MEDIUM;
                     position_3_cycle = missle_cycle + WIDE;
-                }
-                size = (size & 0x30) >> 4;
+                },
+                _ => {}
+            }
 
-                match size {
-                    0 => size = 1,
-                    1 => size = 2,
-                    2 => size = 4,
-                    3 => size = 8,
-                    _ => ()
-                }
+            match (size & 0x30) >> 4 {
+                0 => size = 1,
+                1 => size = 2,
+                2 => size = 4,
+                3 => size = 8,
+                _ => ()
+            }
 
-                if missle_cycle <= self.cycle && missle_cycle + size as u16 > self.cycle {
-                    result  = missle_color as i16;
-                }
-                if position_2_cycle <= self.cycle && position_2_cycle + size as u16 > self.cycle {
-                    result  = missle_color as i16;
-                }
-                if position_3_cycle <= self.cycle && position_3_cycle + size as u16 > self.cycle {
-                    result  = missle_color as i16;
-                }
+            if missle_cycle <= self.cycle && missle_cycle + size as u16 > self.cycle {
+                result  = missle_color as i16;
+            }
+            if position_2_cycle <= self.cycle && position_2_cycle + size as u16 > self.cycle {
+                result  = missle_color as i16;
+            }
+            if position_3_cycle <= self.cycle && position_3_cycle + size as u16 > self.cycle {
+                result  = missle_color as i16;
             }
 
             result
         }
 
         fn get_ball_pixel(&mut self) -> i16{
+
+            if self.registers.read(REG_ENABL) & 0x02 == 0 {
+                return -1;
+            }
+
             let mut result: i16 = -1;
             
-            if self.registers.read(REG_ENABL) & 0x02 > 0 {
-                let mut size: u8 = self.registers.read(REG_CTRLPF);
-                size = (size & 0x30) >> 4;
-                match size {
-                    1 => size = 1,
-                    2 => size = 2,
-                    4 => size = 4,
-                    8 => size = 8,
-                    _ => ()
-                }
+            let mut size: u8 = self.registers.read(REG_CTRLPF);
+            match (size & 0x30) >> 4 {
+                1 => size = 1,
+                2 => size = 2,
+                4 => size = 4,
+                8 => size = 8,
+                _ => ()
+            }
 
-                if self.res_bl_cycle <= self.cycle && self.res_bl_cycle + size as u16 >= self.cycle {
-                    result = self.registers.read(REG_COLUPF) as i16;
-                }
+            if self.res_bl_cycle <= self.cycle && self.res_bl_cycle + size as u16 >= self.cycle {
+                result = self.registers.read(REG_COLUPF) as i16;
             }
             
             result
@@ -676,47 +651,42 @@ pub mod vcs {
             
             // Playfield
             let playfield_pixel: i16 = self.get_playfield_pixel();
-            let mut pf_above: bool = false;
-            if self.registers.read(REG_CTRLPF) & 0x04 > 0 {
-                pf_above = true;
-            }
+            let pf_above: bool = self.registers.read(REG_CTRLPF) & 0x04 > 0;
             
             // Get each pixel for collision detection
+            // Player 0
             let mut graphics_player = self.registers.read(REG_GRP0);
             let mut player_size = self.registers.read(REG_NUSIZ0);
             let mut reflect_player = self.registers.read(REG_REFP0);
             let mut color = self.registers.read(REG_COLUP0);
             let p0_pixel: i16 = self.get_player_pixel(graphics_player, player_size, reflect_player, color, self.res_p0_cycle);
+           
+            // Player 1
             graphics_player = self.registers.read(REG_GRP1);
             player_size = self.registers.read(REG_NUSIZ1);
             reflect_player = self.registers.read(REG_REFP1);
             color = self.registers.read(REG_COLUP1);
             let p1_pixel: i16 = self.get_player_pixel(graphics_player, player_size, reflect_player, color, self.res_p1_cycle);
+           
+            // Missle 0
             let mut enable = self.registers.read(REG_ENAM0);
             let mut missle_reset = self.registers.read(REG_RESM0);
             let mut missle_size = self.registers.read(REG_NUSIZ0);
             let mut missle_color = self.registers.read(REG_COLUP0);
             let m0_pixel: i16 = self.get_missle_pixel(enable, missle_reset, missle_size, missle_color, self.res_m0_cycle);
+           
+            // Missle 1
             enable = self.registers.read(REG_ENAM1);
             missle_reset = self.registers.read(REG_RESM1);
             missle_size = self.registers.read(REG_NUSIZ1);
             missle_color = self.registers.read(REG_COLUP1);
             let m1_pixel: i16 = self.get_missle_pixel(enable, missle_reset, missle_size, missle_color, self.res_m1_cycle);
+           
+            // Ball
             let ball_pixel: i16 = self.get_ball_pixel();
             
             let current_pixel: usize = (screen_y * self.x_resolution as u16 + screen_x) as usize;
 
-            // Don't display pixel if PF has priority and is set
-            if pf_above {                
-                // Ball
-                if ball_pixel >= 0 && current_color == -1 {
-                    current_color = ball_pixel;
-                }
-                // Playfield
-                if playfield_pixel >= 0 && current_color == -1 {
-                    current_color = playfield_pixel;
-                }
-            }
             // P0
             if p0_pixel >= 0 && current_color == -1 {
                 current_color = p0_pixel;
@@ -735,15 +705,23 @@ pub mod vcs {
                 current_color = m1_pixel;
             }
 
-            // Ball
-            if ball_pixel >= 0 && current_color == -1 {
-                current_color = ball_pixel;
-            }
-
             // Playfield
             if playfield_pixel >= 0 && current_color == -1 {
                 current_color = playfield_pixel;
             }
+
+            // Ball
+            if ball_pixel >= 0 && current_color == -1 {
+                current_color = ball_pixel;
+            }
+            // Don't display pixel if PF has priority and is set
+            if pf_above {                
+                // Playfield
+                if playfield_pixel >= 0 {//&& current_color == ball_pixel {
+                    current_color = playfield_pixel;
+                }
+            }
+
             // Background
             if current_color == -1 {
                 current_color = background as i16;
@@ -757,117 +735,31 @@ pub mod vcs {
             self.check_collisions(playfield_pixel, p0_pixel, p1_pixel, m0_pixel, m1_pixel, ball_pixel);
         }
 
+        fn check_single_collision(&mut self, aggressor_pixel: i16, first_target_pixel: i16,
+            second_target_pixel: i16, register: u16) {
+            let mut collision: u8 = self.registers.read(register);
+            if aggressor_pixel >= 0 && first_target_pixel >= 0 {
+                collision |= 0x80;
+            }
+            if aggressor_pixel >= 0 && second_target_pixel >= 0 {
+                collision |= 0x40;
+            }
+            self.registers.write(register, collision);
+        }
+
         fn check_collisions(&mut self, playfield_pixel: i16, p0_pixel: i16, p1_pixel: i16, 
             m0_pixel: i16, m1_pixel: i16, ball_pixel: i16) {
+
             // Collisions
-            let mut collision: u8 = self.registers.read(REG_CXM0P);
-
-            if m0_pixel >= 0 && p1_pixel >= 0 {
-                collision |= 0x80;
-            }
-            if m0_pixel >= 0 && p0_pixel >= 0 {
-                collision |= 0x40;
-            }
-            self.registers.write(REG_CXM0P, collision);
-
-            collision = self.registers.read(REG_CXM1P);
-            if m1_pixel >= 0 && p0_pixel >= 0 {
-                collision |= 0x80;
-            }
-            if m1_pixel >= 0 && p1_pixel >= 0 {
-                collision |= 0x40;
-            }
-            self.registers.write(REG_CXM1P, collision);
-
-            collision = self.registers.read(REG_CXP0FB);
-            if p0_pixel >= 0 && playfield_pixel >= 0 {
-                collision |= 0x80;
-            }
-            if p0_pixel >= 0 && ball_pixel >= 0 {
-                collision |= 0x40;
-            }
-            self.registers.write(REG_CXP0FB, collision);
-
-            collision = self.registers.read(REG_CXP1FB);
-            if p1_pixel >= 0 && playfield_pixel >= 0 {
-                collision |= 0x80;
-            }
-            if p1_pixel >= 0 && ball_pixel >= 0 {
-                collision |= 0x40;
-            }
-            self.registers.write(REG_CXP1FB, collision);
-            
-            collision = self.registers.read(REG_CXM0FB);
-            if m0_pixel >= 0 && playfield_pixel >= 0 {
-                collision |= 0x80;
-            }
-            if m0_pixel >= 0 && ball_pixel >= 0 {
-                collision |= 0x40;
-            }
-            self.registers.write(REG_CXM0FB, collision);
-
-            collision = self.registers.read(REG_CXM1FB);
-            if m1_pixel >= 0 && playfield_pixel >= 0 {
-                collision |= 0x80;
-            }
-            if m1_pixel >= 0 && ball_pixel >= 0 {
-                collision |= 0x40;
-            }
-            self.registers.write(REG_CXM1FB, collision);
-            
-            collision = self.registers.read(REG_CXBLPF);
-            if ball_pixel >= 0 && playfield_pixel >= 0 {
-                collision |= 0x80;
-            }
-            self.registers.write(REG_CXBLPF, collision);
-
-            collision = self.registers.read(REG_CXPPMM);
-            if p0_pixel >= 0 && p1_pixel >= 0 {
-                collision |= 0x80;
-            }
-            if m0_pixel >= 0 && m1_pixel >= 0 {
-                collision |= 0x40;
-            }
-            self.registers.write(REG_CXPPMM, collision);
-        }
-
-        pub fn is_cpu_blocked(&self) -> bool {
-            let mut result: bool = false;
-
-            if self.w_sync_set {
-                result = true;
-            }
-
-            result
-        }
-
-        pub fn get_tia_audio(&mut self) -> TiaAudio {
-            TiaAudio { 
-                v0: self.registers.read(REG_AUDV0),
-                f0: self.registers.read(REG_AUDF0),
-                c0: self.registers.read(REG_AUDC0),
-                v1: self.registers.read(REG_AUDV1),
-                f1: self.registers.read(REG_AUDF1),
-                c1: self.registers.read(REG_AUDC1)}
-        }
-
-        pub fn get_audio_c0(&mut self) -> u8 {
-            self.registers.read(REG_AUDC0)
-        }
-        pub fn get_audio_c1(&mut self) -> u8 {
-            self.registers.read(REG_AUDC1)
-        }
-        pub fn get_audio_f0(&mut self) -> u8 {
-            self.registers.read(REG_AUDF0)
-        }
-        pub fn get_audio_f1(&mut self) -> u8 {
-            self.registers.read(REG_AUDF1)
-        }
-        pub fn get_audio_v0(&mut self) -> u8 {
-            self.registers.read(REG_AUDV0)
-        }
-        pub fn get_audio_v1(&mut self) -> u8 {
-            self.registers.read(REG_AUDV1)
+            self.check_single_collision(m0_pixel, p1_pixel, p0_pixel, REG_CXM0P);
+            self.check_single_collision(m1_pixel, p0_pixel, p1_pixel, REG_CXM1P);
+            self.check_single_collision(p0_pixel, playfield_pixel, ball_pixel, REG_CXP0FB);
+            self.check_single_collision(p1_pixel, playfield_pixel, ball_pixel, REG_CXP1FB);
+            self.check_single_collision(m0_pixel, playfield_pixel, ball_pixel, REG_CXM0FB);
+            self.check_single_collision(m1_pixel, playfield_pixel, ball_pixel, REG_CXM1FB);
+            self.check_single_collision(ball_pixel, playfield_pixel, -1, REG_CXBLPF);
+            self.check_single_collision(p0_pixel, p1_pixel, -1, REG_CXPPMM);
+            self.check_single_collision(m0_pixel, -1, m1_pixel, REG_CXPPMM);
         }
 
         fn reverse_bits(n: u8) -> u8 {

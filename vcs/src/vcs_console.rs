@@ -97,7 +97,6 @@ pub mod vcs {
                 
                 if self.total_ticks.is_multiple_of(3) {
 
-                    self.vcs_tia.execute_addr(&mut self.addr);
                     self.vcs_riot.execute_tick(&mut self.addr);
 
                     if !self.vcs_tia.is_cpu_blocked() {
@@ -105,7 +104,6 @@ pub mod vcs {
                     }
                 }
 
-                self.vcs_tia.repaint();
                 self.total_ticks = self.total_ticks.overflowing_add(1).0;
                 frame_ticks += 1;
             }

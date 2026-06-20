@@ -72,34 +72,28 @@ pub mod vcs {
         // up + down -
         pub fn left_controller_up_down(&mut self, value : i8) {
             let mut byte: u8 = self.riot_ram.read(REG_SWCHA);
+            byte |= 0x30;
+
             if value < 0 {
-                byte |= 0x30;
                 byte &= 0xDF;
-            }
-            else if value > 0 {
-                byte |= 0x30;
+            } else if value > 0 {
                 byte &= 0xEF;
             }
-            else if value == 0 {
-                byte |= 0x30;
-            }
+
             self.riot_ram.write(REG_SWCHA, byte);
         }
            
         // left + right -
         pub fn left_controller_left_right(&mut self, value : i8) {
             let mut byte: u8 = self.riot_ram.read(REG_SWCHA);
+            byte |= 0xC0;
+
             if value < 0 {
-                byte |= 0xC0;
                 byte &= 0xBF;
-            }
-            else if value > 0 {
-                byte |= 0xC0;
+            } else if value > 0 {
                 byte &= 0x7F;
             }
-            else if value == 0 {
-                byte |= 0xC0;
-            }
+
             self.riot_ram.write(REG_SWCHA, byte);
         }
 
@@ -109,8 +103,7 @@ pub mod vcs {
 
             if addr.write {
                 if location & 0x1280 == 0x0080 {
-                    location &= 0x7F;
-                    self.write_ram(location, addr.byte);
+                    self.system_ram.write(location & 0x7F, addr.byte);
                     addr.write = false;
                 }
                 else if location & 0x1280 == 0x0280 {
@@ -126,8 +119,7 @@ pub mod vcs {
                 }
             } else {
                 if location & 0x1280 == 0x0080 {
-                    location &= 0x7F;
-                    addr.byte = self.read_ram(location)
+                    addr.byte = self.system_ram.read(location & 0x7F)
                 }
                 else if location & 0x1280 == 0x0280 {
                     location &= 0x1F;
@@ -139,6 +131,7 @@ pub mod vcs {
             }
  
             self.step_count += 1;
+
             if self.step_count < self.step {
                 return;
             }
@@ -150,16 +143,15 @@ pub mod vcs {
             timer = new_timer;
             if overflow {
                 timer = 0;
-                let mut status_byte: u8 = self.system_ram.read(REG_INSTAT);
-                status_byte |= 0xFF;
-                self.riot_ram.write(REG_INSTAT, status_byte);
+                let status_byte: u8 = self.system_ram.read(REG_INSTAT);
+                self.riot_ram.write(REG_INSTAT, status_byte | 0xFF);
                 self.step = 1;
                 self.overflow_tick = true;
             }            
             self.riot_ram.write(REG_INTIM, timer);
         }
 
-        pub fn read(&mut self, location: u16) -> u8 {
+        fn read(&mut self, location: u16) -> u8 {
 
             if location == REG_INTIM {
                 self.clear_timnnt_underflow();
@@ -182,60 +174,40 @@ pub mod vcs {
             self.riot_ram.read(location)
         }
 
-        pub fn write(&mut self, location: u16, byte: u8) {
+        fn write(&mut self, location: u16, byte: u8) {
 
             let (byte_minus_1, _overflow) = byte.overflowing_sub(1);
 
-            if location == REG_TIMI1T {
+            if matches!(location, REG_TIMI1T | REG_TIM8T | REG_TIM64T | REG_T1024T) {
                 self.clear_timnnt_underflow();
                 self.riot_ram.write(REG_INTIM, byte_minus_1);
-                self.step = 1;
                 self.step_count = 0;
-            }
-            else if location == REG_TIM8T {
-                self.clear_timnnt_underflow();
-                self.riot_ram.write(REG_INTIM, byte_minus_1);
-                self.step = 8;
-                self.step_count = 0;
-            } else if location == REG_TIM64T {
-                self.clear_timnnt_underflow();
-                self.riot_ram.write(REG_INTIM, byte_minus_1);
-                self.step = 64;
-                self.step_count = 0;
-            }
-            else if location == REG_T1024T {
-                self.clear_timnnt_underflow();
-                self.riot_ram.write(REG_INTIM, byte_minus_1);
-                self.step = 1024;
-                self.step_count = 0;
+
+                match location {
+                    REG_TIMI1T => { self.step = 1; },
+                    REG_TIM8T => { self.step = 8; },
+                    REG_TIM64T => { self.step = 64; },
+                    REG_T1024T => { self.step = 1024; },
+                    _ => {}
+                }
             }
 
             self.riot_ram.write(location, byte);
         }
 
-        pub fn read_ram(&mut self, location: u16) -> u8 {
-            self.system_ram.read(location)
-        }
-        
-        pub fn write_ram(&mut self, location: u16, byte: u8) {
-            self.system_ram.write(location, byte);
-        }
-
         fn clear_instat_underflow(&mut self)
         {
             if !self.overflow_tick {
-                let mut status_byte: u8 = self.system_ram.read(REG_INSTAT);
-                status_byte &= 0xBF;
-                self.riot_ram.write(REG_INSTAT, status_byte);
+                let status_byte: u8 = self.system_ram.read(REG_INSTAT);
+                self.riot_ram.write(REG_INSTAT, status_byte & 0xBF);
             }
         }
         
         fn clear_timnnt_underflow(&mut self)
         {
             if !self.overflow_tick {
-                let mut status_byte: u8 = self.system_ram.read(REG_INSTAT);
-                status_byte &= 0x7F;
-                self.riot_ram.write(REG_INSTAT, status_byte);
+                let status_byte: u8 = self.system_ram.read(REG_INSTAT);
+                self.riot_ram.write(REG_INSTAT, status_byte & 0x7F);
             }
         }
 
