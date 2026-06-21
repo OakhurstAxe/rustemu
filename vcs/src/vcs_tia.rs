@@ -568,7 +568,7 @@ pub mod vcs {
         fn get_missle_pixel(&mut self, enable: u8, missle_reset: u8, missle_size: u8, 
             missle_color: u8, missle_cycle: u16) -> i16 {
             
-            if enable & 0x02 == 0 || missle_reset & 0x02 != 0 {
+            if (enable & 0x02) == 0 || (missle_reset & 0x02) != 0 {
                 return -1;
             }
 

@@ -50,7 +50,7 @@ pub mod emu_cpu{
         fn new () -> N6502 {
             Self {
                 program_counter: 0,
-                stack_pointer_page: 0,
+                stack_pointer_page: 0x100,
                 stack_pointer: 0,
                 accumulator: 0,
                 register_x: 0,
@@ -64,7 +64,13 @@ pub mod emu_cpu{
     }
 
     #[derive(PartialEq)]
-    enum RunnerStep {
+    pub enum M6502Version {
+        AtariVcs,
+        Nes
+    }
+
+    #[derive(PartialEq)]
+    enum M6502RunnerStep {
         ReadPc,
         AddressStep,
         AddressStepLoadByte,
@@ -72,12 +78,12 @@ pub mod emu_cpu{
         OpCodeWrite,
     }
 
-    pub struct Runner {
+    pub struct M6502Runner {
         cpu: N6502,
         op_code: u16,
         op_step: u8,
         address_step: u8,
-        runner_step: RunnerStep,
+        runner_step: M6502RunnerStep,
         is_reset_set: bool,
         op_code_lookup: Vec<Box<dyn CpuOperation>>,
         address_method_lookup: Vec<Box<dyn AddressMethod>>,
@@ -85,20 +91,20 @@ pub mod emu_cpu{
         _debug: u8,
     }
 
-    impl Default for Runner {
-        fn default() -> Self {
-            Runner::new()
-        }
-    }
-    
-    impl Runner {
-        pub fn new () -> Runner {
+    impl M6502Runner {
+        pub fn new (version: M6502Version) -> M6502Runner {
+
+            let mut cpu = N6502::new();
+            if version == M6502Version::AtariVcs {
+                cpu.stack_pointer_page = 0x00;
+            }
+
             Self {
-                cpu: N6502::new(),
+                cpu,
                 op_code: 0x100,
                 op_step: 0,
                 address_step: 0,
-                runner_step: RunnerStep::ReadPc,
+                runner_step: M6502RunnerStep::ReadPc,
                 is_reset_set: true,
                 op_code_lookup: OpCodesUtils::get_opcodes(),
                 address_method_lookup: AddressOpCodes::get_address_methods(),
@@ -109,21 +115,20 @@ pub mod emu_cpu{
 
         pub fn execute_tick(&mut self, addr: &mut AddressBus) {
             
-
-            if self.runner_step == RunnerStep::AddressStepLoadByte {
+            if self.runner_step == M6502RunnerStep::AddressStepLoadByte {
                 self.cpu.lookup_address.byte = addr.byte;
-                self.runner_step = RunnerStep::OpCodeStep;
+                self.runner_step = M6502RunnerStep::OpCodeStep;
             }
 
             // Geting new op code
-            if self.runner_step == RunnerStep::ReadPc {
+            if self.runner_step == M6502RunnerStep::ReadPc {
                 addr.is_accumulator = false;
                 if self.is_reset_set {
                     self.op_code = 0x100;
-                    self.runner_step = RunnerStep::OpCodeStep;
+                    self.runner_step = M6502RunnerStep::OpCodeStep;
                     self.is_reset_set = false;
                 } else {
-                    self.runner_step = RunnerStep::AddressStep;
+                    self.runner_step = M6502RunnerStep::AddressStep;
                     //print!("PC: {:x}, opcode: {:x} tickcount: {}\n", self.cpu.program_counter, self.op_code, self.tick_count);
                     self.op_code = addr.byte as u16;
                     self.cpu.program_counter += 1;
@@ -134,34 +139,34 @@ pub mod emu_cpu{
             self.tick_count += 1;
 
             // Calling address/op tick
-            if self.runner_step == RunnerStep::AddressStep {
+            if self.runner_step == M6502RunnerStep::AddressStep {
                 if self.address_method_lookup[self.op_code as usize].execute(&mut self.cpu, addr, self.address_step) {
                     self.address_step = 0;
-                    self.runner_step = RunnerStep::AddressStepLoadByte;
+                    self.runner_step = M6502RunnerStep::AddressStepLoadByte;
                 } else {
                     self.address_step += 1;
                 }
             } 
 
-            if self.runner_step == RunnerStep::AddressStepLoadByte && self.op_code_lookup[self.op_code as usize].needs_addr_byte() == false {
+            if self.runner_step == M6502RunnerStep::AddressStepLoadByte && self.op_code_lookup[self.op_code as usize].needs_addr_byte() == false {
                 self.cpu.lookup_address.byte = addr.byte;
-                self.runner_step = RunnerStep::OpCodeStep;
+                self.runner_step = M6502RunnerStep::OpCodeStep;
             }
 
-            if self.runner_step == RunnerStep::OpCodeStep {
+            if self.runner_step == M6502RunnerStep::OpCodeStep {
                 if self.op_code_lookup[self.op_code as usize].execute(&mut self.cpu, addr, self.op_step) {
                     self.op_step = 0;
-                    self.runner_step = RunnerStep::OpCodeWrite;
+                    self.runner_step = M6502RunnerStep::OpCodeWrite;
                 } else {
                     self.op_step += 1;
                 }
             } 
 
-            if self.runner_step == RunnerStep::OpCodeWrite && addr.write == false {
+            if self.runner_step == M6502RunnerStep::OpCodeWrite && addr.write == false {
                 if self.cpu.program_counter < 0xf000 {
                     print!("error");
                 }
-                self.runner_step = RunnerStep::ReadPc;
+                self.runner_step = M6502RunnerStep::ReadPc;
                 addr.address = self.cpu.program_counter;
             }
 

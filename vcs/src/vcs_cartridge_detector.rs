@@ -13,7 +13,7 @@ pub mod vcs {
     impl VcsCartridgeDetector {
 
         pub fn detect_cartridge(vcs_parameters: &crate::vcs_parameters::vcs::VcsParameters) 
-            -> Box<dyn VcsCartridge + Send + Sync> {
+            -> Box<dyn VcsCartridge> {
 
             let image = vcs_parameters.cart_data.clone();
             let size = image.len();

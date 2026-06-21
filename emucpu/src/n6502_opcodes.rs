@@ -859,8 +859,7 @@ pub mod nopcodes {
     struct CpuOpReset {}
     impl CpuOperation for CpuOpReset {
         fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
-            cpu.stack_pointer_page = 0x100;  // should be 0100 but is 0x00 for atari
-            cpu.stack_pointer = 0xfd;
+            cpu.stack_pointer = 0xff;
             cpu.accumulator = 0;
             cpu.register_x = 0;
             cpu.register_y = 0;

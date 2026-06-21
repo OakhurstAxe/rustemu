@@ -4,7 +4,7 @@ pub mod vcs {
     use emumemory::prelude::*;
     use emucpu::prelude::*;
 
-    pub trait VcsCartridge: BaseMemory {
+    pub trait VcsCartridge: BaseMemory + Send + Sync {
         
         fn read_a13(&mut self, location: u16, a13set: bool) -> u8;
 

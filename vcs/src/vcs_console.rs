@@ -20,10 +20,10 @@ pub mod vcs {
         vcs_riot: VcsRiot,
         vcs_tia: VcsTia,
         vcs_audio: VcsAudio,
-        vcs_cartridge: Box<dyn VcsCartridge + Send + Sync>,
+        vcs_cartridge: Box<dyn VcsCartridge>,
         console_type: VcsConsoleType,
         total_ticks: u32,
-        cpu_runner: Runner,
+        cpu_runner: M6502Runner,
         addr: AddressBus,
         inframe: RwLock<bool>,
     }
@@ -37,7 +37,7 @@ pub mod vcs {
             let console_type: VcsConsoleType = VcsConsoleType::new(parameters.console_type);
             let vcs_riot: VcsRiot = VcsRiot::new();
             let vcs_tia: VcsTia = VcsTia::new(&console_type);
-            let vcs_cartridge: Box<dyn VcsCartridge + Send + Sync> = VcsCartridgeDetector::detect_cartridge(&parameters);
+            let vcs_cartridge: Box<dyn VcsCartridge> = VcsCartridgeDetector::detect_cartridge(&parameters);
             let frames_per_second = console_type.get_frames_per_second();
             let vcs_audio: VcsAudio = VcsAudio::new(frames_per_second);
 
@@ -48,7 +48,7 @@ pub mod vcs {
                 vcs_cartridge,
                 console_type,
                 total_ticks: 0,
-                cpu_runner: Runner::new(),
+                cpu_runner: M6502Runner::new(M6502Version::AtariVcs),
                 addr: AddressBus { address: 0 , write: false, byte: 0, is_accumulator: false },
                 inframe: RwLock::new(false),
             };
