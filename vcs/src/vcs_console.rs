@@ -6,21 +6,21 @@ pub mod vcs {
 
     use emucpu::prelude::*;
     
-    //use crate::vcs_audio_channel::vcs::{NTSC_SAMPLES_PER_FRAME, PAL_SAMPLES_PER_FRAME};
     use crate::vcs_parameters::vcs::VcsParameters;
     use crate::vcs_console_type::vcs::VcsConsoleType;
     use crate::vcs_riot::vcs::VcsRiot;
     use crate::vcs_tia::vcs::VcsTia;
     use crate::vcs_audio::vcs::VcsAudio;
 
-    use crate::vcs_cartridge::vcs::VcsCartridge;
+    use crate::vcs_cartridge::vcs::{VcsCartridge, VcsCartridgeMapper};
     use crate::vcs_cartridge_detector::vcs::VcsCartridgeDetector;
 
     pub struct VcsConsole {
         vcs_riot: VcsRiot,
         vcs_tia: VcsTia,
         vcs_audio: VcsAudio,
-        vcs_cartridge: Box<dyn VcsCartridge>,
+        vcs_cartridge: VcsCartridge,
+        vcs_cartridge_mapper: Box<dyn VcsCartridgeMapper>,
         console_type: VcsConsoleType,
         total_ticks: u32,
         cpu_runner: M6502Runner,
@@ -32,12 +32,15 @@ pub mod vcs {
 
         pub fn new (rom_file: String) -> VcsConsole{
 
-            let rom = fs::read(rom_file);
-            let parameters: VcsParameters = VcsParameters::new(rom.unwrap());
+            let rom = match fs::read(rom_file) {
+                Ok(rom) => rom,
+                Err(e) => panic!("Couldn't read ROM file! {}", e)
+            };
+            let parameters: VcsParameters = VcsParameters::new();
             let console_type: VcsConsoleType = VcsConsoleType::new(parameters.console_type);
             let vcs_riot: VcsRiot = VcsRiot::new();
             let vcs_tia: VcsTia = VcsTia::new(&console_type);
-            let vcs_cartridge: Box<dyn VcsCartridge> = VcsCartridgeDetector::detect_cartridge(&parameters);
+            let vcs_cartridge: VcsCartridge = VcsCartridge::new(&rom);
             let frames_per_second = console_type.get_frames_per_second();
             let vcs_audio: VcsAudio = VcsAudio::new(frames_per_second);
 
@@ -46,6 +49,7 @@ pub mod vcs {
                 vcs_tia,
                 vcs_audio,
                 vcs_cartridge,
+                vcs_cartridge_mapper: VcsCartridgeDetector::detect_cartridge(&rom),
                 console_type,
                 total_ticks: 0,
                 cpu_runner: M6502Runner::new(M6502Version::AtariVcs),
@@ -58,8 +62,6 @@ pub mod vcs {
         }
 
         fn start_up(&mut self) {
-            //self.vcs_audio.write().unwrap().setup();
-            //self.cpu.reset();
             self.vcs_riot.reset();
             self.vcs_tia.reset();
 
@@ -92,7 +94,7 @@ pub mod vcs {
 
             while frame_ticks < self.console_type.get_ticks_per_frame() {
                 
-                self.vcs_cartridge.execute_tick(&mut self.addr);
+                self.vcs_cartridge_mapper.execute_tick(&self.vcs_cartridge, &mut self.addr);
                 self.vcs_tia.execute_tick(&mut self.addr);
                 
                 if self.total_ticks.is_multiple_of(3) {

@@ -2,11 +2,35 @@
 
 pub mod vcs {
 
-    use emumemory::prelude::*;
+   use emucpu::prelude::*;
 
-    use crate::vcs_cartridge::vcs::VcsCartridge;
+    use crate::vcs_cartridge::vcs::{VcsCartridge, VcsCartridgeMapper};
 
+    pub struct VcsCartridgeF8 {
+    }
 
+    impl VcsCartridgeMapper for VcsCartridgeF8 {
+
+        fn execute_tick(&mut self, cart: &VcsCartridge, addr: &mut AddressBus) {
+
+            let mut location = addr.address & 0x1FFF;
+            let address_range = 0x1000..0x2000;
+
+            if addr.write {
+                if address_range.contains(&location) {
+                    eprintln!("Cannot write to VCS standard cartridges");
+                }
+            }
+            else {
+                if address_range.contains(&location) {
+                    location -= 0x1000;
+                    let a_13_set = (0x2000 & location) > 0;
+                    addr.byte = cart.memory[location as usize];
+                }
+            }
+        }
+    }    
+/*
     pub struct VcsCartridgeF8 {
         pub memory: Vec<u8>,
         pub name: String,
@@ -76,5 +100,5 @@ pub mod vcs {
         }
 
     }
-
+ */
 }

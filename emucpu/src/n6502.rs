@@ -163,9 +163,6 @@ pub mod emu_cpu{
             } 
 
             if self.runner_step == M6502RunnerStep::OpCodeWrite && addr.write == false {
-                if self.cpu.program_counter < 0xf000 {
-                    print!("error");
-                }
                 self.runner_step = M6502RunnerStep::ReadPc;
                 addr.address = self.cpu.program_counter;
             }

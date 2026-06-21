@@ -1,63 +1,47 @@
 
 pub mod vcs {
 
-    use crate::vcs_cartridge::vcs::VcsCartridge;
+    use crate::vcs_cartridge::vcs::VcsCartridgeMapper;
     use crate::vcs_cartridge2k::vcs::VcsCartridge2k;
     use crate::vcs_cartridge4k::vcs::VcsCartridge4k;
     use crate::vcs_cartridgef8::vcs::VcsCartridgeF8;
-    use emumemory::prelude::*;
 
     pub struct VcsCartridgeDetector {
     }
 
     impl VcsCartridgeDetector {
 
-        pub fn detect_cartridge(vcs_parameters: &crate::vcs_parameters::vcs::VcsParameters) 
-            -> Box<dyn VcsCartridge> {
+        pub fn detect_cartridge(image: &[u8]) 
+            -> Box<dyn VcsCartridgeMapper> {
 
-            let image = vcs_parameters.cart_data.clone();
             let size = image.len();
 
             if (size <= 2048) || (size == 4096 && image[0..2048] == image[2048..4096])
             {
-                if VcsCartridgeDetector::is_probably_cv(&image) {
+                if VcsCartridgeDetector::is_probably_cv(image) {
                     panic!("No CV cartridge mapper");
                 }
                 else {
                     // Bankswitch::Type::_2K
-                    let mut cart2k: VcsCartridge2k = VcsCartridge2k {
-                        memory: [].to_vec(),
-                        name: String::from("2k Cartridge"),
-                        has_super_chip: false
-                    };
-                    cart2k.load_data(&vcs_parameters.cart_data);
-
-                    return Box::new(cart2k);
+                    return Box::new(VcsCartridge2k {});
                 }
             }
             else if size == 4096
             {
-                if VcsCartridgeDetector::is_probably_cv(&image) {
+                if VcsCartridgeDetector::is_probably_cv(image) {
                     panic!("No CV cartridge mapper");
                 }
-                else if VcsCartridgeDetector::is_probably_4ksc(&image) {
+                else if VcsCartridgeDetector::is_probably_4ksc(image) {
                     panic!("No 4k SC cartridge mapper");
                 }
-                else if VcsCartridgeDetector::is_probably_fc(&image) {
+                else if VcsCartridgeDetector::is_probably_fc(image) {
                     panic!("No FC cartridge mapper");
                 }
-                else if VcsCartridgeDetector::is_probably_gl(&image) {
+                else if VcsCartridgeDetector::is_probably_gl(image) {
                     panic!("No GL cartridge mapper");
                 }
                 else {
-                    let mut cart4k: VcsCartridge4k = VcsCartridge4k {
-                        memory: [].to_vec(),
-                        name: String::from("4k Cartridge"),
-                        has_super_chip: false
-                    };
-                    cart4k.load_data(&vcs_parameters.cart_data);
-
-                    return Box::new(cart4k);
+                    return Box::new(VcsCartridge4k{});
                 }
             }
             else if size == 8192 {
@@ -65,68 +49,53 @@ pub mod vcs {
                 let constexpr1: Vec<u8> = vec![ 0x8D, 0xF9, 0x1F ]; // STA $1FF9
                 let constexpr2: Vec<u8> = vec![ 0x8D, 0xF9, 0xFF ]; // STA $FFF9
 
-                let f8: bool = VcsCartridgeDetector::search_for_bytes(&image, constexpr1, 1) ||
-                    VcsCartridgeDetector::search_for_bytes(&image, constexpr2, 1);
+                let f8: bool = VcsCartridgeDetector::search_for_bytes(image, constexpr1, 1) ||
+                    VcsCartridgeDetector::search_for_bytes(image, constexpr2, 1);
 
-                if VcsCartridgeDetector::is_probably_sc(&image) {
+                if VcsCartridgeDetector::is_probably_sc(image) {
                     panic!("No F8SC cartridge mapper");
                 }
                 else if image[0..4096] == image[4096..8192] {
-                    let mut cart4k: VcsCartridge4k = VcsCartridge4k {
-                        memory: [].to_vec(),
-                        name: String::from("4k Cartridge"),
-                        has_super_chip: false
-                    };
-                    cart4k.load_data(&vcs_parameters.cart_data);
-
-                    return Box::new(cart4k);                    
+                    return Box::new(VcsCartridge4k{});                    
                 }
-                else if VcsCartridgeDetector::is_probably_e0(&image) {
+                else if VcsCartridgeDetector::is_probably_e0(image) {
                     panic!("No E0 cartridge mapper");
                 }
-                else if VcsCartridgeDetector::is_probably_3ex(&image) {
+                else if VcsCartridgeDetector::is_probably_3ex(image) {
                     panic!("No 3EX cartridge mapper");
                 }
-                else if VcsCartridgeDetector::is_probably_3e(&image) {
+                else if VcsCartridgeDetector::is_probably_3e(image) {
                     panic!("No 3E cartridge mapper");
                 }
-                else if VcsCartridgeDetector::is_probably_3f(&image) {
+                else if VcsCartridgeDetector::is_probably_3f(image) {
                     panic!("No 3F cartridge mapper");
                 }
-                else if VcsCartridgeDetector::is_probably_ua(&image) {
+                else if VcsCartridgeDetector::is_probably_ua(image) {
                     panic!("No UA cartridge mapper");
                 }
-                else if VcsCartridgeDetector::is_probably_0fa0(&image) {
+                else if VcsCartridgeDetector::is_probably_0fa0(image) {
                     panic!("No 0FA0 cartridge mapper");
                 }
-                else if VcsCartridgeDetector::is_probably_fe(&image) && !f8 {
+                else if VcsCartridgeDetector::is_probably_fe(image) && !f8 {
                     panic!("No FE cartridge mapper");
                 }
-                else if VcsCartridgeDetector::is_probably_0840(&image) {
+                else if VcsCartridgeDetector::is_probably_0840(image) {
                     panic!("No 0840 cartridge mapper");
                 }
-                else if VcsCartridgeDetector::is_probably_e78k(&image) {
+                else if VcsCartridgeDetector::is_probably_e78k(image) {
                     panic!("No E7 cartridge mapper");
                 }
-                else if VcsCartridgeDetector::is_probably_wd(&image) {
+                else if VcsCartridgeDetector::is_probably_wd(image) {
                     panic!("No WD cartridge mapper");
                 }
-                else if VcsCartridgeDetector::is_probably_fc(&image) {
+                else if VcsCartridgeDetector::is_probably_fc(image) {
                     panic!("No FC cartridge mapper");
                 }
-                else if VcsCartridgeDetector::is_probably_03e0(&image) {
+                else if VcsCartridgeDetector::is_probably_03e0(image) {
                     panic!("No 03E0 cartridge mapper");
                 }
                 else {
-                    let mut cartf8: VcsCartridgeF8 = VcsCartridgeF8 {
-                        memory: [].to_vec(),
-                        name: String::from("F8 Cartridge"),
-                        has_super_chip: false,
-                        memory_offset: 0,
-                    };
-                    cartf8.load_data(&vcs_parameters.cart_data);
-
-                    return Box::new(cartf8);  
+                    return Box::new(VcsCartridgeF8{});  
                 }
             }
 
