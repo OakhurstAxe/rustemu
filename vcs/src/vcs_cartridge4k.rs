@@ -11,7 +11,7 @@ pub mod vcs {
 
     impl VcsCartridgeMapper for VcsCartridge4k {
 
-        fn execute_tick(&mut self, cart: &VcsCartridge, addr: &mut AddressBus) {
+        fn execute_tick(&mut self, cart: &mut VcsCartridge, addr: &mut AddressBus) {
 
             let mut location = addr.address & 0x1FFF;
 
@@ -20,7 +20,9 @@ pub mod vcs {
             }
 
             if addr.write {
-                eprintln!("Cannot write to VCS 2K cartridges");
+                eprintln!("Cannot write to VCS 4K cartridges");
+                addr.write = false;
+                return;
             }
 
             // Read byte

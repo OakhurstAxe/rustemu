@@ -86,6 +86,7 @@ pub mod emu_cpu{
         runner_step: M6502RunnerStep,
         is_reset_set: bool,
         op_code_lookup: Vec<Box<dyn CpuOperation>>,
+        op_code_ticks: Vec<u8>,
         address_method_lookup: Vec<Box<dyn AddressMethod>>,
         tick_count: u8,
         _debug: u8,
@@ -107,6 +108,7 @@ pub mod emu_cpu{
                 runner_step: M6502RunnerStep::ReadPc,
                 is_reset_set: true,
                 op_code_lookup: OpCodesUtils::get_opcodes(),
+                op_code_ticks: OpCodesUtils::get_ticks(),
                 address_method_lookup: AddressOpCodes::get_address_methods(),
                 tick_count: 0,
                 _debug: 0,
@@ -129,7 +131,9 @@ pub mod emu_cpu{
                     self.is_reset_set = false;
                 } else {
                     self.runner_step = M6502RunnerStep::AddressStep;
-                    //print!("PC: {:x}, opcode: {:x} tickcount: {}\n", self.cpu.program_counter, self.op_code, self.tick_count);
+                    if self.op_code_ticks[self.op_code as usize] != self.tick_count {
+                        //println!("PC: {:x}, opcode: {:x} tickcount: {} expected: {}", self.cpu.program_counter, self.op_code, self.tick_count, self.op_code_ticks[self.op_code as usize]);
+                    }
                     self.op_code = addr.byte as u16;
                     self.cpu.program_counter += 1;
                     self.tick_count = 0;

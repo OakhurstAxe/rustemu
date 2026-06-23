@@ -11,9 +11,9 @@ pub mod vcs {
 
     impl VcsCartridgeMapper for VcsCartridge2k {
 
-        fn execute_tick(&mut self, cart: &VcsCartridge, addr: &mut AddressBus) {
+        fn execute_tick(&mut self, cart: &mut VcsCartridge, addr: &mut AddressBus) {
 
-            let mut location = addr.address & 0x1FFF;
+            let mut location = addr.address & 0x17FF;
 
             if (0x1000..0x1800).contains(&location) == false {
                 return;

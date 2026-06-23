@@ -6,76 +6,76 @@ pub mod vcs {
 
     use crate::{vcs_console_type::{vcs::VcsConsoleType}, vcs_palette::vcs::VcsPalette};
 
-    const REG_VSYNC: u16 =    0x00;
-    const REG_VBLANK: u16 =   0x01;
-    const REG_WSYNC: u16 =    0x02;
-    const REG_RSYNC: u16 =    0x03;
-    const REG_NUSIZ0: u16 =   0x04;
-    const REG_NUSIZ1: u16 =   0x05;
-    const REG_COLUP0 : u16 =  0x06;
-    const REG_COLUP1: u16 =   0x07;
-    const REG_COLUPF: u16 =   0x08;
-    const REG_COLUBK : u16 =  0x09;
-    const REG_CTRLPF: u16 =   0x0A;
-    const REG_REFP0: u16 =    0x0B;
-    const REG_REFP1: u16 =    0x0C;
-    const REG_PF0: u16 =      0x0D;
-    const REG_PF1: u16 =      0x0E;
-    const REG_PF2: u16 =      0x0F;
+    const REG_VSYNC: u16 =   0x00;
+    const REG_VBLANK: u16 =  0x01;
+    const REG_WSYNC: u16 =   0x02;
+    const REG_RSYNC: u16 =   0x03;
+    const REG_NUSIZ0: u16 =  0x04;
+    const REG_NUSIZ1: u16 =  0x05;
+    const REG_COLUP0 : u16 = 0x06;
+    const REG_COLUP1: u16 =  0x07;
+    const REG_COLUPF: u16 =  0x08;
+    const REG_COLUBK : u16 = 0x09;
+    const REG_CTRLPF: u16 =  0x0A;
+    const REG_REFP0: u16 =   0x0B;
+    const REG_REFP1: u16 =   0x0C;
+    const REG_PF0: u16 =     0x0D;
+    const REG_PF1: u16 =     0x0E;
+    const REG_PF2: u16 =     0x0F;
 
-    const REG_RESP0: u16 =    0x10;
-    const REG_RESP1: u16 =    0x11;
-    const REG_RESM0: u16 =    0x12;
-    const REG_RESM1: u16 =    0x13;
-    const REG_RESBL: u16 =    0x14;
+    const REG_RESP0: u16 =   0x10;
+    const REG_RESP1: u16 =   0x11;
+    const REG_RESM0: u16 =   0x12;
+    const REG_RESM1: u16 =   0x13;
+    const REG_RESBL: u16 =   0x14;
 
-    const REG_AUDC0: u16 =    0x15;
-    const REG_AUDC1: u16 =    0x16;
-    const REG_AUDF0: u16 =    0x17;
-    const REG_AUDF1: u16 =    0x18;
-    const REG_AUDV0: u16 =    0x19;
-    const REG_AUDV1: u16 =    0x1A;
+    const REG_AUDC0: u16 =   0x15;
+    const REG_AUDC1: u16 =   0x16;
+    const REG_AUDF0: u16 =   0x17;
+    const REG_AUDF1: u16 =   0x18;
+    const REG_AUDV0: u16 =   0x19;
+    const REG_AUDV1: u16 =   0x1A;
 
-    const REG_GRP0: u16 =     0x1B;
-    const REG_GRP1: u16 =     0x1C;
-    const REG_ENAM0: u16 =    0x1D;
-    const REG_ENAM1: u16 =    0x1E;
-    const REG_ENABL: u16 =    0x1F;
+    const REG_GRP0: u16 =    0x1B;
+    const REG_GRP1: u16 =    0x1C;
+    const REG_ENAM0: u16 =   0x1D;
+    const REG_ENAM1: u16 =   0x1E;
+    const REG_ENABL: u16 =   0x1F;
 
-    const REG_HMP0: u16 =     0x20;
-    const REG_HMP1: u16 =     0x21;
-    const REG_HMM0: u16 =     0x22;
-    const REG_HMM1: u16 =     0x23;
-    const REG_HMBL: u16 =     0x24;
-    const REG_VDELP0: u16 =   0x25;
-    const REG_VDELP1: u16 =   0x26;
-    const REG_VDELBL: u16 =   0x27;
-    const REG_RESMP0: u16 =   0x28;
-    const REG_RESMP1: u16 =   0x29;
-    const REG_HMOVE: u16 =    0x2A;
-    const REG_HMCLR: u16 =    0x2B;
-    const REG_CXCLR: u16 =    0x2C;
+    const REG_HMP0: u16 =    0x20;
+    const REG_HMP1: u16 =    0x21;
+    const REG_HMM0: u16 =    0x22;
+    const REG_HMM1: u16 =    0x23;
+    const REG_HMBL: u16 =    0x24;
+    const REG_VDELP0: u16 =  0x25;
+    const REG_VDELP1: u16 =  0x26;
+    const REG_VDELBL: u16 =  0x27;
+    const REG_RESMP0: u16 =  0x28;
+    const REG_RESMP1: u16 =  0x29;
+    const REG_HMOVE: u16 =   0x2A;
+    const REG_HMCLR: u16 =   0x2B;
+    const REG_CXCLR: u16 =   0x2C;
 
-    const REG_CXM0P: u16 =    0x30;
-    const REG_CXM1P: u16 =    0x31;
-    const REG_CXP0FB: u16 =   0x32;
-    const REG_CXP1FB: u16 =   0x33;
-    const REG_CXM0FB: u16 =   0x34;
-    const REG_CXM1FB: u16 =   0x35;
-    const REG_CXBLPF: u16 =   0x36;
-    const REG_CXPPMM: u16 =   0x37;
-    const REG_INPT0: u16 =    0x38;
-    const REG_INPT1: u16 =    0x39;
-    const REG_INPT2: u16 =    0x3A;
-    const REG_INPT3: u16 =    0x3B;
-    const REG_INPT4: u16 =    0x3C;
-    const REG_INPT5 : u16 =   0x3D;
+    const REG_CXM0P: u16 =   0x30;
+    const REG_CXM1P: u16 =   0x31;
+    const REG_CXP0FB: u16 =  0x32;
+    const REG_CXP1FB: u16 =  0x33;
+    const REG_CXM0FB: u16 =  0x34;
+    const REG_CXM1FB: u16 =  0x35;
+    const REG_CXBLPF: u16 =  0x36;
+    const REG_CXPPMM: u16 =  0x37;
+    const REG_INPT0: u16 =   0x38;
+    const REG_INPT1: u16 =   0x39;
+    const REG_INPT2: u16 =   0x3A;
+    const REG_INPT3: u16 =   0x3B;
+    const REG_INPT4: u16 =   0x3C;
+    const REG_INPT5 : u16 =  0x3D;
 
-    const CLOSE: u16 =        16;
-    const MEDIUM: u16 =       40;
-    const WIDE: u16 =         72;
+    const CLOSE: u16 =       16;
+    const MEDIUM: u16 =      40;
+    const WIDE: u16 =        72;
 
-    const SPRITEOFFSET: u16 =  4;
+    const SPRITEOFFSET: u16 = 4;
 
     pub struct TiaAudio {
         pub v0: u8,
@@ -416,7 +416,7 @@ pub mod vcs {
                 new_value = 68;
             }
             if new_value < 68 {
-                new_value = 68 + self.x_resolution as u16;
+                new_value = 67 + self.x_resolution as u16;
             }
             new_value
         }
@@ -479,19 +479,19 @@ pub mod vcs {
             }
 
             let value = self.cycle.overflowing_sub(player_cycle).0;
-            let mut shift: u32 = (value/ size_multiple as u16) as u32;
+            let mut shift: u32 = (value / size_multiple as u16) as u32;
             if shift < 8 && (((sprite_data >> shift) & 0x01) > 0) {
                 result = color as i16;
                 return result;
             }
             let value2 = self.cycle.overflowing_sub(position2_cycle).0;
-            shift = (value2/ size_multiple as u16) as u32;
+            shift = (value2 / size_multiple as u16) as u32;
             if shift < 8 && (((sprite_data >> shift) & 0x01) > 0) {
                 result = color as i16;
                 return result;
             }
             let value3 = self.cycle.overflowing_sub(position3_cycle).0;
-            shift = (value3/ size_multiple as u16) as u32;
+            shift = (value3 / size_multiple as u16) as u32;
             if shift < 8 && (((sprite_data >> shift) & 0x01) > 0) {
                 result = color as i16;
                 return result;
@@ -567,7 +567,7 @@ pub mod vcs {
 
         fn get_missle_pixel(&mut self, enable: u8, missle_reset: u8, missle_size: u8, 
             missle_color: u8, missle_cycle: u16) -> i16 {
-            
+
             if (enable & 0x02) == 0 || (missle_reset & 0x02) != 0 {
                 return -1;
             }

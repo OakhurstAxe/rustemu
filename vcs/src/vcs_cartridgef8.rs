@@ -11,14 +11,14 @@ pub mod vcs {
 
     impl VcsCartridgeMapper for VcsCartridgeF8 {
 
-        fn execute_tick(&mut self, cart: &VcsCartridge, addr: &mut AddressBus) {
+        fn execute_tick(&mut self, cart: &mut VcsCartridge, addr: &mut AddressBus) {
 
             let mut location = addr.address & 0x1FFF;
             let address_range = 0x1000..0x2000;
 
             if addr.write {
                 if address_range.contains(&location) {
-                    eprintln!("Cannot write to VCS standard cartridges");
+                    eprintln!("Cannot write to VCS F8 cartridges");
                 }
             }
             else {

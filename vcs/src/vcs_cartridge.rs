@@ -1,7 +1,6 @@
 
 pub mod vcs {
 
-    use emumemory::prelude::*;
     use emucpu::prelude::*;
 
     pub struct VcsCartridge {
@@ -25,7 +24,7 @@ pub mod vcs {
 
     pub trait VcsCartridgeMapper: Send + Sync {
 
-        fn execute_tick(&mut self, cart: &VcsCartridge, addr: &mut AddressBus);
+        fn execute_tick(&mut self, cart: &mut VcsCartridge, addr: &mut AddressBus);
     }
 
     /*

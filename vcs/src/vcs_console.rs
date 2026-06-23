@@ -94,7 +94,7 @@ pub mod vcs {
 
             while frame_ticks < self.console_type.get_ticks_per_frame() {
                 
-                self.vcs_cartridge_mapper.execute_tick(&self.vcs_cartridge, &mut self.addr);
+                self.vcs_cartridge_mapper.execute_tick(&mut self.vcs_cartridge, &mut self.addr);
                 self.vcs_tia.execute_tick(&mut self.addr);
                 
                 if self.total_ticks.is_multiple_of(3) {
