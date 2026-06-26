@@ -86,6 +86,13 @@ pub mod vcs {
         pub c1: u8,
     }
 
+    enum DelayObject {
+        None,
+        P0,
+        P1,
+        Ball
+    }
+
     pub struct VcsTia {
         registers: MemoryRam,
         cycle: u16,
@@ -100,10 +107,11 @@ pub mod vcs {
         res_bl_cycle: u16,
         grp_0_delay: u8,
         grp_1_delay: u8,
-        enable_delay: u8,
+        ball_delay: u8,
         v_blank: u8,
         x_resolution: u32,
         y_resolution: u32,
+        delay: DelayObject,
         _debug: u8
     }
 
@@ -127,10 +135,11 @@ pub mod vcs {
                 res_bl_cycle: 0,
                 grp_0_delay: 0,
                 grp_1_delay: 0,
-                enable_delay: 0,
+                ball_delay: 0,
                 v_blank,
                 x_resolution,
                 y_resolution,
+                delay: DelayObject::None,
                 _debug: 0
             }
         }
@@ -237,6 +246,19 @@ pub mod vcs {
             // WSYNC 
             if self.cycle == 3 { // Not sure this should be 8, but works pretty good
                 self.w_sync_set = false;
+
+                if (self.registers.read(REG_VDELP0) & 0x01) > 0  {
+                    self.registers.write(REG_GRP0, self.grp_0_delay);
+                    self.grp_0_delay = 0;
+                }
+                if (self.registers.read(REG_VDELP1) & 0x01) > 0  {
+                    self.registers.write(REG_GRP1, self.grp_1_delay);
+                    self.grp_1_delay = 0;
+                }
+                if (self.registers.read(REG_VDELBL) & 0x01) > 0 {
+                    self.registers.write(REG_ENABL, self.ball_delay);
+                }
+
             }
         }
 
@@ -289,16 +311,9 @@ pub mod vcs {
                     else {
                         self.registers.write(REG_GRP0, byte);
                     }
-
-                    if (self.registers.read(REG_VDELP1) & 0x01) > 0 {
-                        self.registers.write(REG_GRP1, self.grp_1_delay);
-                        self.grp_1_delay = 0;
-                    }
-
-                    if (self.registers.read(REG_VDELBL) & 0x01) > 0 {
-                        self.registers.write(REG_ENABL, self.enable_delay);
-                        self.enable_delay = 0;
-                    }
+                    
+                    self.registers.write(REG_VDELP1, 0);
+                    self.grp_1_delay = 0;
                 },
                 REG_GRP1 => {
                     if (self.registers.read(REG_VDELP1) & 0x01) > 0 {
@@ -307,24 +322,17 @@ pub mod vcs {
                     else {
                         self.registers.write(REG_GRP1, byte);
                     }
-
-                    if (self.registers.read(REG_VDELP0) & 0x01) > 0 {
-                        self.registers.write(REG_GRP0, self.grp_0_delay);
-                        self.grp_0_delay = 0;
-                    }
-
-                    if (self.registers.read(REG_VDELBL) & 0x01) > 0 {
-                        self.registers.write(REG_ENABL, self.enable_delay);
-                        self.enable_delay = 0;
-                    }
+                    
+                    self.registers.write(REG_VDELP0, 0);                        
+                    self.grp_0_delay = 0;
+                    self.registers.write(REG_VDELBL, 0);
+                    self.ball_delay = 0;
                 },
                 REG_ENABL => {
                     if (self.registers.read(REG_VDELBL) & 0x01) > 0 {
-                        self.enable_delay = byte;
+                        self.ball_delay = byte;
                     }
-                    else {
-                        self.registers.write(REG_ENABL, byte);
-                    }
+                    self.registers.write(REG_ENABL, byte);
                 },
                 REG_VSYNC => {
                     if (byte & 0x02 == 0) && (self.registers.read(REG_VSYNC) & 0x02) > 0 {
@@ -362,14 +370,14 @@ pub mod vcs {
                     }
                 },
                 REG_RESM0 => {
-                    self.res_m0_cycle = self.cycle + SPRITEOFFSET - 1;
+                    self.res_m0_cycle = self.cycle + SPRITEOFFSET;
 
                     if self.res_m0_cycle < 68 {
                         self.res_m0_cycle = 71;
                     }
                 },
                 REG_RESM1 => {
-                    self.res_m1_cycle = self.cycle + SPRITEOFFSET - 1;
+                    self.res_m1_cycle = self.cycle + SPRITEOFFSET;
 
                     if self.res_m1_cycle < 68 {
                         self.res_m1_cycle = 71;
@@ -602,7 +610,7 @@ pub mod vcs {
                 0 => size = 1,
                 1 => size = 2,
                 2 => size = 4,
-                3 => size = 8,
+                4 => size = 8,
                 _ => ()
             }
 
@@ -629,10 +637,10 @@ pub mod vcs {
             
             let mut size: u8 = self.registers.read(REG_CTRLPF);
             match (size & 0x30) >> 4 {
-                1 => size = 1,
-                2 => size = 2,
-                4 => size = 4,
-                8 => size = 8,
+                0 => size = 1,
+                1 => size = 2,
+                2 => size = 4,
+                4 => size = 8,
                 _ => ()
             }
 
@@ -687,6 +695,17 @@ pub mod vcs {
             
             let current_pixel: usize = (screen_y * self.x_resolution as u16 + screen_x) as usize;
 
+            // Don't display pixel if PF has priority and is set
+            if pf_above {                
+                if ball_pixel >= 0 && current_color == -1 {
+                    current_color = ball_pixel;
+                }
+                // Playfield
+                if playfield_pixel >= 0 && current_color == -1 {
+                    current_color = playfield_pixel;
+                }
+            }
+
             // P0
             if p0_pixel >= 0 && current_color == -1 {
                 current_color = p0_pixel;
@@ -705,19 +724,14 @@ pub mod vcs {
                 current_color = m1_pixel;
             }
 
-            // Playfield
-            if playfield_pixel >= 0 && current_color == -1 {
-                current_color = playfield_pixel;
-            }
+            if pf_above == false {
+                // Ball
+                if ball_pixel >= 0 && current_color == -1 {
+                    current_color = ball_pixel;
+                }
 
-            // Ball
-            if ball_pixel >= 0 && current_color == -1 {
-                current_color = ball_pixel;
-            }
-            // Don't display pixel if PF has priority and is set
-            if pf_above {                
                 // Playfield
-                if playfield_pixel >= 0 {//&& current_color == ball_pixel {
+                if playfield_pixel >= 0 && current_color == -1 {
                     current_color = playfield_pixel;
                 }
             }

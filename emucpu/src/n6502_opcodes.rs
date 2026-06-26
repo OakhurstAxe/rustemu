@@ -25,6 +25,7 @@ pub mod nopcodes {
 
             op_code_lookup[0x10] = Box::new(CpuOpBpl {});
             op_code_lookup[0x11] = Box::new(CpuOpOra {});
+            op_code_lookup[0x15] = Box::new(CpuOpOra {});
             op_code_lookup[0x18] = Box::new(CpuOpClc {});
             op_code_lookup[0x19] = Box::new(CpuOpOra {});
 
@@ -39,6 +40,7 @@ pub mod nopcodes {
             op_code_lookup[0x30] = Box::new(CpuOpBmi {});
             op_code_lookup[0x35] = Box::new(CpuOpAnd {});
             op_code_lookup[0x38] = Box::new(CpuOpSec {});
+            op_code_lookup[0x3d] = Box::new(CpuOpAnd {});
 
             op_code_lookup[0x45] = Box::new(CpuOpEor {});
             op_code_lookup[0x46] = Box::new(CpuOpLsr {});
@@ -132,6 +134,7 @@ pub mod nopcodes {
             op_code_lookup[0xf0] = Box::new(CpuOpBeq {});
             op_code_lookup[0xf6] = Box::new(CpuOpInc {});
             op_code_lookup[0xf8] = Box::new(CpuOpSed {});
+            op_code_lookup[0xf9] = Box::new(CpuOpSbc {});
             op_code_lookup[0xff] = Box::new(CpuOpIsc {});
 
             op_code_lookup[0x100] = Box::new(CpuOpReset {});
@@ -167,6 +170,7 @@ pub mod nopcodes {
             op_code_ticks[0x30] = 2;
             op_code_ticks[0x35] = 4;
             op_code_ticks[0x38] = 2;
+            op_code_ticks[0x3d] = 4;
 
             op_code_ticks[0x45] = 3;
             op_code_ticks[0x46] = 5;
@@ -260,6 +264,7 @@ pub mod nopcodes {
             op_code_ticks[0xf0] = 2;
             op_code_ticks[0xf6] = 6;
             op_code_ticks[0xf8] = 2;
+            op_code_ticks[0xf9] = 4;
             op_code_ticks[0xff] = 7;
             op_code_ticks
         }
@@ -323,7 +328,12 @@ pub mod nopcodes {
             }
             result            
         }
-        fn needs_addr_byte(&self) -> bool { true }
+        fn needs_addr_byte(&self, addr: &mut AddressBus) -> bool { 
+            if addr.is_accumulator {
+                return false;
+            }
+            true 
+        }
         fn step_0(&self, _cpu: &mut N6502, _addr: &mut AddressBus) -> bool { true }
         fn step_1(&self, _cpu: &mut N6502, _addr: &mut AddressBus) -> bool { true }
         fn step_2(&self, _cpu: &mut N6502, _addr: &mut AddressBus) -> bool { true }
@@ -342,7 +352,7 @@ pub mod nopcodes {
     // System Opcodes
     struct CpuOpNop {}
     impl CpuOperation for CpuOpNop {
-        fn needs_addr_byte(&self) -> bool { false }
+        fn needs_addr_byte(&self, _addr: &mut AddressBus) -> bool { false }
         fn step_0(&self, _cpu: &mut N6502, _addr: &mut AddressBus) -> bool {
             false
         }
@@ -353,7 +363,7 @@ pub mod nopcodes {
 
     struct CpuOpBrk {}
     impl CpuOperation for CpuOpBrk {
-        fn needs_addr_byte(&self) -> bool { false }
+        fn needs_addr_byte(&self, _addr: &mut AddressBus) -> bool { false }
         fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
             OpCodesUtils::set_status_flag(cpu, INTERRUPT_FLAG, true);
             cpu.program_counter += 1;            
@@ -414,7 +424,7 @@ pub mod nopcodes {
 
     struct CpuOpSta {}
     impl CpuOperation for CpuOpSta {
-        fn needs_addr_byte(&self) -> bool { false }
+        fn needs_addr_byte(&self, _addr: &mut AddressBus) -> bool { false }
         fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
             addr.address = cpu.lookup_address.address;
             addr.byte = cpu.accumulator;
@@ -425,7 +435,7 @@ pub mod nopcodes {
 
     struct CpuOpStx {}
     impl CpuOperation for CpuOpStx {
-        fn needs_addr_byte(&self) -> bool { false }
+        fn needs_addr_byte(&self, _addr: &mut AddressBus) -> bool { false }
         fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
             addr.address = cpu.lookup_address.address;
             addr.byte = cpu.register_x;
@@ -436,7 +446,7 @@ pub mod nopcodes {
 
     struct CpuOpSty {}
     impl CpuOperation for CpuOpSty {
-        fn needs_addr_byte(&self) -> bool { false }
+        fn needs_addr_byte(&self, _addr: &mut AddressBus) -> bool { false }
         fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
             addr.address = cpu.lookup_address.address;
             addr.byte = cpu.register_y;
@@ -502,7 +512,6 @@ pub mod nopcodes {
 
     struct CpuOpPha {}
     impl CpuOperation for CpuOpPha {
-        fn needs_addr_byte(&self) -> bool { false }
         fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
             OpCodesUtils::push_stack(cpu, addr, cpu.accumulator);
             true
@@ -533,7 +542,7 @@ pub mod nopcodes {
         }
         fn step_1(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
             cpu.status_register = addr.byte;
-            true
+            false
         }
     }
 
@@ -745,7 +754,7 @@ pub mod nopcodes {
 
     struct CpuOpDey {}
     impl CpuOperation for CpuOpDey {
-        fn needs_addr_byte(&self) -> bool { false }
+        fn needs_addr_byte(&self, _addr: &mut AddressBus) -> bool { false }
         fn step_0(&self, cpu: &mut N6502, _addr: &mut AddressBus) -> bool {
             cpu.register_y = cpu.register_y.overflowing_sub(1).0;
             OpCodesUtils::set_negative_zero(cpu, cpu.register_y);
@@ -756,6 +765,7 @@ pub mod nopcodes {
     // Shift Operations
     struct CpuOpAsl {}
     impl CpuOperation for CpuOpAsl {
+        fn needs_addr_byte(&self, _addr: &mut AddressBus) -> bool { true }
         fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
             let mut byte: u8 = cpu.lookup_address.byte;
  
@@ -780,6 +790,7 @@ pub mod nopcodes {
 
     struct CpuOpLsr {}
     impl CpuOperation for CpuOpLsr {
+        fn needs_addr_byte(&self, _addr: &mut AddressBus) -> bool { true }
         fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
             let mut byte: u8 = cpu.lookup_address.byte;
             if cpu.lookup_address.is_accumulator {
@@ -854,17 +865,14 @@ pub mod nopcodes {
                 addr.address = cpu.lookup_address.address;
                 addr.write = true;
             }
-            false
-        }
-        fn step_1(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
-            false
+            true
         }
     }
 
     // Jumps and Call Operations
     struct CpuOpJmp {}
     impl CpuOperation for CpuOpJmp {
-        fn needs_addr_byte(&self) -> bool { false }
+        fn needs_addr_byte(&self, _addr: &mut AddressBus) -> bool { false }
         fn step_0(&self, cpu: &mut N6502, _addr: &mut AddressBus) -> bool {
             cpu.program_counter = cpu.lookup_address.address;
             true
@@ -873,7 +881,7 @@ pub mod nopcodes {
 
     struct CpuOpJsr {}
     impl CpuOperation for CpuOpJsr {
-        fn needs_addr_byte(&self) -> bool { false }
+        fn needs_addr_byte(&self, _addr: &mut AddressBus) -> bool { false }
         fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
             cpu.program_counter += 1;
             OpCodesUtils::push_stack(cpu, addr, ((cpu.program_counter & 0xff00) >> 8) as u8);
@@ -891,7 +899,7 @@ pub mod nopcodes {
 
     struct CpuOpRts {}
     impl CpuOperation for CpuOpRts {
-        fn needs_addr_byte(&self) -> bool { false }
+        fn needs_addr_byte(&self, _addr: &mut AddressBus) -> bool { false }
         fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
             OpCodesUtils::pop_stack(cpu, addr);
             false
@@ -916,7 +924,7 @@ pub mod nopcodes {
     // Branch Operations
     struct CpuOpBcc {}
     impl CpuOperation for CpuOpBcc {
-        fn needs_addr_byte(&self) -> bool { false }
+        fn needs_addr_byte(&self, _addr: &mut AddressBus) -> bool { false }
         fn step_0(&self, _cpu: &mut N6502, _addr: &mut AddressBus) -> bool {
             false
         }
@@ -932,7 +940,7 @@ pub mod nopcodes {
 
     struct CpuOpBcs {}
     impl CpuOperation for CpuOpBcs {
-        fn needs_addr_byte(&self) -> bool { false }
+        fn needs_addr_byte(&self, _addr: &mut AddressBus) -> bool { false }
         fn step_0(&self, _cpu: &mut N6502, _addr: &mut AddressBus) -> bool {
             false
         }
@@ -948,7 +956,7 @@ pub mod nopcodes {
 
     struct CpuOpBne {}
     impl CpuOperation for CpuOpBne {
-        fn needs_addr_byte(&self) -> bool { false }
+        fn needs_addr_byte(&self, _addr: &mut AddressBus) -> bool { false }
         fn step_0(&self, _cpu: &mut N6502, _addr: &mut AddressBus) -> bool {
             false
         }
@@ -964,7 +972,7 @@ pub mod nopcodes {
 
     struct CpuOpBeq {}
     impl CpuOperation for CpuOpBeq {
-        fn needs_addr_byte(&self) -> bool { false }
+        fn needs_addr_byte(&self, _addr: &mut AddressBus) -> bool { false }
         fn step_0(&self, _cpu: &mut N6502, _addr: &mut AddressBus) -> bool {
             false
         }
@@ -980,7 +988,7 @@ pub mod nopcodes {
 
     struct CpuOpBpl {}
     impl CpuOperation for CpuOpBpl {
-        fn needs_addr_byte(&self) -> bool { false }
+        fn needs_addr_byte(&self, _addr: &mut AddressBus) -> bool { false }
         fn step_0(&self, _cpu: &mut N6502, _addr: &mut AddressBus) -> bool {
             false
         }
@@ -996,7 +1004,7 @@ pub mod nopcodes {
 
     struct CpuOpBmi {}
     impl CpuOperation for CpuOpBmi {
-        fn needs_addr_byte(&self) -> bool { false }
+        fn needs_addr_byte(&self, _addr: &mut AddressBus) -> bool { false }
         fn step_0(&self, _cpu: &mut N6502, _addr: &mut AddressBus) -> bool {
             false
         }
@@ -1012,7 +1020,7 @@ pub mod nopcodes {
 
     struct CpuOpBvc {}
     impl CpuOperation for CpuOpBvc {
-        fn needs_addr_byte(&self) -> bool { false }
+        fn needs_addr_byte(&self, _addr: &mut AddressBus) -> bool { false }
         fn step_0(&self, _cpu: &mut N6502, _addr: &mut AddressBus) -> bool {
             false
         }
@@ -1028,7 +1036,7 @@ pub mod nopcodes {
 
     struct CpuOpBvs {}
     impl CpuOperation for CpuOpBvs {
-        fn needs_addr_byte(&self) -> bool { false }
+        fn needs_addr_byte(&self, _addr: &mut AddressBus) -> bool { false }
         fn step_0(&self,_cpu: &mut N6502, _addr: &mut AddressBus) -> bool {
             false
         }
@@ -1069,7 +1077,7 @@ pub mod nopcodes {
 
     struct CpuOpSed {}
     impl CpuOperation for CpuOpSed {
-        fn needs_addr_byte(&self) -> bool { false }
+        fn needs_addr_byte(&self, _addr: &mut AddressBus) -> bool { false }
         fn step_0(&self, cpu: &mut N6502, _addr: &mut AddressBus) -> bool {
             OpCodesUtils::set_status_flag(cpu, DECIMAL_MODE, true);
             true
@@ -1078,7 +1086,7 @@ pub mod nopcodes {
 
     struct CpuOpSei {}
     impl CpuOperation for CpuOpSei {
-        fn needs_addr_byte(&self) -> bool { false }
+        fn needs_addr_byte(&self, _addr: &mut AddressBus) -> bool { false }
         fn step_0(&self, cpu: &mut N6502, _addr: &mut AddressBus) -> bool {
             OpCodesUtils::set_status_flag(cpu, INTERRUPT_FLAG, true);
             true

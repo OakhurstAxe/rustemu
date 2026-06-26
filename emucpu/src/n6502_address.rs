@@ -23,6 +23,7 @@ pub mod naddress{
 
             op_code_lookup[0x10] = Box::new(AddressMethodImmediate {});
             op_code_lookup[0x11] = Box::new(AddressMethodIndirectY {});
+            op_code_lookup[0x15] = Box::new(AddressMethodZeroX {});
             op_code_lookup[0x18] = Box::new(AddressMethodNull {});
             op_code_lookup[0x19] = Box::new(AddressMethodAbsoluteY {});
 
@@ -37,6 +38,7 @@ pub mod naddress{
             op_code_lookup[0x30] = Box::new(AddressMethodImmediate {});
             op_code_lookup[0x35] = Box::new(AddressMethodZeroX {});
             op_code_lookup[0x38] = Box::new(AddressMethodNull {});
+            op_code_lookup[0x3d] = Box::new(AddressMethodAbsoluteX {});
 
             op_code_lookup[0x45] = Box::new(AddressMethodZero {});
             op_code_lookup[0x46] = Box::new(AddressMethodZero {});
@@ -130,6 +132,7 @@ pub mod naddress{
             op_code_lookup[0xf0] = Box::new(AddressMethodImmediate {});
             op_code_lookup[0xf6] = Box::new(AddressMethodZeroX {});
             op_code_lookup[0xf8] = Box::new(AddressMethodNull {});
+            op_code_lookup[0xf9] = Box::new(AddressMethodAbsolute {});
             op_code_lookup[0xff] = Box::new(AddressMethodAbsoluteX {});
             op_code_lookup
         }
@@ -220,10 +223,7 @@ pub mod naddress{
         }
         fn step_1(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
             addr.address = (addr.byte.overflowing_add(cpu.register_x).0) as u16;
-            cpu.lookup_address.address = addr.address;
-            cpu.lookup_address.byte = addr.byte;
-            cpu.lookup_address.is_accumulator = addr.is_accumulator;
-            false
+            false        
         }
         fn step_2(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
             cpu.lookup_address.address = addr.address;
@@ -241,14 +241,8 @@ pub mod naddress{
             false
         }
         fn step_1(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
-            addr.address = addr.byte as u16 + cpu.register_y as u16;
-            if ((addr.byte as u16 & 0x00ff) + (cpu.register_y as u16)) > 0x00ff {
-                return false;
-            }
-            cpu.lookup_address.address = addr.address;
-            cpu.lookup_address.byte = addr.byte;
-            cpu.lookup_address.is_accumulator = addr.is_accumulator;
-            true
+            addr.address = (addr.byte.overflowing_add(cpu.register_y).0) as u16;
+            false        
         }
         fn step_2(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
             cpu.lookup_address.address = addr.address;

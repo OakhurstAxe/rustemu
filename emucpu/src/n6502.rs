@@ -131,8 +131,11 @@ pub mod emu_cpu{
                     self.is_reset_set = false;
                 } else {
                     self.runner_step = M6502RunnerStep::AddressStep;
-                    if self.op_code_ticks[self.op_code as usize] != self.tick_count {
-                        //println!("PC: {:x}, opcode: {:x} tickcount: {} expected: {}", self.cpu.program_counter, self.op_code, self.tick_count, self.op_code_ticks[self.op_code as usize]);
+                    if self.op_code_ticks[self.op_code as usize] != self.tick_count 
+                     && self.op_code != 0xd0 && self.op_code != 0x10 
+                     && self.op_code != 0xb0 && self.op_code != 0x30
+                     && self.op_code != 0xf0 && self.op_code != 0x90 {
+                        println!("PC: {:x}, opcode: {:x} tickcount: {} expected: {}", self.cpu.program_counter, self.op_code, self.tick_count, self.op_code_ticks[self.op_code as usize]);
                     }
                     self.op_code = addr.byte as u16;
                     self.cpu.program_counter += 1;
@@ -152,7 +155,7 @@ pub mod emu_cpu{
                 }
             } 
 
-            if self.runner_step == M6502RunnerStep::AddressStepLoadByte && self.op_code_lookup[self.op_code as usize].needs_addr_byte() == false {
+            if self.runner_step == M6502RunnerStep::AddressStepLoadByte && self.op_code_lookup[self.op_code as usize].needs_addr_byte(addr) == false {
                 self.cpu.lookup_address.byte = addr.byte;
                 self.runner_step = M6502RunnerStep::OpCodeStep;
             }
