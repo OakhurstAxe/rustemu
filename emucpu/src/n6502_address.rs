@@ -316,6 +316,7 @@ pub mod naddress{
             cpu.lookup_address.byte = addr.byte;
             cpu.lookup_address.is_accumulator = addr.is_accumulator;
             addr.address = cpu.lookup_address.address;
+            cpu.lookup_address.is_abs_y = true;
             true
         }
     }

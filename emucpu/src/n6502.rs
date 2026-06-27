@@ -20,6 +20,7 @@ pub mod emu_cpu{
         pub write: bool,
         pub byte: u8,
         pub is_accumulator: bool,
+        pub is_abs_y: bool,
     }
 
     impl AddressBus {
@@ -29,6 +30,7 @@ pub mod emu_cpu{
                 write,
                 byte,
                 is_accumulator: false,
+                is_abs_y: false,
             }
         }
     }
@@ -125,6 +127,7 @@ pub mod emu_cpu{
             // Geting new op code
             if self.runner_step == M6502RunnerStep::ReadPc {
                 addr.is_accumulator = false;
+                self.cpu.lookup_address.is_abs_y = false;
                 if self.is_reset_set {
                     self.op_code = 0x100;
                     self.runner_step = M6502RunnerStep::OpCodeStep;
@@ -134,7 +137,8 @@ pub mod emu_cpu{
                     if self.op_code_ticks[self.op_code as usize] != self.tick_count 
                      && self.op_code != 0xd0 && self.op_code != 0x10 
                      && self.op_code != 0xb0 && self.op_code != 0x30
-                     && self.op_code != 0xf0 && self.op_code != 0x90 {
+                     && self.op_code != 0xf0 && self.op_code != 0x90 
+                     && self.op_code != 0x50 {
                         println!("PC: {:x}, opcode: {:x} tickcount: {} expected: {}", self.cpu.program_counter, self.op_code, self.tick_count, self.op_code_ticks[self.op_code as usize]);
                     }
                     self.op_code = addr.byte as u16;

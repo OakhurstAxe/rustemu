@@ -246,19 +246,6 @@ pub mod vcs {
             // WSYNC 
             if self.cycle == 3 { // Not sure this should be 8, but works pretty good
                 self.w_sync_set = false;
-
-                if (self.registers.read(REG_VDELP0) & 0x01) > 0  {
-                    self.registers.write(REG_GRP0, self.grp_0_delay);
-                    self.grp_0_delay = 0;
-                }
-                if (self.registers.read(REG_VDELP1) & 0x01) > 0  {
-                    self.registers.write(REG_GRP1, self.grp_1_delay);
-                    self.grp_1_delay = 0;
-                }
-                if (self.registers.read(REG_VDELBL) & 0x01) > 0 {
-                    self.registers.write(REG_ENABL, self.ball_delay);
-                }
-
             }
         }
 
@@ -307,32 +294,32 @@ pub mod vcs {
                 REG_GRP0 => {
                     if (self.registers.read(REG_VDELP0) & 0x01) > 0 {
                         self.grp_0_delay = byte;
-                    }
-                    else {
+                    } else {
                         self.registers.write(REG_GRP0, byte);
                     }
-                    
-                    self.registers.write(REG_VDELP1, 0);
-                    self.grp_1_delay = 0;
+                    if (self.registers.read(REG_VDELP1) & 0x01) > 0 {
+                        self.registers.write(REG_GRP1, self.grp_1_delay);
+                    }
                 },
                 REG_GRP1 => {
                     if (self.registers.read(REG_VDELP1) & 0x01) > 0 {
                         self.grp_1_delay = byte;
-                    }
-                    else {
+                    } else {
                         self.registers.write(REG_GRP1, byte);
                     }
-                    
-                    self.registers.write(REG_VDELP0, 0);                        
-                    self.grp_0_delay = 0;
-                    self.registers.write(REG_VDELBL, 0);
-                    self.ball_delay = 0;
+                    if (self.registers.read(REG_VDELP0) & 0x01) > 0 {
+                        self.registers.write(REG_GRP0, self.grp_0_delay);
+                    }
+                    if (self.registers.read(REG_VDELBL) & 0x01) > 0 {
+                        self.registers.write(REG_ENABL, self.ball_delay);
+                    }
                 },
                 REG_ENABL => {
                     if (self.registers.read(REG_VDELBL) & 0x01) > 0 {
                         self.ball_delay = byte;
+                    } else {
+                        self.registers.write(REG_ENABL, byte);
                     }
-                    self.registers.write(REG_ENABL, byte);
                 },
                 REG_VSYNC => {
                     if (byte & 0x02 == 0) && (self.registers.read(REG_VSYNC) & 0x02) > 0 {
@@ -364,28 +351,24 @@ pub mod vcs {
                 },
                 REG_RESP1 => {
                     self.res_p1_cycle = self.cycle + SPRITEOFFSET;
-
                     if self.res_p1_cycle < 68 {
                         self.res_p1_cycle = 71;
                     }
                 },
                 REG_RESM0 => {
                     self.res_m0_cycle = self.cycle + SPRITEOFFSET;
-
                     if self.res_m0_cycle < 68 {
                         self.res_m0_cycle = 71;
                     }
                 },
                 REG_RESM1 => {
                     self.res_m1_cycle = self.cycle + SPRITEOFFSET;
-
                     if self.res_m1_cycle < 68 {
                         self.res_m1_cycle = 71;
                     }
                 },
                 REG_RESBL => {
                     self.res_bl_cycle = self.cycle + SPRITEOFFSET;
-
                     if self.res_bl_cycle < 68 {
                         self.res_bl_cycle = 71;
                     }
@@ -504,7 +487,7 @@ pub mod vcs {
                 result = color as i16;
                 return result;
             }                    
-
+            
             result
         }
 

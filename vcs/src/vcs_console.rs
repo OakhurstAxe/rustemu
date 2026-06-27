@@ -53,7 +53,7 @@ pub mod vcs {
                 console_type,
                 total_ticks: 0,
                 cpu_runner: M6502Runner::new(M6502Version::AtariVcs),
-                addr: AddressBus { address: 0 , write: false, byte: 0, is_accumulator: false },
+                addr: AddressBus { address: 0 , write: false, byte: 0, is_accumulator: false, is_abs_y: false },
                 inframe: RwLock::new(false),
             };
 

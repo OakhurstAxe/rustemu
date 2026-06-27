@@ -156,6 +156,7 @@ pub mod nopcodes {
 
             op_code_ticks[0x10] = 2;
             op_code_ticks[0x11] = 5;
+            op_code_ticks[0x15] = 4;
             op_code_ticks[0x18] = 2;
             op_code_ticks[0x19] = 4;
 
@@ -429,7 +430,13 @@ pub mod nopcodes {
             addr.address = cpu.lookup_address.address;
             addr.byte = cpu.accumulator;
             addr.write = true;
+            if cpu.lookup_address.is_abs_y {
+                return false;
+            }
             true
+        }
+        fn step_1(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            false
         }
     }
 
@@ -776,11 +783,18 @@ pub mod nopcodes {
             OpCodesUtils::set_status_flag(cpu,CARRY_FLAG, (byte & 0x80) != 0);
             byte <<= 1;
             OpCodesUtils::set_negative_zero(cpu, byte);
-
+            cpu.lookup_address.byte = byte;
             if cpu.lookup_address.is_accumulator {
-                cpu.accumulator = byte;
+                cpu.accumulator = cpu.lookup_address.byte;
+                return true;
+            }
+            false
+        }
+        fn step_1(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            if cpu.lookup_address.is_accumulator {
+                cpu.accumulator = cpu.lookup_address.byte;
             } else {
-                addr.byte = byte;
+                addr.byte = cpu.lookup_address.byte;
                 addr.address = cpu.lookup_address.address;
                 addr.write = true;
             }
@@ -790,7 +804,6 @@ pub mod nopcodes {
 
     struct CpuOpLsr {}
     impl CpuOperation for CpuOpLsr {
-        fn needs_addr_byte(&self, _addr: &mut AddressBus) -> bool { true }
         fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
             let mut byte: u8 = cpu.lookup_address.byte;
             if cpu.lookup_address.is_accumulator {
@@ -800,11 +813,14 @@ pub mod nopcodes {
             OpCodesUtils::set_status_flag(cpu,CARRY_FLAG, (byte & 0x01) != 0);
             byte >>= 1;
             OpCodesUtils::set_negative_zero(cpu, byte);
-
+            cpu.lookup_address.byte = byte;
+            false
+        }
+        fn step_1(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
             if cpu.lookup_address.is_accumulator {
-                cpu.accumulator = byte;
+                cpu.accumulator = cpu.lookup_address.byte;
             } else {
-                addr.byte = byte;
+                addr.byte = cpu.lookup_address.byte;
                 addr.address = cpu.lookup_address.address;
                 addr.write = true;
             }
@@ -837,9 +853,13 @@ pub mod nopcodes {
                 addr.address = cpu.lookup_address.address;
                 addr.write = true;
             }
+
             false
         }
         fn step_1(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            if cpu.lookup_address.is_accumulator {
+                return true;
+            }
             false
         }
     }
@@ -865,7 +885,13 @@ pub mod nopcodes {
                 addr.address = cpu.lookup_address.address;
                 addr.write = true;
             }
-            true
+            false
+        }
+        fn step_1(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            if cpu.lookup_address.is_accumulator {
+                return true;
+            }
+            false
         }
     }
 
