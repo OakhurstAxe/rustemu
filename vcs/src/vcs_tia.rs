@@ -86,13 +86,6 @@ pub mod vcs {
         pub c1: u8,
     }
 
-    enum DelayObject {
-        None,
-        P0,
-        P1,
-        Ball
-    }
-
     pub struct VcsTia {
         registers: MemoryRam,
         cycle: u16,
@@ -111,7 +104,6 @@ pub mod vcs {
         v_blank: u8,
         x_resolution: u32,
         y_resolution: u32,
-        delay: DelayObject,
         _debug: u8
     }
 
@@ -139,7 +131,6 @@ pub mod vcs {
                 v_blank,
                 x_resolution,
                 y_resolution,
-                delay: DelayObject::None,
                 _debug: 0
             }
         }
@@ -208,6 +199,8 @@ pub mod vcs {
             if self.cycle > 67 + self.x_resolution as u16 {
                 self.cycle = 0;
                 self.scan_line += 1;
+                self.registers.write(REG_GRP0, 0);
+                self.registers.write(REG_GRP1, 0);
             }
 
             // If on screen, render pixel
@@ -216,9 +209,10 @@ pub mod vcs {
                     self.y_resolution as u16)) && (self.cycle > 67) {
                 self.render_pixel();
             }
-            
+
             if self.registers.read(REG_RESMP0) & 0x02 > 0 {
                 let size: u8 = self.registers.read(REG_NUSIZ0);
+                self.registers.write(REG_ENAM0, 0);
                 self.res_m0_cycle = self.res_p0_cycle;
                 
                 if size & 0x07 == 5 { // size 2
@@ -232,6 +226,7 @@ pub mod vcs {
 
             if self.registers.read(REG_RESMP1) & 0x02 > 0 {
                 let size: u8 = self.registers.read(REG_NUSIZ1);
+                self.registers.write(REG_ENAM1, 0);
                 self.res_m1_cycle = self.res_p1_cycle;
                 
                 if size & 0x07 == 5 { // size 2
@@ -258,7 +253,7 @@ pub mod vcs {
                     location &= 0xFF;
                     if location >= 0x40
                     {
-                        location -= 0x40;
+                        location %= 0x40;
                     }
                     self.write(location, addr.byte);
                     addr.write = false;
@@ -299,6 +294,7 @@ pub mod vcs {
                     }
                     if (self.registers.read(REG_VDELP1) & 0x01) > 0 {
                         self.registers.write(REG_GRP1, self.grp_1_delay);
+                        //self.grp_1_delay = 0;
                     }
                 },
                 REG_GRP1 => {
@@ -309,17 +305,14 @@ pub mod vcs {
                     }
                     if (self.registers.read(REG_VDELP0) & 0x01) > 0 {
                         self.registers.write(REG_GRP0, self.grp_0_delay);
+                        //self.grp_0_delay = 0;
                     }
                     if (self.registers.read(REG_VDELBL) & 0x01) > 0 {
                         self.registers.write(REG_ENABL, self.ball_delay);
                     }
                 },
                 REG_ENABL => {
-                    if (self.registers.read(REG_VDELBL) & 0x01) > 0 {
-                        self.ball_delay = byte;
-                    } else {
-                        self.registers.write(REG_ENABL, byte);
-                    }
+                    self.registers.write(REG_ENABL, byte);
                 },
                 REG_VSYNC => {
                     if (byte & 0x02 == 0) && (self.registers.read(REG_VSYNC) & 0x02) > 0 {
@@ -361,11 +354,19 @@ pub mod vcs {
                         self.res_m0_cycle = 71;
                     }
                 },
+                REG_RESMP0 => {
+                    self.registers.write(REG_RESMP0, byte);
+                    self.registers.write(REG_ENAM0, 0);
+                },
                 REG_RESM1 => {
                     self.res_m1_cycle = self.cycle + SPRITEOFFSET;
                     if self.res_m1_cycle < 68 {
                         self.res_m1_cycle = 71;
                     }
+                },
+                REG_RESMP1 => {
+                    self.registers.write(REG_RESMP1, byte);
+                    self.registers.write(REG_ENAM1, 0);
                 },
                 REG_RESBL => {
                     self.res_bl_cycle = self.cycle + SPRITEOFFSET;
@@ -623,7 +624,7 @@ pub mod vcs {
                 0 => size = 1,
                 1 => size = 2,
                 2 => size = 4,
-                4 => size = 8,
+                3 => size = 8,
                 _ => ()
             }
 
@@ -680,12 +681,12 @@ pub mod vcs {
 
             // Don't display pixel if PF has priority and is set
             if pf_above {                
-                if ball_pixel >= 0 && current_color == -1 {
-                    current_color = ball_pixel;
-                }
                 // Playfield
                 if playfield_pixel >= 0 && current_color == -1 {
                     current_color = playfield_pixel;
+                }
+                if ball_pixel >= 0 && current_color == -1 {
+                    current_color = ball_pixel;
                 }
             }
 

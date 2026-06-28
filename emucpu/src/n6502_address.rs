@@ -133,6 +133,7 @@ pub mod naddress{
             op_code_lookup[0xf6] = Box::new(AddressMethodZeroX {});
             op_code_lookup[0xf8] = Box::new(AddressMethodNull {});
             op_code_lookup[0xf9] = Box::new(AddressMethodAbsolute {});
+            op_code_lookup[0xfd] = Box::new(AddressMethodAbsoluteX {});
             op_code_lookup[0xff] = Box::new(AddressMethodAbsoluteX {});
             op_code_lookup
         }
@@ -160,7 +161,7 @@ pub mod naddress{
 
     pub struct AddressMethodError {}
     impl AddressMethod for AddressMethodError {
-        fn step_0(&self, cpu: &mut N6502, _addr: &mut AddressBus) -> bool {
+        fn step_0(&self, _cpu: &mut N6502, _addr: &mut AddressBus) -> bool {
             panic!("Error address method");
         }
     }
@@ -288,10 +289,22 @@ pub mod naddress{
             false
         }
         fn step_2(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            // If jumping to another page, it reads without overflow and takes additional tick
+            let (value, overflow) = (cpu.lookup_address.address as u8).overflowing_add(cpu.register_x);
+            if overflow {
+                addr.address = cpu.lookup_address.address + value as u16;
+                cpu.lookup_address.address += (addr.byte as u16) << 8;
+                cpu.lookup_address.address += cpu.register_x as u16;
+                return false;
+            }
             cpu.lookup_address.address += (addr.byte as u16) << 8;
             cpu.lookup_address.address = cpu.lookup_address.address.overflowing_add(cpu.register_x as u16).0;
             cpu.lookup_address.byte = addr.byte;
             cpu.lookup_address.is_accumulator = addr.is_accumulator;
+            addr.address = cpu.lookup_address.address;
+            true
+        }
+        fn step_3(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
             addr.address = cpu.lookup_address.address;
             true
         }
@@ -311,12 +324,24 @@ pub mod naddress{
             false
         }
         fn step_2(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            // If jumping to another page, it reads without overflow and takes additional tick
+            let (value, overflow) = (cpu.lookup_address.address as u8).overflowing_add(cpu.register_y);
+            if overflow {
+                addr.address = cpu.lookup_address.address + value as u16;
+                cpu.lookup_address.address += (addr.byte as u16) << 8;
+                cpu.lookup_address.address += cpu.register_y as u16;
+                return false;
+            }
             cpu.lookup_address.address += (addr.byte as u16) << 8;
             cpu.lookup_address.address = cpu.lookup_address.address.overflowing_add(cpu.register_y as u16).0;
             cpu.lookup_address.byte = addr.byte;
             cpu.lookup_address.is_accumulator = addr.is_accumulator;
             addr.address = cpu.lookup_address.address;
             cpu.lookup_address.is_abs_y = true;
+            true
+        }
+        fn step_3(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            addr.address = cpu.lookup_address.address;
             true
         }
     }
@@ -364,10 +389,22 @@ pub mod naddress{
             false
         }
         fn step_3(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            // If jumping to another page, it reads without overflow and takes additional tick
+            let (value, overflow) = (cpu.lookup_address.address as u8).overflowing_add(cpu.register_y);
+            if overflow {
+                addr.address = cpu.lookup_address.address + value as u16;
+                cpu.lookup_address.address += (addr.byte as u16) << 8;
+                cpu.lookup_address.address += cpu.register_y as u16;
+                return false;
+            }
             cpu.lookup_address.address += (addr.byte as u16) << 8;
             cpu.lookup_address.address += cpu.register_y as u16;
             cpu.lookup_address.byte = addr.byte;
             cpu.lookup_address.is_accumulator = addr.is_accumulator;
+            addr.address = cpu.lookup_address.address;
+            true
+        }
+        fn step_4(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
             addr.address = cpu.lookup_address.address;
             true
         }
