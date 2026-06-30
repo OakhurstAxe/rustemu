@@ -15,6 +15,7 @@ pub mod nopcodes {
             for _i in 0..0x200 {
                 op_code_lookup.push(Box::new(CpuOpPanic {}));
             }
+            op_code_lookup[0x00] = Box::new(CpuOpBrk {});
             op_code_lookup[0x01] = Box::new(CpuOpOra {});
             op_code_lookup[0x02] = Box::new(CpuOpBrk {});
             op_code_lookup[0x05] = Box::new(CpuOpOra {});
@@ -28,6 +29,7 @@ pub mod nopcodes {
             op_code_lookup[0x15] = Box::new(CpuOpOra {});
             op_code_lookup[0x18] = Box::new(CpuOpClc {});
             op_code_lookup[0x19] = Box::new(CpuOpOra {});
+            op_code_lookup[0x1e] = Box::new(CpuOpAsl {});
 
             op_code_lookup[0x20] = Box::new(CpuOpJsr {});
             op_code_lookup[0x24] = Box::new(CpuOpBit {});
@@ -42,6 +44,7 @@ pub mod nopcodes {
             op_code_lookup[0x38] = Box::new(CpuOpSec {});
             op_code_lookup[0x3d] = Box::new(CpuOpAnd {});
 
+            op_code_lookup[0x40] = Box::new(CpuOpRti {});
             op_code_lookup[0x45] = Box::new(CpuOpEor {});
             op_code_lookup[0x46] = Box::new(CpuOpLsr {});
             op_code_lookup[0x48] = Box::new(CpuOpPha {});
@@ -52,6 +55,7 @@ pub mod nopcodes {
 
             op_code_lookup[0x50] = Box::new(CpuOpBvc {});
             op_code_lookup[0x56] = Box::new(CpuOpLsr {});
+            op_code_lookup[0x5f] = Box::new(CpuOpSre {});
 
             op_code_lookup[0x60] = Box::new(CpuOpRts {});
             op_code_lookup[0x65] = Box::new(CpuOpAdc {});
@@ -59,6 +63,7 @@ pub mod nopcodes {
             op_code_lookup[0x68] = Box::new(CpuOpPla {});
             op_code_lookup[0x69] = Box::new(CpuOpAdc {});
             op_code_lookup[0x6a] = Box::new(CpuOpRor {});
+            op_code_lookup[0x6d] = Box::new(CpuOpAdc {});
 
             op_code_lookup[0x70] = Box::new(CpuOpBvs {});
             op_code_lookup[0x75] = Box::new(CpuOpAdc {});
@@ -73,6 +78,7 @@ pub mod nopcodes {
             op_code_lookup[0x8a] = Box::new(CpuOpTxa {});
             op_code_lookup[0x8c] = Box::new(CpuOpSty {});
             op_code_lookup[0x8d] = Box::new(CpuOpSta {});
+            op_code_lookup[0x8e] = Box::new(CpuOpStx {});
 
             op_code_lookup[0x90] = Box::new(CpuOpBcc {});
             op_code_lookup[0x91] = Box::new(CpuOpSta {});
@@ -82,6 +88,7 @@ pub mod nopcodes {
             op_code_lookup[0x98] = Box::new(CpuOpTya {});
             op_code_lookup[0x99] = Box::new(CpuOpSta {});
             op_code_lookup[0x9a] = Box::new(CpuOpTxs {});
+            op_code_lookup[0x9d] = Box::new(CpuOpSta {});
 
             op_code_lookup[0xa0] = Box::new(CpuOpLdy {});
             op_code_lookup[0xa1] = Box::new(CpuOpLda {});
@@ -110,9 +117,11 @@ pub mod nopcodes {
             op_code_lookup[0xc4] = Box::new(CpuOpCpy {});
             op_code_lookup[0xc5] = Box::new(CpuOpCmp {});
             op_code_lookup[0xc6] = Box::new(CpuOpDec {});
+            op_code_lookup[0xc7] = Box::new(CpuOpDcp {});
             op_code_lookup[0xc8] = Box::new(CpuOpIny {});
             op_code_lookup[0xc9] = Box::new(CpuOpCmp {});
             op_code_lookup[0xca] = Box::new(CpuOpDex {});
+            op_code_lookup[0xce] = Box::new(CpuOpDec {});
 
             op_code_lookup[0xd0] = Box::new(CpuOpBne {});
             op_code_lookup[0xd1] = Box::new(CpuOpCmp {});
@@ -130,6 +139,7 @@ pub mod nopcodes {
             op_code_lookup[0xe9] = Box::new(CpuOpSbc {});
             op_code_lookup[0xea] = Box::new(CpuOpNop {});
             op_code_lookup[0xec] = Box::new(CpuOpCpx {});
+            op_code_lookup[0xee] = Box::new(CpuOpInc {});
 
             op_code_lookup[0xf0] = Box::new(CpuOpBeq {});
             op_code_lookup[0xf6] = Box::new(CpuOpInc {});
@@ -139,6 +149,7 @@ pub mod nopcodes {
             op_code_lookup[0xff] = Box::new(CpuOpIsc {});
 
             op_code_lookup[0x100] = Box::new(CpuOpReset {});
+            op_code_lookup[0x101] = Box::new(CpuOpNmi {});
             op_code_lookup
         }
 
@@ -1145,6 +1156,32 @@ pub mod nopcodes {
         }
     }
 
+    struct CpuOpSre {}
+    impl CpuOperation for CpuOpSre {
+        fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            OpCodesUtils::set_status_flag(cpu, CARRY_FLAG, (addr.byte & 0x01) != 0);
+            addr.byte >>= 1;
+            addr.write = true;
+            cpu.accumulator ^= addr.byte;
+            OpCodesUtils::set_negative_zero(cpu, cpu.accumulator);
+            true
+        }
+    }
+
+    struct CpuOpDcp{}
+    impl CpuOperation for CpuOpDcp {
+        fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            OpCodesUtils::set_status_flag(cpu, CARRY_FLAG, (addr.byte & 0x01) != 0);
+            addr.byte = addr.byte.wrapping_sub(1);
+            addr.write = true;
+            OpCodesUtils::set_status_flag(cpu, CARRY_FLAG, cpu.accumulator > addr.byte);
+            OpCodesUtils::set_status_flag(cpu, ZERO_FLAG, cpu.accumulator == addr.byte);
+            let (negzerocheck, _overflow) = cpu.accumulator.overflowing_sub(addr.byte);
+            OpCodesUtils::set_status_flag(cpu, NEGATIVE_FLAG, (negzerocheck & 0x80) != 0);
+            true
+        }
+    }
+
     // Reset and Interrupts
     struct CpuOpReset {}
     impl CpuOperation for CpuOpReset {
@@ -1164,6 +1201,63 @@ pub mod nopcodes {
         } 
         fn step_2(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
             cpu.program_counter += (addr.byte as u16) << 8;
+            true
+        }
+    }
+
+    struct CpuOpNmi {}
+    impl CpuOperation for CpuOpNmi {
+        fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            cpu.in_interrupt = true;
+            cpu.program_counter = cpu.program_counter.overflowing_sub(1).0;
+            OpCodesUtils::push_stack(cpu, addr, ((cpu.program_counter & 0xff00) >> 8) as u8);
+            false
+        }
+        fn step_1(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            OpCodesUtils::push_stack(cpu, addr, (cpu.program_counter & 0xff) as u8);
+            false
+        } 
+        fn step_2(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            OpCodesUtils::push_stack(cpu, addr, cpu.status_register);
+            false
+        }
+        fn step_3(&self, _cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            addr.address = 0xfffa;
+            false
+        }
+        fn step_4(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            cpu.program_counter = addr.byte as u16;
+            addr.address += 1;
+            false
+        }
+        fn step_5(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            cpu.program_counter += (addr.byte as u16) << 8;
+            cpu.in_interrupt = false;
+            true
+        }
+    }
+
+
+    struct CpuOpRti {}
+    impl CpuOperation for CpuOpRti {
+        fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            OpCodesUtils::pop_stack(cpu, addr);
+            false
+        }
+        fn step_1(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            cpu.status_register = addr.byte;
+            OpCodesUtils::set_status_flag(cpu, BREAK_COMMAND, false);
+            OpCodesUtils::pop_stack(cpu, addr);
+            false
+        }
+        fn step_2(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            cpu.program_counter = addr.byte as u16;
+            OpCodesUtils::pop_stack(cpu, addr);
+            false
+        }
+        fn step_3(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+            cpu.program_counter += (addr.byte as u16) << 8;
+            cpu.program_counter += 1;
             true
         }
     }

@@ -75,7 +75,7 @@ pub mod vcs {
 
             match video {
                 Some(video) => {
-                    let image = video_assets.get_mut(&video_handle.0).expect("Image not found");
+                    let mut image = video_assets.get_mut(&video_handle.0).expect("Image not found");
         
                     for y in 0..IMAGE_HEIGHT {
                         for x in 0..IMAGE_WIDTH {

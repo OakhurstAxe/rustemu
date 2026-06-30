@@ -2,7 +2,9 @@
 
 pub mod nes {
 
-    use crate::nes_cartridge::nes::NesCartridge;
+    use emucpu::n6502::emu_cpu::AddressBus;
+
+use crate::nes_cartridge::nes::NesCartridge;
 
     pub struct NesCartridge000 {
         cpu_prog_rom_0: Vec<u8>,
@@ -22,6 +24,18 @@ pub mod nes {
             }
         }
 
+        pub fn execute_tick(&mut self, addr: &mut AddressBus) {
+
+            if addr.address >= 0x6000 {
+                if addr.write {
+                    self.cpu_write(addr.address, addr.byte);
+                    addr.write = false;
+                } else {
+                    addr.byte = self.cpu_read(addr.address);
+                }
+            }
+
+        }
     }
 
     impl NesCartridge for NesCartridge000 {    

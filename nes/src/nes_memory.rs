@@ -74,6 +74,7 @@ pub mod nes {
 
         fn cpu_read(&mut self, mut location: u16) -> u8 {
 
+            /*
             // Working RAM
             if location < 0x2000 {
                 location %= 0x800;  // mirroring
@@ -81,14 +82,17 @@ pub mod nes {
                 self.read_bus = byte;
                 return byte;
             }   
+            */
 
+            /*
             // PPU Registers
             else if location < 0x4000 {
                 let byte = self.ppu.ppu_register_read(location);
                 self.read_bus = byte;
                 return byte;
             }
-
+            */
+            /*
             // APU and IO Registers
             else if location > 0x4000 && location < 0x4018 {                
                 location -= 0x4000;
@@ -113,14 +117,15 @@ pub mod nes {
                 self.read_bus = byte;
                 return byte;
             }
-
+            */
+            /*
             // Cartridge RAM/ROM
             else if location >= 0x6000 {
                 let byte = self.cartridge.read().unwrap().cpu_read(location);
                 self.read_bus = byte;
                 return byte;
             }
-
+            */
             self.read_bus
             
         }
@@ -129,19 +134,22 @@ pub mod nes {
             
             self.read_bus = byte;
 
+            /*
             // Working RAM
             if location < 0x2000 {
                 location %= 0x800;  // mirroring
                 self.cpu_work_ram.write(location, byte);
                 return true;
             }
-            
+             */
+            /*
             // PPU Registers
             else if location < 0x4000 {
                 self.ppu.ppu_register_write(location, byte);
                 return true;
             }
-            
+            */
+            /*
             // APU and IO Registers            
             else if location < 0x401f {
 
@@ -163,10 +171,11 @@ pub mod nes {
                 self.apu.write().unwrap().write(location, byte);
                 return true;
             }
-            
+             */
+            /*
             // Cartridge RAM/ROM
             self.cartridge.write().unwrap().cpu_write(location, byte);
-
+            */
             true
         }
 

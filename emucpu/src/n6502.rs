@@ -91,6 +91,7 @@ pub mod emu_cpu{
         op_code_ticks: Vec<u8>,
         address_method_lookup: Vec<Box<dyn AddressMethod>>,
         tick_count: u8,
+        is_nmi_set: bool,
         _debug: u8,
     }
 
@@ -113,8 +114,13 @@ pub mod emu_cpu{
                 op_code_ticks: OpCodesUtils::get_ticks(),
                 address_method_lookup: AddressOpCodes::get_address_methods(),
                 tick_count: 0,
+                is_nmi_set: false,
                 _debug: 0,
             }
+        }
+
+        pub fn set_nmi(&mut self) {
+            self.is_nmi_set = true;
         }
 
         pub fn execute_tick(&mut self, addr: &mut AddressBus) {
@@ -132,6 +138,10 @@ pub mod emu_cpu{
                     self.op_code = 0x100;
                     self.runner_step = M6502RunnerStep::OpCodeStep;
                     self.is_reset_set = false;
+                } else if self.is_nmi_set {
+                    self.op_code = 0x101;
+                    self.runner_step = M6502RunnerStep::OpCodeStep;
+                    self.is_nmi_set = false;
                 } else {
                     self.runner_step = M6502RunnerStep::AddressStep;
                     if self.op_code_ticks[self.op_code as usize] != self.tick_count 
@@ -139,7 +149,7 @@ pub mod emu_cpu{
                      && self.op_code != 0xb0 && self.op_code != 0x30
                      && self.op_code != 0xf0 && self.op_code != 0x90 
                      && self.op_code != 0x50 {
-                        println!("PC: {:x}, opcode: {:x} tickcount: {} expected: {}", self.cpu.program_counter, self.op_code, self.tick_count, self.op_code_ticks[self.op_code as usize]);
+                        //println!("PC: {:x}, opcode: {:x} tickcount: {} expected: {}", self.cpu.program_counter, self.op_code, self.tick_count, self.op_code_ticks[self.op_code as usize]);
                     }
                     self.op_code = addr.byte as u16;
                     self.cpu.program_counter += 1;

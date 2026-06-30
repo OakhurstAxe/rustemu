@@ -2,10 +2,14 @@
 
 pub mod nes {
 
-    use std::sync::{ Arc, RwLock };
+    use std::ops::Add;
+use std::sync::{ Arc, RwLock };
 
     use emucpu::base_cpu::emu_cpu::BaseCpu;
     use emucpu::m6502::emu_cpu::M6502;
+    use emucpu::n6502::emu_cpu::M6502Runner;
+    use emucpu::prelude::*;
+    use emumemory::prelude::*;
 
     use crate::nes_cartridge::nes::NesCartridge;
     use crate::{nes_cartridge_000::nes::NesCartridge000, nes_memory::nes::NesMemory};
@@ -20,8 +24,13 @@ pub mod nes {
     }
 
     pub struct NesConsole {
-        cpu: M6502<NesMemory>,
-        apu: Arc<RwLock<NesApu>>,
+        //cpu: M6502<NesMemory>,
+        cpu_runner: M6502Runner,
+        addr: AddressBus,
+        apu: NesApu,
+        ppu: NesPpu,
+        cartridge: NesCartridge000,
+        cpu_work_ram: MemoryRam,
         left_controller: u8,
         _right_controller: u8,
         _debug: u8,
@@ -35,21 +44,25 @@ pub mod nes {
         pub fn new (rom_file: String) -> NesConsole {
             let mut ines_file: INesFile = INesFile::new();
             ines_file.load_file(rom_file);
-            let cartridge: Arc<RwLock<NesCartridge000>> = Arc::new(RwLock::new(NesCartridge000::new()));
-            cartridge.write().unwrap().load_prog_rom(ines_file.get_prog_rom_data());
-            cartridge.write().unwrap().load_char_rom(ines_file.get_char_rom_data());
+            let mut cartridge: NesCartridge000 = NesCartridge000::new();
+            cartridge.load_prog_rom(ines_file.get_prog_rom_data());
+            cartridge.load_char_rom(ines_file.get_char_rom_data());
 
-            let ppu: NesPpu = NesPpu::new(Arc::clone(&cartridge));
-            let apu: Arc<RwLock<NesApu>> = Arc::new(RwLock::new(NesApu::new()));
-            let memory = NesMemory::new (Arc::clone(&cartridge), ppu, Arc::clone(&apu));
-            let mut cpu: M6502<NesMemory> = M6502::new(memory);
-            cpu.reset();
-            cpu.disable_dec();
+            let ppu: NesPpu = NesPpu::new();
+            let apu: NesApu = NesApu::new();
+            //let memory = NesMemory::new (Arc::clone(&cartridge), ppu, Arc::clone(&apu));
+            //let mut cpu: M6502<NesMemory> = M6502::new(memory);
+            //cpu.reset();
+            //cpu.disable_dec();
 
             let mut temp_instance = Self {
-                cpu,
-                apu: Arc::clone(&apu),
-                left_controller: 0,
+                //cpu,
+                cpu_runner: M6502Runner::new(M6502Version::Nes),
+                addr: AddressBus { address: 0 , write: false, byte: 0, is_accumulator: false, is_abs_y: false },
+                apu,
+                ppu,
+                cartridge,
+                cpu_work_ram: MemoryRam::new(String::from("CPU Work RAM"), 0x0800),                left_controller: 0,
                 _right_controller: 0,
                 _debug: 0,
                 frame: 0,
@@ -63,12 +76,26 @@ pub mod nes {
 
         fn start_up(&mut self)
         {
-            self.cpu.reset();
-            self.cpu.memory.ppu.reset();
+            //self.cpu.reset();
+            //self.cpu.memory.ppu.reset();
         }
 
         fn get_audio(&mut self) -> Vec<u8> {
-            self.apu.write().unwrap().get_audio_buffer()
+            self.apu.get_audio_buffer()
+        }
+
+        fn ram_execute_tick(&mut self) {
+        
+            if self.addr.address < 0x2000 {
+                let location = self.addr.address % 0x800;  // mirroring
+                if self.addr.write {
+                    self.cpu_work_ram.write(location, self.addr.byte);
+                    self.addr.write = false;
+                } else {
+                    self.addr.byte = self.cpu_work_ram.read(location);
+                }
+            }   
+
         }
 
         pub fn run_frame(&mut self) -> (Vec<u8>, Vec<u8>) {
@@ -78,29 +105,33 @@ pub mod nes {
 
             while ticks < TICKS_PER_FRAME as i32 {
 
+                self.cartridge.execute_tick(&mut self.addr);
+                self.ram_execute_tick();
+
                 if (ticks % 2) == 0 {
-                    self.apu.write().unwrap().execute_tick();
+                    self.apu.execute_tick(&mut self.addr);
                 }
-                if self.apu.write().unwrap().is_irq_set() {
-                    self.cpu.set_irq();
-                    self.apu.write().unwrap().reset_irq();
-                }
-
-                if (ticks % 3) == 0 {
-                    self.cpu.execute_tick();
+                if self.apu.is_irq_set() {
+                    //self.cpu.set_irq();
+                    self.apu.reset_irq();
                 }
 
-                self.cpu.memory.ppu.execute_tick();
+                if (ticks % 3) == 0 && self.apu.ppu_dma_write == 0{
+                    //self.cpu.execute_tick();                    
+                    self.cpu_runner.execute_tick(&mut self.addr);
+                }
 
-                if self.cpu.memory.ppu.is_nmi_set() {
-                    self.cpu.set_nmi();
-                    self.cpu.memory.ppu.reset_nmi();
+                self.ppu.execute_tick(&mut self.addr, &self.cartridge);
+
+                if self.ppu.is_nmi_set() {
+                    self.cpu_runner.set_nmi();
+                    self.ppu.reset_nmi();
                 }
                 self.read_gamepad();
                 ticks += 1;
             }
             
-            let video = self.cpu.memory.ppu.get_screen();
+            let video = self.ppu.get_screen();
             let audio = self.get_audio();
             (video, audio)
         }
@@ -163,8 +194,8 @@ pub mod nes {
             
         fn read_gamepad(&mut self) {
 
-            if self.apu.write().unwrap().is_write_flag_set(0x4016) {
-                self.apu.write().unwrap().set_left_controller(self.left_controller);
+            if self.apu.is_write_flag_set(0x4016) {
+                self.apu.set_left_controller(self.left_controller);
             }
 
             //if self.apu.write().unwrap().is_write_flag_set(0x4017) {

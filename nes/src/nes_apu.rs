@@ -3,6 +3,8 @@ pub mod nes {
 
     use emumemory::memory_ram_flagged::emu_memory::MemoryRamFlagged;
 
+    use emucpu::prelude::*;
+    
     use crate::nes_apuchannel::nes::NesApuChannel;
     use crate::nes_apupulsechannel::nes::NesApuPulseChannel;
     use crate::nes_aputrianglechannel::nes::NesApuTriangleChannel;
@@ -17,6 +19,9 @@ pub mod nes {
         irq_set: bool,
         interrupt_set: bool,
         frame_counter: u16,
+        pub ppu_dma_write: u16,
+        ppu_dma_address: u16,
+        ppu_dma_read: bool,
         channel0: NesApuPulseChannel,
         channel1: NesApuPulseChannel,
         channel2: NesApuTriangleChannel,
@@ -33,6 +38,9 @@ pub mod nes {
                 irq_set: false,
                 interrupt_set: false,
                 frame_counter: 0,
+                ppu_dma_write: 0,
+                ppu_dma_address: 0,
+                ppu_dma_read: true,
                 channel0: NesApuPulseChannel::new(),
                 channel1: NesApuPulseChannel::new(),
                 channel2: NesApuTriangleChannel::new(),
@@ -96,8 +104,48 @@ pub mod nes {
             self.interrupt_set = false;
         }
 
-        pub fn execute_tick(&mut self) {
+        pub fn execute_tick(&mut self, addr: &mut AddressBus) {
             
+            if self.ppu_dma_write > 0 {
+                if self.ppu_dma_read {
+                    addr.address = self.ppu_dma_address;
+                    addr.write = false;
+                    self.ppu_dma_read = false;
+                } else {
+                    addr.address = 0x2004;
+                    addr.write = true;
+                    self.ppu_dma_write -= 1;
+                }
+
+            } else if (0x4000..0x401f).contains(&addr.address) {
+                let location = addr.address - 0x4000;
+
+                if addr.write {
+                    // PPU DMA
+                    if location == 0x4014 {
+                        self.ppu_dma_write = 256;
+                        self.ppu_dma_address = (addr.byte as u16) << 8;
+                        //return true;
+                    } else if location == 0x4015 && ((addr.byte & 0x10) > 0) {
+                        //let apu_address: u16 = self.read(0x12) as u16;
+                        //self.apu_dma_address = 0xC0 + (apu_address << 6);
+                        //let length = self.apu.write().unwrap().read(0x13) as u16;
+                        //self.apu_dma_write = (length << 4) + 1;
+                    } else {
+                        self.write(location, addr.byte);
+                    }
+                    addr.write = false;
+                } else {
+                    if location == 0x16 {
+                        addr.byte = (self.get_left_controller() & 0x1f) + (addr.byte & 0xe0);
+                    } else if location == 0x17 {
+                        addr.byte = (self.get_right_controller() & 0x1f) + (addr.byte & 0x1f);
+                    } else {
+                        addr.byte = self.read(location);
+                    }
+                }
+            }
+
             if self.frame_counter > 0 {
                 self.frame_counter -= 1;
             }

@@ -75,7 +75,7 @@ pub mod vcs {
     const MEDIUM: u16 =      40;
     const WIDE: u16 =        72;
 
-    const SPRITEOFFSET: u16 = 4;
+    const SPRITEOFFSET: u16 = 5;
 
     pub struct TiaAudio {
         pub v0: u8,
@@ -199,8 +199,6 @@ pub mod vcs {
             if self.cycle > 67 + self.x_resolution as u16 {
                 self.cycle = 0;
                 self.scan_line += 1;
-                self.registers.write(REG_GRP0, 0);
-                self.registers.write(REG_GRP1, 0);
             }
 
             // If on screen, render pixel

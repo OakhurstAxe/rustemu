@@ -10,9 +10,10 @@ pub mod naddress{
     impl AddressOpCodes {
         pub fn get_address_methods() -> Vec<Box<dyn AddressMethod>> {
             let mut op_code_lookup: Vec<Box<dyn AddressMethod>> = Vec::with_capacity(0x200);
-            for _i in 0..256 {
+            for _i in 0..0x200 {
                 op_code_lookup.push(Box::new(AddressMethodError {}));
             }
+            op_code_lookup[0x00] = Box::new(AddressMethodNull {});
             op_code_lookup[0x01] = Box::new(AddressMethodIndirectX {});
             op_code_lookup[0x02] = Box::new(AddressMethodNull {});
             op_code_lookup[0x05] = Box::new(AddressMethodZero {});
@@ -26,6 +27,7 @@ pub mod naddress{
             op_code_lookup[0x15] = Box::new(AddressMethodZeroX {});
             op_code_lookup[0x18] = Box::new(AddressMethodNull {});
             op_code_lookup[0x19] = Box::new(AddressMethodAbsoluteY {});
+            op_code_lookup[0x1e] = Box::new(AddressMethodAbsoluteX {});
 
             op_code_lookup[0x20] = Box::new(AddressMethodAbsolute {});
             op_code_lookup[0x24] = Box::new(AddressMethodZero {});
@@ -40,6 +42,7 @@ pub mod naddress{
             op_code_lookup[0x38] = Box::new(AddressMethodNull {});
             op_code_lookup[0x3d] = Box::new(AddressMethodAbsoluteX {});
 
+            op_code_lookup[0x40] = Box::new(AddressMethodNull {});
             op_code_lookup[0x45] = Box::new(AddressMethodZero {});
             op_code_lookup[0x46] = Box::new(AddressMethodZero {});
             op_code_lookup[0x48] = Box::new(AddressMethodNull {});
@@ -50,6 +53,7 @@ pub mod naddress{
 
             op_code_lookup[0x50] = Box::new(AddressMethodImmediate {});
             op_code_lookup[0x56] = Box::new(AddressMethodZeroX {});
+            op_code_lookup[0x5f] = Box::new(AddressMethodAbsoluteX {});
 
             op_code_lookup[0x60] = Box::new(AddressMethodNull {});
             op_code_lookup[0x65] = Box::new(AddressMethodZero {});
@@ -57,6 +61,7 @@ pub mod naddress{
             op_code_lookup[0x68] = Box::new(AddressMethodNull {});
             op_code_lookup[0x69] = Box::new(AddressMethodImmediate {});
             op_code_lookup[0x6a] = Box::new(AddressMethodAccumulator {});
+            op_code_lookup[0x6d] = Box::new(AddressMethodAbsolute {});
 
             op_code_lookup[0x70] = Box::new(AddressMethodImmediate {});
             op_code_lookup[0x75] = Box::new(AddressMethodZeroX {});
@@ -71,6 +76,7 @@ pub mod naddress{
             op_code_lookup[0x8a] = Box::new(AddressMethodNull {});
             op_code_lookup[0x8c] = Box::new(AddressMethodAbsolute {});
             op_code_lookup[0x8d] = Box::new(AddressMethodAbsolute {});
+            op_code_lookup[0x8e] = Box::new(AddressMethodAbsolute {});
 
             op_code_lookup[0x90] = Box::new(AddressMethodImmediate {});
             op_code_lookup[0x91] = Box::new(AddressMethodIndirectY {});
@@ -80,6 +86,7 @@ pub mod naddress{
             op_code_lookup[0x98] = Box::new(AddressMethodNull {});
             op_code_lookup[0x99] = Box::new(AddressMethodAbsoluteY {});
             op_code_lookup[0x9a] = Box::new(AddressMethodNull {});
+            op_code_lookup[0x9d] = Box::new(AddressMethodAbsoluteX {});
 
             op_code_lookup[0xa0] = Box::new(AddressMethodImmediate {});
             op_code_lookup[0xa1] = Box::new(AddressMethodIndirectX {});
@@ -108,9 +115,11 @@ pub mod naddress{
             op_code_lookup[0xc4] = Box::new(AddressMethodZero {});
             op_code_lookup[0xc5] = Box::new(AddressMethodZero {});
             op_code_lookup[0xc6] = Box::new(AddressMethodZero {});
+            op_code_lookup[0xc7] = Box::new(AddressMethodZero {});
             op_code_lookup[0xc8] = Box::new(AddressMethodNull {});
             op_code_lookup[0xc9] = Box::new(AddressMethodImmediate {});
             op_code_lookup[0xca] = Box::new(AddressMethodNull {});
+            op_code_lookup[0xce] = Box::new(AddressMethodAbsolute {});
 
             op_code_lookup[0xd0] = Box::new(AddressMethodImmediate {});
             op_code_lookup[0xd1] = Box::new(AddressMethodIndirectY {});
@@ -128,6 +137,7 @@ pub mod naddress{
             op_code_lookup[0xe9] = Box::new(AddressMethodImmediate {});
             op_code_lookup[0xea] = Box::new(AddressMethodNull {});
             op_code_lookup[0xec] = Box::new(AddressMethodAbsolute {});
+            op_code_lookup[0xee] = Box::new(AddressMethodAbsolute {});
 
             op_code_lookup[0xf0] = Box::new(AddressMethodImmediate {});
             op_code_lookup[0xf6] = Box::new(AddressMethodZeroX {});
@@ -135,6 +145,9 @@ pub mod naddress{
             op_code_lookup[0xf9] = Box::new(AddressMethodAbsolute {});
             op_code_lookup[0xfd] = Box::new(AddressMethodAbsoluteX {});
             op_code_lookup[0xff] = Box::new(AddressMethodAbsoluteX {});
+
+            op_code_lookup[0x100] = Box::new(AddressMethodNull {});
+            op_code_lookup[0x101] = Box::new(AddressMethodNull {});
             op_code_lookup
         }
     }
