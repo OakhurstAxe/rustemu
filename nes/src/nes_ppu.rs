@@ -1,13 +1,8 @@
 
 pub mod nes {
 
-    use std::sync::Arc;
-    use std::sync::RwLock;
-
     use emucpu::prelude::*;
-    use emucpu::n6502::emu_cpu::AddressBus;
-use emumemory::memory_ram::emu_memory::MemoryRam;
-    use emumemory::base_memory::emu_memory::BaseMemory;
+    use emumemory::prelude::*;
 
     use crate::nes_console::nes::TICKS_PER_FRAME;
     use crate::nes_cartridge::nes::NesCartridge;
@@ -280,7 +275,7 @@ use emumemory::memory_ram::emu_memory::MemoryRam;
 
         }
 
-        pub fn ppu_register_read(&mut self, mut location: u16) -> u8 {
+        fn ppu_register_read(&mut self, mut location: u16) -> u8 {
             // Mirroring, and bring to zero
             location %= 8;
             
@@ -308,7 +303,7 @@ use emumemory::memory_ram::emu_memory::MemoryRam;
             self.ppu_io_bus
         }
 
-        pub fn ppu_register_write(&mut self, mut location: u16, byte: u8) {
+        fn ppu_register_write(&mut self, mut location: u16, byte: u8) {
 
             location %= 8;
             self.ppu_io_bus = byte;
@@ -337,10 +332,10 @@ use emumemory::memory_ram::emu_memory::MemoryRam;
                     self.ppu_addr = ((self.ppu_addr_h as u16) << 8) + self.ppu_addr_l as u16;
                     self.ppu_addr_count = 0;
                 }
-            } else if location == 0x07 { // && ppuAddr_ != 0)
+            } else if location == 0x07 { 
                 let addr = self.ppu_addr;
                 self.write(addr, byte);
-                //self.ppu.write().unwrap().write(self.ppu_addr, byte);
+                //self.write(self.ppu_addr, byte);
                 let controller: u8 = self.cpu_ppu_registers.read(0x0000);
                 if controller & 0x04 > 0 {
                     self.ppu_addr += 32;

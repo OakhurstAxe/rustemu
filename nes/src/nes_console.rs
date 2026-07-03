@@ -2,11 +2,8 @@
 
 pub mod nes {
 
-    use std::ops::Add;
-use std::sync::{ Arc, RwLock };
+    use std::sync::RwLock;
 
-    use emucpu::base_cpu::emu_cpu::BaseCpu;
-    use emucpu::m6502::emu_cpu::M6502;
     use emucpu::n6502::emu_cpu::M6502Runner;
     use emucpu::prelude::*;
     use emumemory::prelude::*;
@@ -24,7 +21,7 @@ use std::sync::{ Arc, RwLock };
     }
 
     pub struct NesConsole {
-        //cpu: M6502<NesMemory>,
+        inframe: RwLock<bool>,
         cpu_runner: M6502Runner,
         addr: AddressBus,
         apu: NesApu,
@@ -56,7 +53,7 @@ use std::sync::{ Arc, RwLock };
             //cpu.disable_dec();
 
             let mut temp_instance = Self {
-                //cpu,
+                inframe: RwLock::new(false),
                 cpu_runner: M6502Runner::new(M6502Version::Nes),
                 addr: AddressBus { address: 0 , write: false, byte: 0, is_accumulator: false, is_abs_y: false },
                 apu,
@@ -86,8 +83,11 @@ use std::sync::{ Arc, RwLock };
 
         fn ram_execute_tick(&mut self) {
         
-            if self.addr.address < 0x2000 {
+            if (0x0000..0x2000).contains(&self.addr.address) {
                 let location = self.addr.address % 0x800;  // mirroring
+                if location == 0x600 {
+                    println!("set up brk");
+                }
                 if self.addr.write {
                     self.cpu_work_ram.write(location, self.addr.byte);
                     self.addr.write = false;
@@ -98,13 +98,21 @@ use std::sync::{ Arc, RwLock };
 
         }
 
-        pub fn run_frame(&mut self) -> (Vec<u8>, Vec<u8>) {
+        pub fn run_frame(&mut self) -> (Option<Vec<u8>>, Option<Vec<u8>>) {
 
             self.frame += 1;
             let mut ticks: i32 = 0;
 
+            if *self.inframe.read().unwrap() {
+                return (None, None);
+            }
+            *self.inframe.write().unwrap() = true;
+
             while ticks < TICKS_PER_FRAME as i32 {
 
+                if (0x4020..0x6000).contains(&self.addr.address) {
+                    eprintln!("unknown address");
+                }
                 self.cartridge.execute_tick(&mut self.addr);
                 self.ram_execute_tick();
 
@@ -112,12 +120,11 @@ use std::sync::{ Arc, RwLock };
                     self.apu.execute_tick(&mut self.addr);
                 }
                 if self.apu.is_irq_set() {
-                    //self.cpu.set_irq();
+                    //self.cpu_runner.set_irq();
                     self.apu.reset_irq();
                 }
 
                 if (ticks % 3) == 0 && self.apu.ppu_dma_write == 0{
-                    //self.cpu.execute_tick();                    
                     self.cpu_runner.execute_tick(&mut self.addr);
                 }
 
@@ -133,7 +140,10 @@ use std::sync::{ Arc, RwLock };
             
             let video = self.ppu.get_screen();
             let audio = self.get_audio();
-            (video, audio)
+
+            *self.inframe.write().unwrap() = false;
+            
+            (Some(video), Some(audio))
         }
             
         pub fn left_controler_a(&mut self, value: bool) {

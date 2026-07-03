@@ -76,45 +76,59 @@ pub mod nes {
         ) {
 
             let (video, audio) = nes_console.0.run_frame();
-            let mut image = video_assets.get_mut(&video_handle.0).expect("Image not found");
+            let image = video_assets.get_mut(&video_handle.0).expect("Image not found");
  
-            for y in 0..IMAGE_HEIGHT {
-                for x in 0..IMAGE_WIDTH {
-                    let color = Color::srgb_u8(
-                        video[((y * IMAGE_WIDTH + x) * 3) as usize],
-                        video[((y * IMAGE_WIDTH + x) * 3 + 1) as usize],
-                        video[((y * IMAGE_WIDTH + x) * 3 + 2) as usize],
-                    );
-                    _ = image.set_color_at(x as u32, y as u32, color);
+            match video {
+                Some(video) => {
+                    for y in 0..IMAGE_HEIGHT {
+                        for x in 0..IMAGE_WIDTH {
+                            let color = Color::srgb_u8(
+                                video[((y * IMAGE_WIDTH + x) * 3) as usize],
+                                video[((y * IMAGE_WIDTH + x) * 3 + 1) as usize],
+                                video[((y * IMAGE_WIDTH + x) * 3 + 2) as usize],
+                            );
+                            _ = image.set_color_at(x as u32, y as u32, color);
+                        }
+                    }
+                },
+                None => {
+                    eprintln!("No frame video available");
                 }
             }
 
-            let wav_header: Vec<u8> = vec![ 
-                0x52, 0x49, 0x46, 0x46, //b'R', b'I', b'F', b'F', 
-                0x1a, 0x03, 0x0, 0x0, 
-                0x57, 0x41, 0x56, 0x45, //b'W', b'A', b'V', b'E', 
-                0x66, 0x6d, 0x74, 0x20, //b'f', b'm', b't', 0, 
-                0x10, 0x0, 0x0, 0x0, 
-                0x1, 0x0,
-                0x1, 0x0, 
-                0x44, 0xac, 0x0, 0x0, 
-                0x44, 0xac, 0x0, 0x0, 
-                0x1, 0x0, 
-                0x8, 0x0, 
-                0x64, 0x61, 0x74, 0x61, //b'd', b'a', b't', b'a', 
-                0xee, 0x2, 0x0, 0x0];
-                
-            let mut buffer: Vec<u8> = vec![0; SAMPLES_PER_FRAME + 44];
-            for i in 0..44 {
-                buffer[i] = wav_header[i];
+            match audio {
+                Some(audio) => {
+                    let wav_header: Vec<u8> = vec![ 
+                        0x52, 0x49, 0x46, 0x46, //b'R', b'I', b'F', b'F', 
+                        0x1a, 0x03, 0x0, 0x0, 
+                        0x57, 0x41, 0x56, 0x45, //b'W', b'A', b'V', b'E', 
+                        0x66, 0x6d, 0x74, 0x20, //b'f', b'm', b't', 0, 
+                        0x10, 0x0, 0x0, 0x0, 
+                        0x1, 0x0,
+                        0x1, 0x0, 
+                        0x44, 0xac, 0x0, 0x0, 
+                        0x44, 0xac, 0x0, 0x0, 
+                        0x1, 0x0, 
+                        0x8, 0x0, 
+                        0x64, 0x61, 0x74, 0x61, //b'd', b'a', b't', b'a', 
+                        0xee, 0x2, 0x0, 0x0];
+                        
+                    let mut buffer: Vec<u8> = vec![0; SAMPLES_PER_FRAME + 44];
+                    for i in 0..44 {
+                        buffer[i] = wav_header[i];
+                    }
+                    for i in 0..SAMPLES_PER_FRAME {
+                        buffer[i+44] = audio[i];
+                    }
+                    let buffer_array: [u8; SAMPLES_PER_FRAME + 44] = buffer.try_into().unwrap();
+                    let audio_source = AudioSource{bytes: Arc::new(buffer_array)};
+                    let audio_handle = audio_assets.add(audio_source);
+                    commands.spawn((AudioPlayer::new(audio_handle), PlaybackSettings::DESPAWN));
+                    },
+                None => {
+                    eprintln!("No frame audio available");
+                }
             }
-            for i in 0..SAMPLES_PER_FRAME {
-                buffer[i+44] = audio[i];
-            }
-            let buffer_array: [u8; SAMPLES_PER_FRAME + 44] = buffer.try_into().unwrap();
-            let audio_source = AudioSource{bytes: Arc::new(buffer_array)};
-            let audio_handle = audio_assets.add(audio_source);
-            commands.spawn((AudioPlayer::new(audio_handle), PlaybackSettings::DESPAWN));
         }
 
         pub fn gamepad_system(gamepads: Query<(Entity, &Gamepad)>,

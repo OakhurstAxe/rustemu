@@ -44,7 +44,7 @@ use crate::nes_cartridge::nes::NesCartridge;
 
             if location < 0xc000 {
 
-                if location > 0x8000 {
+                if location >= 0x8000 {
                     location -= 0x8000;
                 }
                 else {

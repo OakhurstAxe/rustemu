@@ -92,6 +92,7 @@ pub mod emu_cpu{
         address_method_lookup: Vec<Box<dyn AddressMethod>>,
         tick_count: u8,
         is_nmi_set: bool,
+        is_irq_set: bool,
         _debug: u8,
     }
 
@@ -99,8 +100,29 @@ pub mod emu_cpu{
         pub fn new (version: M6502Version) -> M6502Runner {
 
             let mut cpu = N6502::new();
+            let mut op_code_lookup = OpCodesUtils::get_opcodes();
+
             if version == M6502Version::AtariVcs {
                 cpu.stack_pointer_page = 0x00;
+            } else if version == M6502Version::Nes {
+                op_code_lookup[0x61] = Box::new(CpuOpAdcNoDecimal {});
+                op_code_lookup[0x65] = Box::new(CpuOpAdcNoDecimal {});
+                op_code_lookup[0x69] = Box::new(CpuOpAdcNoDecimal {});
+                op_code_lookup[0x6d] = Box::new(CpuOpAdcNoDecimal {});
+                op_code_lookup[0x71] = Box::new(CpuOpAdcNoDecimal {});
+                op_code_lookup[0x75] = Box::new(CpuOpAdcNoDecimal {});
+                op_code_lookup[0x79] = Box::new(CpuOpAdcNoDecimal {});
+                op_code_lookup[0x7d] = Box::new(CpuOpAdcNoDecimal {});
+
+                op_code_lookup[0xe1] = Box::new(CpuOpSbcNoDecimal {});
+                op_code_lookup[0xe5] = Box::new(CpuOpSbcNoDecimal {});
+                op_code_lookup[0xe9] = Box::new(CpuOpSbcNoDecimal {});
+                op_code_lookup[0xeb] = Box::new(CpuOpSbcNoDecimal {});
+                op_code_lookup[0xed] = Box::new(CpuOpSbcNoDecimal {});
+                op_code_lookup[0xf1] = Box::new(CpuOpSbcNoDecimal {});
+                op_code_lookup[0xf5] = Box::new(CpuOpSbcNoDecimal {});
+                op_code_lookup[0xf9] = Box::new(CpuOpSbcNoDecimal {});
+                op_code_lookup[0xfd] = Box::new(CpuOpSbcNoDecimal {});
             }
 
             Self {
@@ -110,17 +132,22 @@ pub mod emu_cpu{
                 address_step: 0,
                 runner_step: M6502RunnerStep::ReadPc,
                 is_reset_set: true,
-                op_code_lookup: OpCodesUtils::get_opcodes(),
+                op_code_lookup,
                 op_code_ticks: OpCodesUtils::get_ticks(),
                 address_method_lookup: AddressOpCodes::get_address_methods(),
                 tick_count: 0,
                 is_nmi_set: false,
+                is_irq_set: false,
                 _debug: 0,
             }
         }
 
         pub fn set_nmi(&mut self) {
             self.is_nmi_set = true;
+        }
+
+        pub fn set_irq(&mut self) {
+            self.is_irq_set = true;
         }
 
         pub fn execute_tick(&mut self, addr: &mut AddressBus) {
@@ -142,6 +169,10 @@ pub mod emu_cpu{
                     self.op_code = 0x101;
                     self.runner_step = M6502RunnerStep::OpCodeStep;
                     self.is_nmi_set = false;
+                } else if self.is_irq_set && OpCodesUtils::get_status_flag(&mut self.cpu, INTERRUPT_FLAG) == 0 {
+                    self.op_code = 0x102;
+                    self.runner_step = M6502RunnerStep::OpCodeStep;
+                    self.is_irq_set = false;
                 } else {
                     self.runner_step = M6502RunnerStep::AddressStep;
                     if self.op_code_ticks[self.op_code as usize] != self.tick_count 
@@ -151,6 +182,7 @@ pub mod emu_cpu{
                      && self.op_code != 0x50 {
                         //println!("PC: {:x}, opcode: {:x} tickcount: {} expected: {}", self.cpu.program_counter, self.op_code, self.tick_count, self.op_code_ticks[self.op_code as usize]);
                     }
+                    //println!("PC: {:x}, opcode: {:x} tickcount: {} expected: {}", self.cpu.program_counter, self.op_code, self.tick_count, self.op_code_ticks[self.op_code as usize]);
                     self.op_code = addr.byte as u16;
                     self.cpu.program_counter += 1;
                     self.tick_count = 0;
