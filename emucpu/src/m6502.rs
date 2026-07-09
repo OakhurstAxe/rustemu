@@ -1271,7 +1271,7 @@ pub mod emu_cpu {
         }
 
         fn op_anc(&mut self, address_method: fn(&mut M6502<T>)) {
-            address_method(self);    
+            address_method(self);
             let byte = self.memory.cpu_read(self.address_bus.address());
             self.accumulator &= byte;
             self.set_status_flag(CARRY_FLAG, (self.accumulator & 0x80) != 0);

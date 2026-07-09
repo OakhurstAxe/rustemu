@@ -11,6 +11,7 @@ pub mod nes {
     use crate::nes_apunoisechannel::nes::NesApuNoiseChannel;
     use crate::nes_apuchannel::nes::SAMPLES_PER_FRAME;
     use crate::nes_console::nes::TICKS_PER_FRAME;
+use crate::nes_ppu::nes::NesPpu;
 
     pub struct NesApu {
         apu_io_registers: MemoryRamFlagged,
@@ -104,16 +105,16 @@ pub mod nes {
             self.interrupt_set = false;
         }
 
-        pub fn execute_tick(&mut self, addr: &mut AddressBus) {
-            
+        pub fn execute_tick(&mut self, addr: &mut AddressBus, ppu: &mut NesPpu) {
+
             if self.ppu_dma_write > 0 {
                 if self.ppu_dma_read {
                     addr.address = self.ppu_dma_address;
-                    addr.write = false;
+                    self.ppu_dma_address += 1;
                     self.ppu_dma_read = false;
                 } else {
-                    addr.address = 0x2004;
-                    addr.write = true;
+                    ppu.oam_write(256 - self.ppu_dma_write, addr.byte);
+                    self.ppu_dma_read = true;
                     self.ppu_dma_write -= 1;
                 }
 
@@ -122,11 +123,11 @@ pub mod nes {
 
                 if addr.write {
                     // PPU DMA
-                    if location == 0x4014 {
+                    if location == 0x14 {
                         self.ppu_dma_write = 256;
                         self.ppu_dma_address = (addr.byte as u16) << 8;
                         //return true;
-                    } else if location == 0x4015 && ((addr.byte & 0x10) > 0) {
+                    } else if location == 0x15 && ((addr.byte & 0x10) > 0) {
                         //let apu_address: u16 = self.read(0x12) as u16;
                         //self.apu_dma_address = 0xC0 + (apu_address << 6);
                         //let length = self.apu.write().unwrap().read(0x13) as u16;

@@ -60,7 +60,7 @@ use crate::nes_cartridge::nes::NesCartridge;
         }
     
         fn cpu_write(&self, location: u16, _byte: u8) {
-            eprintln!("This cartridge does not support cpu write {}", location);
+            //eprintln!("This cartridge does not support cpu write {}", location);
         }
 
         fn ppu_read(&self, mut location: u16) -> u8 {

@@ -2,7 +2,7 @@
 
 pub mod nes {
 
-    use std::sync::RwLock;
+    use std::sync::Mutex;
 
     use emucpu::n6502::emu_cpu::M6502Runner;
     use emucpu::prelude::*;
@@ -21,7 +21,7 @@ pub mod nes {
     }
 
     pub struct NesConsole {
-        inframe: RwLock<bool>,
+        inframe: Mutex<bool>,
         cpu_runner: M6502Runner,
         addr: AddressBus,
         apu: NesApu,
@@ -53,7 +53,7 @@ pub mod nes {
             //cpu.disable_dec();
 
             let mut temp_instance = Self {
-                inframe: RwLock::new(false),
+                inframe: Mutex::new(false),
                 cpu_runner: M6502Runner::new(M6502Version::Nes),
                 addr: AddressBus { address: 0 , write: false, byte: 0, is_accumulator: false, is_abs_y: false },
                 apu,
@@ -85,9 +85,6 @@ pub mod nes {
         
             if (0x0000..0x2000).contains(&self.addr.address) {
                 let location = self.addr.address % 0x800;  // mirroring
-                if location == 0x600 {
-                    println!("set up brk");
-                }
                 if self.addr.write {
                     self.cpu_work_ram.write(location, self.addr.byte);
                     self.addr.write = false;
@@ -103,29 +100,30 @@ pub mod nes {
             self.frame += 1;
             let mut ticks: i32 = 0;
 
-            if *self.inframe.read().unwrap() {
-                return (None, None);
-            }
-            *self.inframe.write().unwrap() = true;
+            self.inframe.lock();
 
             while ticks < TICKS_PER_FRAME as i32 {
 
                 if (0x4020..0x6000).contains(&self.addr.address) {
-                    eprintln!("unknown address");
+                    //eprintln!("unknown address {}", self.addr.address);
                 }
                 self.cartridge.execute_tick(&mut self.addr);
                 self.ram_execute_tick();
 
                 if (ticks % 2) == 0 {
-                    self.apu.execute_tick(&mut self.addr);
+                    // APU should be here?
                 }
+                
                 if self.apu.is_irq_set() {
-                    //self.cpu_runner.set_irq();
+                    self.cpu_runner.set_irq();
                     self.apu.reset_irq();
                 }
 
-                if (ticks % 3) == 0 && self.apu.ppu_dma_write == 0{
-                    self.cpu_runner.execute_tick(&mut self.addr);
+                if (ticks % 3) == 0 {
+                    self.apu.execute_tick(&mut self.addr, &mut self.ppu);
+                    if self.apu.ppu_dma_write == 0 {
+                        self.cpu_runner.execute_tick(&mut self.addr);
+                    }
                 }
 
                 self.ppu.execute_tick(&mut self.addr, &self.cartridge);
@@ -141,8 +139,6 @@ pub mod nes {
             let video = self.ppu.get_screen();
             let audio = self.get_audio();
 
-            *self.inframe.write().unwrap() = false;
-            
             (Some(video), Some(audio))
         }
             

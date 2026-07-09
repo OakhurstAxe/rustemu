@@ -5,14 +5,14 @@ pub mod emu_cpu{
     use crate::n6502_address::naddress::{*};
     use crate::n6502_opcodes::nopcodes::{*};
 
-    pub const CARRY_FLAG: u8 = 1;
-    pub const ZERO_FLAG: u8 = 2;
+    pub const CARRY_FLAG: u8     = 1;
+    pub const ZERO_FLAG: u8      = 2;
     pub const INTERRUPT_FLAG: u8 = 4;
-    pub const DECIMAL_MODE: u8 = 8;
-    pub const BREAK_COMMAND: u8 = 16;
-    pub const IGNORED: u8 = 32;
-    pub const OVERFLOW_FLAG: u8 =64;
-    pub const NEGATIVE_FLAG: u8 = 128;
+    pub const DECIMAL_MODE: u8   = 8;
+    pub const BREAK_COMMAND: u8  = 16;
+    pub const IGNORED: u8        = 32;
+    pub const OVERFLOW_FLAG: u8  = 64;
+    pub const NEGATIVE_FLAG: u8  = 128;
 
     #[derive(Default)]
     pub struct AddressBus {
