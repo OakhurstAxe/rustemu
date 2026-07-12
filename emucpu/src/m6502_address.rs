@@ -1,10 +1,10 @@
 
 
 
-pub mod naddress{
+pub mod maddress{
 
-    use crate::n6502::emu_cpu::N6502;
-    use crate::n6502::emu_cpu::AddressBus;
+    use crate::m6502::emu_cpu::M6502;
+    use crate::m6502::emu_cpu::AddressBus;
 
     pub struct AddressOpCodes {}
     impl AddressOpCodes {
@@ -293,7 +293,7 @@ pub mod naddress{
     }
 
     pub trait AddressMethod: Sync + Send {
-        fn execute(&self, cpu: &mut N6502, addr: &mut AddressBus, step: u8) -> bool {
+        fn execute(&self, cpu: &mut M6502, addr: &mut AddressBus, step: u8) -> bool {
             let mut result = false;
             match step {
                 0 => result = self.step_0(cpu, addr),
@@ -305,23 +305,23 @@ pub mod naddress{
             }
             result            
         }
-        fn step_0(&self, _cpu: &mut N6502, _addr: &mut AddressBus) -> bool { true }
-        fn step_1(&self, _cpu: &mut N6502, _addr: &mut AddressBus) -> bool { true }
-        fn step_2(&self, _cpu: &mut N6502, _addr: &mut AddressBus) -> bool { true }
-        fn step_3(&self, _cpu: &mut N6502, _addr: &mut AddressBus) -> bool { true }
-        fn step_4(&self, _cpu: &mut N6502, _addr: &mut AddressBus) -> bool { true }
+        fn step_0(&self, _cpu: &mut M6502, _addr: &mut AddressBus) -> bool { true }
+        fn step_1(&self, _cpu: &mut M6502, _addr: &mut AddressBus) -> bool { true }
+        fn step_2(&self, _cpu: &mut M6502, _addr: &mut AddressBus) -> bool { true }
+        fn step_3(&self, _cpu: &mut M6502, _addr: &mut AddressBus) -> bool { true }
+        fn step_4(&self, _cpu: &mut M6502, _addr: &mut AddressBus) -> bool { true }
     }
 
     pub struct AddressMethodError {}
     impl AddressMethod for AddressMethodError {
-        fn step_0(&self, _cpu: &mut N6502, _addr: &mut AddressBus) -> bool {
+        fn step_0(&self, _cpu: &mut M6502, _addr: &mut AddressBus) -> bool {
             panic!("Error address method");
         }
     }
 
     pub struct AddressMethodNull {}
     impl AddressMethod for AddressMethodNull {
-        fn step_0(&self, cpu: &mut N6502, _addr: &mut AddressBus) -> bool {
+        fn step_0(&self, cpu: &mut M6502, _addr: &mut AddressBus) -> bool {
             cpu.lookup_address.address = 0;
             true
         }
@@ -329,7 +329,7 @@ pub mod naddress{
 
     pub struct AddressMethodAccumulator {}
     impl AddressMethod for AddressMethodAccumulator {
-        fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+        fn step_0(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
             addr.address = cpu.accumulator as u16;
             addr.byte = cpu.accumulator;
             addr.is_accumulator = true;
@@ -342,7 +342,7 @@ pub mod naddress{
 
     pub struct AddressMethodImmediate {}
     impl AddressMethod for AddressMethodImmediate {
-        fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+        fn step_0(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
             addr.address = cpu.program_counter;
             cpu.program_counter += 1;
             cpu.lookup_address.address = addr.address;
@@ -354,12 +354,12 @@ pub mod naddress{
 
     pub struct AddressMethodZero {}
     impl AddressMethod for AddressMethodZero {
-        fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+        fn step_0(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
             addr.address = cpu.program_counter;
             cpu.program_counter += 1;
             false
         }
-        fn step_1(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+        fn step_1(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
             addr.address = addr.byte as u16;
             cpu.lookup_address.address = addr.byte as u16;
             cpu.lookup_address.byte = addr.byte;
@@ -370,16 +370,16 @@ pub mod naddress{
 
     pub struct AddressMethodZeroX {}
     impl AddressMethod for AddressMethodZeroX {
-        fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+        fn step_0(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
             addr.address = cpu.program_counter;
             cpu.program_counter += 1;
             false
         }
-        fn step_1(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+        fn step_1(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
             addr.address = (addr.byte.overflowing_add(cpu.register_x).0) as u16;
             false        
         }
-        fn step_2(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+        fn step_2(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
             cpu.lookup_address.address = addr.address;
             cpu.lookup_address.byte = addr.byte;
             cpu.lookup_address.is_accumulator = addr.is_accumulator;
@@ -389,16 +389,16 @@ pub mod naddress{
 
     pub struct AddressMethodZeroY {}
     impl AddressMethod for AddressMethodZeroY {
-        fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+        fn step_0(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
             addr.address = cpu.program_counter;
             cpu.program_counter += 1;
             false
         }
-        fn step_1(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+        fn step_1(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
             addr.address = (addr.byte.overflowing_add(cpu.register_y).0) as u16;
             false        
         }
-        fn step_2(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+        fn step_2(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
             cpu.lookup_address.address = addr.address;
             cpu.lookup_address.byte = addr.byte;
             cpu.lookup_address.is_accumulator = addr.is_accumulator;
@@ -408,18 +408,18 @@ pub mod naddress{
 
     pub struct AddressMethodAbsolute {}
     impl AddressMethod for AddressMethodAbsolute {
-        fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+        fn step_0(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
             addr.address = cpu.program_counter;
             cpu.program_counter += 1;
             false
         }
-        fn step_1(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+        fn step_1(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
             cpu.lookup_address.address = addr.byte as u16;
             addr.address = cpu.program_counter;
             cpu.program_counter += 1;
             false
         }
-        fn step_2(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+        fn step_2(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
             cpu.lookup_address.address |= (addr.byte as u16) << 8;
             cpu.lookup_address.byte = addr.byte;
             cpu.lookup_address.is_accumulator = addr.is_accumulator;
@@ -430,18 +430,18 @@ pub mod naddress{
 
     pub struct AddressMethodAbsoluteX {}
     impl AddressMethod for AddressMethodAbsoluteX {
-        fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+        fn step_0(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
             addr.address = cpu.program_counter;
             cpu.program_counter += 1;
             false
         }
-        fn step_1(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+        fn step_1(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
             addr.address = cpu.program_counter;
             cpu.program_counter += 1;
             cpu.lookup_address.address = addr.byte as u16;
             false
         }
-        fn step_2(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+        fn step_2(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
             // If jumping to another page, it reads without overflow and takes additional tick
             //let (value, overflow) = (cpu.lookup_address.address as u8).overflowing_add(cpu.register_x);
             //if overflow {
@@ -457,7 +457,7 @@ pub mod naddress{
             addr.address = cpu.lookup_address.address;
             true
         }
-        fn step_3(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+        fn step_3(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
             addr.address = cpu.lookup_address.address;
             true
         }
@@ -465,18 +465,18 @@ pub mod naddress{
 
     pub struct AddressMethodAbsoluteY {}
     impl AddressMethod for AddressMethodAbsoluteY {
-        fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+        fn step_0(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
             addr.address = cpu.program_counter;
             cpu.program_counter += 1;
             false
         }
-        fn step_1(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+        fn step_1(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
             cpu.lookup_address.address = addr.byte as u16;
             addr.address = cpu.program_counter;
             cpu.program_counter += 1;
             false
         }
-        fn step_2(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+        fn step_2(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
             // If jumping to another page, it reads without overflow and takes additional tick
             //let (value, overflow) = (cpu.lookup_address.address as u8).overflowing_add(cpu.register_y);
             //if overflow {
@@ -493,7 +493,7 @@ pub mod naddress{
             cpu.lookup_address.is_abs_y = true;
             true
         }
-        fn step_3(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+        fn step_3(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
             addr.address = cpu.lookup_address.address;
             true
         }
@@ -501,44 +501,53 @@ pub mod naddress{
 
     pub struct AddressMethodIndirect {}
     impl AddressMethod for AddressMethodIndirect {
-        fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+        fn step_0(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
             addr.address = cpu.program_counter;
             cpu.program_counter += 1;
             cpu.lookup_address.address = 0;
             false
         }
-        fn step_1(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+        fn step_1(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
+            cpu.lookup_address.address = addr.byte as u16;
+            addr.address = cpu.program_counter;
+            false
+        }
+        fn step_2(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
+            cpu.lookup_address.address += (addr.byte as u16) << 8;
+            addr.address = cpu.lookup_address.address;
+            false
+        }
+        fn step_3(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
             cpu.lookup_address.address = addr.byte as u16;
             addr.address += 1;
             false
         }
-        fn step_2(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+        fn step_4(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
             cpu.lookup_address.address += (addr.byte as u16) << 8;
             cpu.lookup_address.byte = addr.byte;
-            cpu.lookup_address.is_accumulator = addr.is_accumulator;
             addr.address = cpu.lookup_address.address;
-            false
+            true
         }
     }
 
     pub struct AddressMethodIndirectX {}
     impl AddressMethod for AddressMethodIndirectX {
-        fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+        fn step_0(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
             addr.address = cpu.program_counter;
             cpu.program_counter += 1;
             cpu.lookup_address.address = 0;
             false
         }
-        fn step_1(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
-            addr.address = addr.byte.overflowing_add(cpu.register_x).0 as u16;
+        fn step_1(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
+            addr.address = addr.byte.wrapping_add(cpu.register_x) as u16;
             false
         }
-        fn step_2(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+        fn step_2(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
             cpu.lookup_address.address = addr.byte as u16;
             addr.address += 1;
             false
         }
-        fn step_3(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+        fn step_3(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
             cpu.lookup_address.address += (addr.byte as u16) << 8;
             cpu.lookup_address.byte = addr.byte;
             cpu.lookup_address.is_accumulator = addr.is_accumulator;
@@ -549,21 +558,21 @@ pub mod naddress{
 
     pub struct AddressMethodIndirectY {}
     impl AddressMethod for AddressMethodIndirectY {
-        fn step_0(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+        fn step_0(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
             addr.address = cpu.program_counter;
             cpu.program_counter += 1;
             false
         }
-        fn step_1(&self, _cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+        fn step_1(&self, _cpu: &mut M6502, addr: &mut AddressBus) -> bool {
             addr.address = addr.byte as u16;
             false
         }
-        fn step_2(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+        fn step_2(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
             cpu.lookup_address.address = addr.byte as u16;
             addr.address += 1;
             false
         }
-        fn step_3(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+        fn step_3(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
             // If jumping to another page, it reads without overflow and takes additional tick
             let (value, overflow) = (cpu.lookup_address.address as u8).overflowing_add(cpu.register_y);
             if overflow {
@@ -579,7 +588,7 @@ pub mod naddress{
             addr.address = cpu.lookup_address.address;
             true
         }
-        fn step_4(&self, cpu: &mut N6502, addr: &mut AddressBus) -> bool {
+        fn step_4(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
             addr.address = cpu.lookup_address.address;
             true
         }

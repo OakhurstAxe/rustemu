@@ -2,7 +2,7 @@
 
 pub mod nes {
 
-    use emucpu::n6502::emu_cpu::AddressBus;
+    use emucpu::m6502::emu_cpu::AddressBus;
 
 use crate::nes_cartridge::nes::NesCartridge;
 

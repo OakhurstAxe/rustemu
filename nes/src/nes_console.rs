@@ -4,7 +4,7 @@ pub mod nes {
 
     use std::sync::Mutex;
 
-    use emucpu::n6502::emu_cpu::M6502Runner;
+    use emucpu::m6502::emu_cpu::M6502Runner;
     use emucpu::prelude::*;
     use emumemory::prelude::*;
 
@@ -105,6 +105,7 @@ pub mod nes {
             while ticks < TICKS_PER_FRAME as i32 {
 
                 if (0x4020..0x6000).contains(&self.addr.address) {
+                    self.addr.write = false;
                     //eprintln!("unknown address {}", self.addr.address);
                 }
                 self.cartridge.execute_tick(&mut self.addr);
