@@ -127,7 +127,7 @@ pub mod nes {
                     }
                 }
 
-                self.ppu.execute_tick(&mut self.addr, &self.cartridge);
+                self.ppu.execute_tick(&mut self.addr, &self.cartridge, ticks);
 
                 if self.ppu.is_nmi_set() {
                     self.cpu_runner.set_nmi();

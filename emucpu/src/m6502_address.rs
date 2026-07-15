@@ -47,7 +47,7 @@ pub mod maddress{
             op_code_lookup[0x1e] = Box::new(AddressMethodAbsoluteX {});
             op_code_lookup[0x1f] = Box::new(AddressMethodAbsoluteX {});
 
-            op_code_lookup[0x20] = Box::new(AddressMethodAbsolute {});
+            op_code_lookup[0x20] = Box::new(AddressMethodNull {});
             op_code_lookup[0x21] = Box::new(AddressMethodIndirectX {});
             op_code_lookup[0x22] = Box::new(AddressMethodIndirectX {});
             op_code_lookup[0x23] = Box::new(AddressMethodIndirectX {});
@@ -443,22 +443,19 @@ pub mod maddress{
         }
         fn step_2(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
             // If jumping to another page, it reads without overflow and takes additional tick
-            //let (value, overflow) = (cpu.lookup_address.address as u8).overflowing_add(cpu.register_x);
-            //if overflow {
-            //    addr.address = cpu.lookup_address.address + value as u16;
-            //    cpu.lookup_address.address = cpu.lookup_address.address.overflowing_add((addr.byte as u16) << 8).0;
-            //    cpu.lookup_address.address = cpu.lookup_address.address.overflowing_add(cpu.register_x as u16).0;
-            //    return false;
-            //}
             cpu.lookup_address.address += (addr.byte as u16) << 8;
-            cpu.lookup_address.address = cpu.lookup_address.address.overflowing_add(cpu.register_x as u16).0;
-            cpu.lookup_address.byte = addr.byte;
-            cpu.lookup_address.is_accumulator = addr.is_accumulator;
+            let byte: u8 = cpu.lookup_address.address as u8;
+            let (_value, overflow) = byte.overflowing_add(cpu.register_x);
+            if overflow {
+                addr.address = cpu.lookup_address.address & 0xff00;
+                return false;
+            }
+            cpu.lookup_address.address = cpu.lookup_address.address.wrapping_add(cpu.register_x as u16);
             addr.address = cpu.lookup_address.address;
             true
         }
         fn step_3(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
-            addr.address = cpu.lookup_address.address;
+            addr.address = cpu.lookup_address.address + cpu.register_x as u16;
             true
         }
     }
@@ -519,7 +516,9 @@ pub mod maddress{
         }
         fn step_3(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
             cpu.lookup_address.address = addr.byte as u16;
-            addr.address += 1;
+            let byte = ((addr.address & 0xff) as u8).wrapping_add(1);
+            addr.address &= 0xff00;
+            addr.address += byte as u16;
             false
         }
         fn step_4(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
@@ -544,15 +543,15 @@ pub mod maddress{
         }
         fn step_2(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
             cpu.lookup_address.address = addr.byte as u16;
-            addr.address += 1;
+            let byte = ((addr.address & 0xff) as u8).wrapping_add(1);
+            addr.address &= 0xff00;
+            addr.address += byte as u16;
             false
         }
         fn step_3(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
             cpu.lookup_address.address += (addr.byte as u16) << 8;
-            cpu.lookup_address.byte = addr.byte;
-            cpu.lookup_address.is_accumulator = addr.is_accumulator;
             addr.address = cpu.lookup_address.address;
-            false
+            true
         }
     }
 
@@ -569,19 +568,20 @@ pub mod maddress{
         }
         fn step_2(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
             cpu.lookup_address.address = addr.byte as u16;
-            addr.address += 1;
+            let byte = ((addr.address & 0xff) as u8).wrapping_add(1);
+            addr.address &= 0xff00;
+            addr.address += byte as u16;
             false
         }
         fn step_3(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
             // If jumping to another page, it reads without overflow and takes additional tick
-            let (value, overflow) = (cpu.lookup_address.address as u8).overflowing_add(cpu.register_y);
+            cpu.lookup_address.address += (addr.byte as u16) << 8;
+            let byte: u8 = cpu.lookup_address.address as u8;
+            let (_value, overflow) = byte.overflowing_add(cpu.register_y);
             if overflow {
-                addr.address = cpu.lookup_address.address + value as u16;
-                cpu.lookup_address.address += (addr.byte as u16) << 8;
-                cpu.lookup_address.address += cpu.register_y as u16;
+                addr.address = cpu.lookup_address.address;// + value as u16;
                 return false;
             }
-            cpu.lookup_address.address += (addr.byte as u16) << 8;
             cpu.lookup_address.address += cpu.register_y as u16;
             cpu.lookup_address.byte = addr.byte;
             cpu.lookup_address.is_accumulator = addr.is_accumulator;
@@ -589,7 +589,7 @@ pub mod maddress{
             true
         }
         fn step_4(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
-            addr.address = cpu.lookup_address.address;
+            addr.address = cpu.lookup_address.address + cpu.register_y as u16;
             true
         }
     }

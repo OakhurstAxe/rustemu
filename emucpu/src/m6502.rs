@@ -154,6 +154,9 @@ pub mod emu_cpu{
             
             if self.runner_step == M6502RunnerStep::AddressStepLoadByte {
                 self.cpu.lookup_address.byte = addr.byte;
+                self.cpu.lookup_address.address = addr.address;
+                self.cpu.lookup_address.is_accumulator = addr.is_accumulator;
+                self.cpu.lookup_address.is_abs_y = addr.is_abs_y;
                 self.runner_step = M6502RunnerStep::OpCodeStep;
             }
 

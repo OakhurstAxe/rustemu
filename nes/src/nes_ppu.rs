@@ -224,6 +224,58 @@ pub mod nes {
             }
         }
         
+        pub fn execute_tick(&mut self, addr: &mut AddressBus, cartridge: &NesCartridge000,
+            tick: i32) {
+
+            if tick % 3 == 0 && (0x2000..0x4000).contains(&addr.address) {
+                if addr.write {
+                    self.ppu_register_write(addr.address, addr.byte);
+                    addr.write = false;
+                } else {
+                    addr.byte = self.ppu_register_read(addr.address);
+                }
+            }
+
+            if self.ppu_io_bus_ticks == 0 {
+                self.ppu_io_bus = 0;
+            } else {
+                self.ppu_io_bus_ticks -= 1;
+            }
+
+            self.cycle += 1;
+            if self.cycle >= 340 {
+                // Set rendering registers for when scrolling happens
+                self.cycle = 0;
+                self.scan_line += 1;
+                if self.scan_line > 261 {
+                    self.scan_line = 0;
+                }
+            }
+            
+            if self.scan_line > 0 && self.scan_line <= 240 && self.cycle >= 0  && self.cycle <= 256 {
+                self.render_pixel(&cartridge);
+            }
+            
+            if self.scan_line == 241 && self.cycle == 1 {                
+                self.cpu_set_vblank(1);
+                let ppu_control_addr: u8 = self.cpu_ppu_registers.read(PPU_CONTROL_ADDR % 8); 
+                self.control_register.reg(ppu_control_addr);
+                if self.control_register.get_enable_nmi() > 0 {
+                    // store ppu_addr
+                    self.nmi_set = true;
+                    self.ppu_x_scroll_read = true;
+                    self.ppu_x_scroll_write = true;
+                }
+            }
+
+            if self.scan_line == 261 && self.cycle == 1 {
+                // restore ppu_addr
+                self.cpu_set_vblank(0);
+                self.set_ppu_sprite_overflow(0);
+                self.set_ppu_sprite_zero_hit(0);
+            }
+        }
+
         fn read(&mut self, mut location: u16) -> u8 {
 
             //  Cartridge PPU ROM
@@ -232,6 +284,7 @@ pub mod nes {
             } else if location < 0x3f00 {
                 location -= 0x2000;
                 return self.ppu_name_table.read(location);
+                //return self.ppu_register_read(location);
             } else if location < 0x4000 {
                 location -= 0x3f00;
 
@@ -257,6 +310,7 @@ pub mod nes {
             else if location < 0x3f00 {
                 location -= 0x2000;
                 self.ppu_name_table.write(location, byte);
+                //self.ppu_register_write(location, byte);
                 return;
             }
             
@@ -624,57 +678,6 @@ pub mod nes {
             ans
         }
         
-        pub fn execute_tick(&mut self, addr: &mut AddressBus, cartridge: &NesCartridge000) {
-
-            if (0x2000..0x4000).contains(&addr.address) {
-                if addr.write {
-                    self.ppu_register_write(addr.address, addr.byte);
-                    addr.write = false;
-                } else {
-                    addr.byte = self.ppu_register_read(addr.address);
-                }
-            }
-
-            if self.ppu_io_bus_ticks == 0 {
-                self.ppu_io_bus = 0;
-            } else {
-                self.ppu_io_bus_ticks -= 1;
-            }
-
-            self.cycle += 1;
-            if self.cycle >= 340 {
-                // Set rendering registers for when scrolling happens
-                self.cycle = 0;
-                self.scan_line += 1;
-                if self.scan_line > 261 {
-                    self.scan_line = 0;
-                }
-            }
-            
-            if self.scan_line > 0 && self.scan_line <= 240 && self.cycle >= 0  && self.cycle <= 256 {
-                self.render_pixel(&cartridge);
-            }
-            
-            if self.scan_line == 241 && self.cycle == 1 {                
-                self.cpu_set_vblank(1);
-                let ppu_control_addr: u8 = self.cpu_ppu_registers.read(PPU_CONTROL_ADDR % 8); 
-                self.control_register.reg(ppu_control_addr);
-                if self.control_register.get_enable_nmi() > 0 {
-                    // store ppu_addr
-                    self.nmi_set = true;
-                    self.ppu_x_scroll_read = true;
-                    self.ppu_x_scroll_write = true;
-                }
-            }
-
-            if self.scan_line == 261 && self.cycle == 1 {
-                // restore ppu_addr
-                self.cpu_set_vblank(0);
-                self.set_ppu_sprite_overflow(0);
-                self.set_ppu_sprite_zero_hit(0);
-            }
-        }
-
         pub fn is_nmi_set(&self) -> bool {
             self.nmi_set
         }

@@ -49,62 +49,6 @@ use crate::nes_ppu::nes::NesPpu;
             }
         }
         
-        pub fn is_read_flag_set(&mut self, location: u16) -> bool {
-            self.apu_io_registers.is_read_flag_set(location)
-        }
-
-        pub fn is_write_flag_set(&mut self, location: u16) -> bool {
-            self.apu_io_registers.is_write_flag_set(location)
-        }
-
-        pub fn read(&mut self, location: u16) -> u8 {
-            self.apu_io_registers.read(location)
-        }
-
-        pub fn write(&mut self, location: u16, byte: u8) {
-            self.apu_io_registers.write(location, byte);
-
-            if location == 0x17 {
-                if (byte & 0x80) == 0 {
-                    self.frame_counter = TICKS_PER_FRAME >> 2;
-                }
-                if (byte & 0x40) != 0 {
-                    self.interrupt_set = false;
-                } else {
-                    self.interrupt_set = true;
-                }
-            }
-        }
-
-        pub fn set_left_controller(&mut self, byte: u8) {
-            self.left_controller = byte;
-        }
-
-        pub fn set_right_controller(&mut self, byte: u8) {
-            self.right_controller = byte;
-        }
-
-        pub fn get_left_controller(&mut self) -> u8 {
-            let result: u8 = self.left_controller & 0x01;
-            self.left_controller >>= 1;
-            result
-        }
-
-        pub fn get_right_controller(&mut self) -> u8 {
-            let result: u8 = self.right_controller & 0x01;
-            self.right_controller >>= 1;
-            result
-        }
-
-        pub fn is_irq_set(&self) -> bool {
-            self.irq_set
-        }
-        
-        pub fn reset_irq(&mut self) {
-            self.irq_set = false;
-            self.interrupt_set = false;
-        }
-
         pub fn execute_tick(&mut self, addr: &mut AddressBus, ppu: &mut NesPpu) {
 
             if self.ppu_dma_write > 0 {
@@ -118,7 +62,7 @@ use crate::nes_ppu::nes::NesPpu;
                     self.ppu_dma_write -= 1;
                 }
 
-            } else if (0x4000..0x401f).contains(&addr.address) {
+            } else if (0x4000..0x4018).contains(&addr.address) {
                 let location = addr.address - 0x4000;
 
                 if addr.write {
@@ -140,11 +84,11 @@ use crate::nes_ppu::nes::NesPpu;
                     if location == 0x16 {
                         addr.byte = (self.get_left_controller() & 0x1f) + (addr.byte & 0xe0);
                     } else if location == 0x17 {
-                        addr.byte = (self.get_right_controller() & 0x1f) + (addr.byte & 0x1f);
-                    } else {
-                        addr.byte = self.read(location);
+                        addr.byte = (self.get_right_controller() & 0x1f) + (addr.byte & 0xe0);
                     }
                 }
+            } else if (0x4018..0x401f).contains(&addr.address) {
+                addr.write = false;
             }
 
             if self.frame_counter > 0 {
@@ -206,6 +150,63 @@ use crate::nes_ppu::nes::NesPpu;
                                             register3, register3_flag,
                                             register4, register4_flag);
         }
+
+        pub fn is_read_flag_set(&mut self, location: u16) -> bool {
+            self.apu_io_registers.is_read_flag_set(location)
+        }
+
+        pub fn is_write_flag_set(&mut self, location: u16) -> bool {
+            self.apu_io_registers.is_write_flag_set(location)
+        }
+
+        pub fn read(&mut self, location: u16) -> u8 {
+            self.apu_io_registers.read(location)
+        }
+
+        pub fn write(&mut self, location: u16, byte: u8) {
+            self.apu_io_registers.write(location, byte);
+
+            if location == 0x17 {
+                if (byte & 0x80) == 0 {
+                    self.frame_counter = TICKS_PER_FRAME >> 2;
+                }
+                if (byte & 0x40) != 0 {
+                    self.interrupt_set = false;
+                } else {
+                    self.interrupt_set = true;
+                }
+            }
+        }
+
+        pub fn set_left_controller(&mut self, byte: u8) {
+            self.left_controller = byte;
+        }
+
+        pub fn set_right_controller(&mut self, byte: u8) {
+            self.right_controller = byte;
+        }
+
+        pub fn get_left_controller(&mut self) -> u8 {
+            let result: u8 = self.left_controller & 0x01;
+            self.left_controller >>= 1;
+            result
+        }
+
+        pub fn get_right_controller(&mut self) -> u8 {
+            let result: u8 = self.right_controller & 0x01;
+            self.right_controller >>= 1;
+            result
+        }
+
+        pub fn is_irq_set(&self) -> bool {
+            self.irq_set
+        }
+        
+        pub fn reset_irq(&mut self) {
+            self.irq_set = false;
+            self.interrupt_set = false;
+        }
+
 
         pub fn get_audio_buffer(&mut self) -> Vec<u8> {
 
