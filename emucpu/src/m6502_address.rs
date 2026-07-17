@@ -215,7 +215,7 @@ pub mod maddress{
             op_code_lookup[0xbc] = Box::new(AddressMethodAbsoluteX {});
             op_code_lookup[0xbd] = Box::new(AddressMethodAbsoluteX {});
             op_code_lookup[0xbe] = Box::new(AddressMethodAbsoluteY {});
-            op_code_lookup[0xbf] = Box::new(AddressMethodIndirectY {});
+            op_code_lookup[0xbf] = Box::new(AddressMethodAbsoluteY {});
 
             op_code_lookup[0xc0] = Box::new(AddressMethodImmediate {});
             op_code_lookup[0xc1] = Box::new(AddressMethodIndirectX {});

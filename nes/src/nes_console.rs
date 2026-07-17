@@ -122,7 +122,7 @@ pub mod nes {
 
                 if (ticks % 3) == 0 {
                     self.apu.execute_tick(&mut self.addr, &mut self.ppu);
-                    if self.apu.ppu_dma_write == 0 {
+                    if self.apu.ppu_dma_write == 0 && self.apu.apu_dma_write == 0 {
                         self.cpu_runner.execute_tick(&mut self.addr);
                     }
                 }

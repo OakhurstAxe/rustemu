@@ -45,6 +45,7 @@ pub mod emu_cpu{
         pub status_register: u8,
         pub lookup_address: AddressBus,
         pub in_interrupt: bool,
+        pub byte: u8,
         _debug: u8,
     }
 
@@ -60,6 +61,7 @@ pub mod emu_cpu{
                 status_register: 0,
                 lookup_address: AddressBus::new(0, false, 0),
                 in_interrupt: false,
+                byte: 0,
                 _debug: 0,
             }
         }
@@ -92,7 +94,10 @@ pub mod emu_cpu{
         address_method_lookup: Vec<Box<dyn AddressMethod>>,
         tick_count: u8,
         is_nmi_set: bool,
+        nmi_buffered: bool,
         is_irq_set: bool,
+        irq_buffered: bool,
+        pub can_halt: bool,
         _debug: u8,
     }
 
@@ -137,7 +142,10 @@ pub mod emu_cpu{
                 address_method_lookup: AddressOpCodes::get_address_methods(),
                 tick_count: 0,
                 is_nmi_set: false,
+                nmi_buffered: false,
                 is_irq_set: false,
+                irq_buffered: false,
+                can_halt: false,
                 _debug: 0,
             }
         }
@@ -162,20 +170,21 @@ pub mod emu_cpu{
 
             // Geting new op code
             if self.runner_step == M6502RunnerStep::ReadPc {
+                self.can_halt = false;
                 addr.is_accumulator = false;
                 self.cpu.lookup_address.is_abs_y = false;
                 if self.is_reset_set {
                     self.op_code = 0x100;
                     self.runner_step = M6502RunnerStep::OpCodeStep;
                     self.is_reset_set = false;
-                } else if self.is_nmi_set {
+                } else if self.nmi_buffered {
                     self.op_code = 0x101;
                     self.runner_step = M6502RunnerStep::OpCodeStep;
-                    self.is_nmi_set = false;
-                } else if self.is_irq_set && OpCodesUtils::get_status_flag(&mut self.cpu, INTERRUPT_FLAG) == 0 {
+                    self.nmi_buffered = false;
+                } else if self.irq_buffered {
                     self.op_code = 0x102;
                     self.runner_step = M6502RunnerStep::OpCodeStep;
-                    self.is_irq_set = false;
+                    self.irq_buffered = false;
                 } else {
                     self.runner_step = M6502RunnerStep::AddressStep;
                     if self.op_code_ticks[self.op_code as usize] != self.tick_count 
@@ -190,6 +199,14 @@ pub mod emu_cpu{
                     //println!("PC: {:x}, opcode: {:x} ", self.cpu.program_counter, self.op_code);
                     self.cpu.program_counter += 1;
                     self.tick_count = 0;
+                }
+                if self.is_irq_set && OpCodesUtils::get_status_flag(&mut self.cpu, INTERRUPT_FLAG) == 0 {
+                    self.irq_buffered = true;
+                    self.is_irq_set = false;
+                }
+                if self.is_nmi_set {
+                    self.nmi_buffered = true;
+                    self.is_nmi_set = false;
                 }
             }
 
@@ -221,6 +238,7 @@ pub mod emu_cpu{
 
             if self.runner_step == M6502RunnerStep::OpCodeWrite && addr.write == false {
                 self.runner_step = M6502RunnerStep::ReadPc;
+                self.can_halt = true;
                 addr.address = self.cpu.program_counter;
             }
 

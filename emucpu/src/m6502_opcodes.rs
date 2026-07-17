@@ -567,7 +567,7 @@ use crate::m6502::emu_cpu::M6502;
             let byte = cpu.lookup_address.byte;
             let mut carry: u8 = 0;
             if OpCodesUtils::get_status_flag(cpu, CARRY_FLAG) != 0 {
-                carry = 0x80;
+                carry = 0x01;
             }
 
             let(value1, overflow1) = cpu.accumulator.overflowing_add(addr.byte);
@@ -594,14 +594,13 @@ use crate::m6502::emu_cpu::M6502;
     struct CpuOpDcp{}
     impl CpuOperation for CpuOpDcp {
         fn step_0(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
-            let mut byte = cpu.lookup_address.byte;
-            byte = byte.wrapping_sub(1);
+            let mut byte = cpu.lookup_address.byte.wrapping_sub(1);
             addr.byte = byte;
             addr.write = true;
-            OpCodesUtils::set_status_flag(cpu, CARRY_FLAG, cpu.accumulator > byte);
+            OpCodesUtils::set_status_flag(cpu, CARRY_FLAG, cpu.accumulator >= byte);
             OpCodesUtils::set_status_flag(cpu, ZERO_FLAG, cpu.accumulator == byte);
-            let (negzerocheck, _overflow) = cpu.accumulator.overflowing_sub(byte);
-            OpCodesUtils::set_status_flag(cpu, NEGATIVE_FLAG, (negzerocheck & 0x80) != 0);
+            let negzerocheck= cpu.accumulator.wrapping_sub(byte);
+            OpCodesUtils::set_status_flag(cpu,NEGATIVE_FLAG, negzerocheck & 0x80 != 0);
             true
         }
     }
@@ -1249,14 +1248,16 @@ use crate::m6502::emu_cpu::M6502;
     // Branch Operations
     struct CpuOpBcc {}
     impl CpuOperation for CpuOpBcc {
-        fn needs_addr_byte(&self, _addr: &mut AddressBus) -> bool { false }
-        fn step_0(&self, _cpu: &mut M6502, _addr: &mut AddressBus) -> bool {
-            false
-        }
-        fn step_1(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
+        fn step_0(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
             if OpCodesUtils::get_status_flag(cpu, CARRY_FLAG) == 0 {
                 let relative_address: i8 = addr.byte as i8;
+                let addr_high_orig = cpu.program_counter & 0xff00;
                 cpu.program_counter = (cpu.program_counter as i16 + relative_address as i16) as u16;
+                // Set dummy read, old page if page bounds jumped
+                addr.address += 1;
+                if addr_high_orig != (cpu.program_counter & 0xff00) {
+                    addr.address = addr_high_orig + (cpu.program_counter & 0x00ff);
+                }
                 return false;
             }
             true
@@ -1265,14 +1266,16 @@ use crate::m6502::emu_cpu::M6502;
 
     struct CpuOpBcs {}
     impl CpuOperation for CpuOpBcs {
-        fn needs_addr_byte(&self, _addr: &mut AddressBus) -> bool { false }
-        fn step_0(&self, _cpu: &mut M6502, _addr: &mut AddressBus) -> bool {
-            false
-        }
-        fn step_1(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
+        fn step_0(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
             if OpCodesUtils::get_status_flag(cpu, CARRY_FLAG) != 0 {
                 let relative_address: i8 = addr.byte as i8;
+                let addr_high_orig = cpu.program_counter & 0xff00;
                 cpu.program_counter = (cpu.program_counter as i16 + relative_address as i16) as u16;
+                // Set dummy read, old page if page bounds jumped
+                addr.address += 1;
+                if addr_high_orig != (cpu.program_counter & 0xff00) {
+                    addr.address = addr_high_orig + (cpu.program_counter & 0x00ff);
+                }
                 return false;
             }
             true
@@ -1281,14 +1284,16 @@ use crate::m6502::emu_cpu::M6502;
 
     struct CpuOpBne {}
     impl CpuOperation for CpuOpBne {
-        fn needs_addr_byte(&self, _addr: &mut AddressBus) -> bool { false }
-        fn step_0(&self, _cpu: &mut M6502, _addr: &mut AddressBus) -> bool {
-            false
-        }
-        fn step_1(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
+        fn step_0(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
             if OpCodesUtils::get_status_flag(cpu, ZERO_FLAG) == 0 {
                 let relative_address: i8 = addr.byte as i8;
+                let addr_high_orig = cpu.program_counter & 0xff00;
                 cpu.program_counter = (cpu.program_counter as i16 + relative_address as i16) as u16;
+                // Set dummy read, old page if page bounds jumped
+                addr.address += 1;
+                if addr_high_orig != (cpu.program_counter & 0xff00) {
+                    addr.address = addr_high_orig + (cpu.program_counter & 0x00ff);
+                }
                 return false;
             }
             true
@@ -1297,14 +1302,16 @@ use crate::m6502::emu_cpu::M6502;
 
     struct CpuOpBeq {}
     impl CpuOperation for CpuOpBeq {
-        fn needs_addr_byte(&self, _addr: &mut AddressBus) -> bool { false }
-        fn step_0(&self, _cpu: &mut M6502, _addr: &mut AddressBus) -> bool {
-            false
-        }
-        fn step_1(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
+        fn step_0(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
             if OpCodesUtils::get_status_flag(cpu, ZERO_FLAG) != 0 {
                 let relative_address: i8 = addr.byte as i8;
+                let addr_high_orig = cpu.program_counter & 0xff00;
                 cpu.program_counter = (cpu.program_counter as i16 + relative_address as i16) as u16;
+                // Set dummy read, old page if page bounds jumped
+                addr.address += 1;
+                if addr_high_orig != (cpu.program_counter & 0xff00) {
+                    addr.address = addr_high_orig + (cpu.program_counter & 0x00ff);
+                }
                 return false;
             }
             true
@@ -1313,14 +1320,16 @@ use crate::m6502::emu_cpu::M6502;
 
     struct CpuOpBpl {}
     impl CpuOperation for CpuOpBpl {
-        fn needs_addr_byte(&self, _addr: &mut AddressBus) -> bool { false }
-        fn step_0(&self, _cpu: &mut M6502, _addr: &mut AddressBus) -> bool {
-            false
-        }
-        fn step_1(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
+        fn step_0(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
             if OpCodesUtils::get_status_flag(cpu, NEGATIVE_FLAG) == 0 {
                 let relative_address: i8 = addr.byte as i8;
+                let addr_high_orig = cpu.program_counter & 0xff00;
                 cpu.program_counter = (cpu.program_counter as i16 + relative_address as i16) as u16;
+                // Set dummy read, old page if page bounds jumped
+                addr.address += 1;
+                if addr_high_orig != (cpu.program_counter & 0xff00) {
+                    addr.address = addr_high_orig + (cpu.program_counter & 0x00ff);
+                }
                 return false;
             }
             true
@@ -1329,14 +1338,16 @@ use crate::m6502::emu_cpu::M6502;
 
     struct CpuOpBmi {}
     impl CpuOperation for CpuOpBmi {
-        fn needs_addr_byte(&self, _addr: &mut AddressBus) -> bool { false }
-        fn step_0(&self, _cpu: &mut M6502, _addr: &mut AddressBus) -> bool {
-            false
-        }
-        fn step_1(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
+        fn step_0(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
             if OpCodesUtils::get_status_flag(cpu, NEGATIVE_FLAG) != 0 {
                 let relative_address: i8 = addr.byte as i8;
+                let addr_high_orig = cpu.program_counter & 0xff00;
                 cpu.program_counter = (cpu.program_counter as i16 + relative_address as i16) as u16;
+                // Set dummy read, old page if page bounds jumped
+                addr.address += 1;
+                if addr_high_orig != (cpu.program_counter & 0xff00) {
+                    addr.address = addr_high_orig + (cpu.program_counter & 0x00ff);
+                }
                 return false;
             }
             true
@@ -1345,14 +1356,16 @@ use crate::m6502::emu_cpu::M6502;
 
     struct CpuOpBvc {}
     impl CpuOperation for CpuOpBvc {
-        fn needs_addr_byte(&self, _addr: &mut AddressBus) -> bool { false }
-        fn step_0(&self, _cpu: &mut M6502, _addr: &mut AddressBus) -> bool {
-            false
-        }
-        fn step_1(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
+        fn step_0(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
             if OpCodesUtils::get_status_flag(cpu, OVERFLOW_FLAG) == 0 {
                 let relative_address: i8 = addr.byte as i8;
+                let addr_high_orig = cpu.program_counter & 0xff00;
                 cpu.program_counter = (cpu.program_counter as i16 + relative_address as i16) as u16;
+                // Set dummy read, old page if page bounds jumped
+                addr.address += 1;
+                if addr_high_orig != (cpu.program_counter & 0xff00) {
+                    addr.address = addr_high_orig + (cpu.program_counter & 0x00ff);
+                }
                 return false;
             }
             true
@@ -1361,14 +1374,16 @@ use crate::m6502::emu_cpu::M6502;
 
     struct CpuOpBvs {}
     impl CpuOperation for CpuOpBvs {
-        fn needs_addr_byte(&self, _addr: &mut AddressBus) -> bool { false }
-        fn step_0(&self,_cpu: &mut M6502, _addr: &mut AddressBus) -> bool {
-            false
-        }
-        fn step_1(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
+        fn step_0(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
             if OpCodesUtils::get_status_flag(cpu, OVERFLOW_FLAG) != 0 {
                 let relative_address: i8 = addr.byte as i8;
+                let addr_high_orig = cpu.program_counter & 0xff00;
                 cpu.program_counter = (cpu.program_counter as i16 + relative_address as i16) as u16;
+                // Set dummy read, old page if page bounds jumped
+                addr.address += 1;
+                if addr_high_orig != (cpu.program_counter & 0xff00) {
+                    addr.address = addr_high_orig + (cpu.program_counter & 0x00ff);
+                }
                 return false;
             }
             true
@@ -1450,7 +1465,7 @@ use crate::m6502::emu_cpu::M6502;
         fn needs_addr_byte(&self, _addr: &mut AddressBus) -> bool { false }
         fn step_0(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
             OpCodesUtils::set_status_flag(cpu, INTERRUPT_FLAG, true);
-            cpu.program_counter += 1;
+            cpu.program_counter += 3;
             OpCodesUtils::push_stack(cpu, addr, (cpu.program_counter >> 8) as u8);
             false
         }
@@ -1568,19 +1583,13 @@ use crate::m6502::emu_cpu::M6502;
         }
     }
 
-
-
-
-
-
-
     // unofficial opcodes
     struct CpuOpSha {}
     impl CpuOperation for CpuOpSha {
         fn step_0(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
-            let byte = (cpu.accumulator & (cpu.register_x & (cpu.lookup_address.address & 0xff00) as u8)) + 1;
-            addr.byte = byte;
-            addr.address = cpu.lookup_address.address;
+            let byte = cpu.accumulator & (cpu.register_x & (cpu.lookup_address.address >> 8).wrapping_sub(1) as u8);
+            addr.address = byte as u16;
+            //addr.address = cpu.lookup_address.address;
             addr.write = true;
             true
         }

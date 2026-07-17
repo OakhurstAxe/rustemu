@@ -23,6 +23,10 @@ use crate::nes_ppu::nes::NesPpu;
         pub ppu_dma_write: u16,
         ppu_dma_address: u16,
         ppu_dma_read: bool,
+        pub apu_dma_write: u16,
+        apu_dma_address: u16,
+        apu_dma_read: bool,
+        apu_dma_delay: u16,
         channel0: NesApuPulseChannel,
         channel1: NesApuPulseChannel,
         channel2: NesApuTriangleChannel,
@@ -42,6 +46,10 @@ use crate::nes_ppu::nes::NesPpu;
                 ppu_dma_write: 0,
                 ppu_dma_address: 0,
                 ppu_dma_read: true,
+                apu_dma_write: 0,
+                apu_dma_address: 0,
+                apu_dma_read: true,
+                apu_dma_delay: 0,
                 channel0: NesApuPulseChannel::new(),
                 channel1: NesApuPulseChannel::new(),
                 channel2: NesApuTriangleChannel::new(),
@@ -51,7 +59,34 @@ use crate::nes_ppu::nes::NesPpu;
         
         pub fn execute_tick(&mut self, addr: &mut AddressBus, ppu: &mut NesPpu) {
 
-            if self.ppu_dma_write > 0 {
+            /*
+            if self.apu_dma_delay > 0 {
+                self.apu_dma_delay -= 1;
+            }
+
+            if self.apu_dma_delay == 0 && (self.read(0x10) & 0x40 != 0) {
+                let length = self.read(0x13) as u16;
+                self.apu_dma_write = (length << 4) + 1;
+            }
+
+            if self.apu_dma_write == 0 && (self.read(0x10) & 0x40 != 0) {
+                self.apu_dma_delay = 54; // should be lookup
+            }
+             */
+
+            if self.apu_dma_write > 0 {
+                if self.apu_dma_read {
+                    // read byte
+                    addr.address = self.apu_dma_address;
+                    self.apu_dma_address += 1;
+                    self.apu_dma_read = false;
+                } else {
+                    // write byte
+                    self.apu_dma_read = true;
+                    self.apu_dma_write -= 1;
+                }
+
+            } else if self.ppu_dma_write > 0 {
                 if self.ppu_dma_read {
                     addr.address = self.ppu_dma_address;
                     self.ppu_dma_address += 1;
@@ -62,7 +97,9 @@ use crate::nes_ppu::nes::NesPpu;
                     self.ppu_dma_write -= 1;
                 }
 
-            } else if (0x4000..0x4018).contains(&addr.address) {
+            } 
+            
+            if (0x4000..0x4018).contains(&addr.address) {
                 let location = addr.address - 0x4000;
 
                 if addr.write {
@@ -70,12 +107,11 @@ use crate::nes_ppu::nes::NesPpu;
                     if location == 0x14 {
                         self.ppu_dma_write = 256;
                         self.ppu_dma_address = (addr.byte as u16) << 8;
-                        //return true;
                     } else if location == 0x15 && ((addr.byte & 0x10) > 0) {
-                        //let apu_address: u16 = self.read(0x12) as u16;
-                        //self.apu_dma_address = 0xC0 + (apu_address << 6);
-                        //let length = self.apu.write().unwrap().read(0x13) as u16;
-                        //self.apu_dma_write = (length << 4) + 1;
+                        let apu_address: u16 = self.read(0x12) as u16;
+                        self.apu_dma_address = 0xC0 + (apu_address << 8);
+                        let length = self.read(0x13) as u16;
+                        self.apu_dma_write = (length << 4) + 1;
                     } else {
                         self.write(location, addr.byte);
                     }
@@ -168,7 +204,7 @@ use crate::nes_ppu::nes::NesPpu;
 
             if location == 0x17 {
                 if (byte & 0x80) == 0 {
-                    self.frame_counter = TICKS_PER_FRAME >> 2;
+                    self.frame_counter = TICKS_PER_FRAME >> 4;
                 }
                 if (byte & 0x40) != 0 {
                     self.interrupt_set = false;
