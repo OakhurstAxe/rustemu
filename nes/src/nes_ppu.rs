@@ -1,7 +1,8 @@
 
 pub mod nes {
 
-    use emucpu::prelude::*;
+    use bevy::sprite;
+use emucpu::prelude::*;
     use emumemory::prelude::*;
 
     use crate::nes_console::nes::TICKS_PER_FRAME;
@@ -269,7 +270,7 @@ pub mod nes {
             }
 
             if self.scan_line == 0 && self.cycle == 0 {
-                self.set_ppu_sprite_zero_hit(false);
+                self.set_ppu_sprite_zero_hit(false, 0);
                 self.cpu_set_vblank(false);
                 self.set_ppu_sprite_overflow(false);
             }
@@ -461,7 +462,7 @@ pub mod nes {
             self.cpu_ppu_registers.write(2, byte);
         }
 
-        pub fn set_ppu_sprite_zero_hit(&mut self, value: bool) {
+        pub fn set_ppu_sprite_zero_hit(&mut self, value: bool, sprite_pos: i32) {
 
             if value == false {
                 let byte: u8 = self.cpu_ppu_registers.read(2) & 0xbf;
@@ -470,11 +471,11 @@ pub mod nes {
 
             let background_rendered = self.cpu_ppu_registers.read(1) & 0x08 != 0;
             let sprite_rendered = self.cpu_ppu_registers.read(1) & 0x10 != 0;
-            let background_mask = self.cpu_ppu_registers.read(1) & 0x02 != 0 || self.cycle > 8;
-            let sprite_mask = self.cpu_ppu_registers.read(1) & 0x04 != 0 || self.cycle > 8;
+            let background_mask = self.cpu_ppu_registers.read(1) & 0x02 != 0 || self.cycle >= 8;
+            let sprite_mask = self.cpu_ppu_registers.read(1) & 0x04 != 0 || self.cycle >= 8;
 
             if value && background_rendered && sprite_rendered && self.cycle < 255
-                && background_mask && sprite_mask {
+                && background_mask && (sprite_mask || sprite_pos > 0) {
                 let byte = self.cpu_ppu_registers.read(2) | 0x40;
                 self.cpu_ppu_registers.write(2, byte);
             }
@@ -515,7 +516,7 @@ pub mod nes {
             self.cpu_ppu_registers.write(2, byte);
         }
 
-        pub fn get_sprite_pixel(&mut self, screen_row: u16, screen_column: i16, cartridge: &NesCartridge000) -> (u8, u8, bool) {
+        pub fn get_sprite_pixel(&mut self, screen_row: u16, screen_column: i16, cartridge: &NesCartridge000) -> (u8, u8, bool, i32) {
 
 
             if screen_column == 0 {
@@ -525,7 +526,7 @@ pub mod nes {
                 for i in 0..64 {
                     let y_pos: u8 = self.oam_read(i * 4);
 
-                    if (screen_row >= y_pos as u16) && (screen_row - y_pos as u16) <= 8 {
+                    if (screen_row >= y_pos as u16) && (screen_row - y_pos as u16) < 8 {
                         self.render_sprites[sprite_count as usize] = i as i8;
                         sprite_count += 1;
 
@@ -538,7 +539,6 @@ pub mod nes {
                 }
             }
             
-            let background: u8 = self.read(PPU_PALETTE_ADDR, cartridge);
             let mut priority: u8 = 0;
 
             let mut sprite_attribute: PpuSpriteAttributeRegister = PpuSpriteAttributeRegister::new();
@@ -554,7 +554,7 @@ pub mod nes {
                     continue;
                 }                       
 
-                let y_pos: i32 = (self.oam_read((sprite_pos * PPU_SPRITE_SIZE) as u16) + 1) as i32;
+                let y_pos: i32 = self.oam_read((sprite_pos * PPU_SPRITE_SIZE) as u16) as i32;
 
                 let pattern_address: u16 = (self.oam_read((sprite_pos * PPU_SPRITE_SIZE + 1) as u16) as u16) << 4;
                 let mut sprite_pattern_address: u16 = pattern_address + ((screen_row - y_pos as u16) & 0x07);
@@ -566,8 +566,8 @@ pub mod nes {
 
                 priority = sprite_attribute.priority;
 
-                let mut sprite_lsb = cartridge.ppu_read(sprite_pattern_address);// self.read(sprite_pattern_address);
-                let mut sprite_msb = cartridge.ppu_read(sprite_pattern_address + PPU_SPRITE_PATTERN_SIZE);//self.read(sprite_pattern_address + PPU_SPRITE_PATTERN_SIZE);
+                let mut sprite_lsb = cartridge.ppu_read(sprite_pattern_address);
+                let mut sprite_msb = cartridge.ppu_read(sprite_pattern_address + PPU_SPRITE_PATTERN_SIZE);
 
                 if sprite_attribute.flip_horizontally > 0 {
                     sprite_lsb = NesPpu::reverse_bits(sprite_lsb);
@@ -581,33 +581,34 @@ pub mod nes {
                 let pixel: u8 = ((sprite_msb >> 6) & 0x02) + ((sprite_lsb >> 7) & 0x01);
                 let palette: u8 = ((sprite_attribute.sprite_palette) + 0x04) << 2;
 
-                if pixel != background{
+                if pixel != 0{
                     let color: u8 = self.read(PPU_PALETTE_ADDR + palette as u16 + pixel as u16, cartridge);
-                    return (color, priority, self.render_sprites[i] == 0);
+                    return (color, priority, self.render_sprites[i] == 0, sprite_pos);
                 }
             }
 
-            (0, priority, false)
+            (0, priority, false, 0)
         }
 
         fn render_pixel(&mut self, cartridge: &NesCartridge000) {
-            let (sprite_pixel, sprite_priority, is_sprite_zero): (u8, u8, bool) = self.get_sprite_pixel(self.scan_line as u16, self.cycle as i16, &cartridge);
+            let (sprite_pixel, sprite_priority, is_sprite_zero, sprite_pos): (u8, u8, bool, i32) = self.get_sprite_pixel(self.scan_line as u16, self.cycle as i16, &cartridge);
             let background_pixel: u8 = self.get_background_pixel(self.scan_line as u16, self.cycle as i16, &cartridge);
-            let background: u8 = self.read(PPU_PALETTE_ADDR, cartridge);
+            let backdrop: u8 = self.read(PPU_PALETTE_ADDR, cartridge);
 
             if self.cycle >= 0  && self.cycle < 256 && self.scan_line >= 0 && self.scan_line < 240 {
 
-                let mut color = 0;
+                let mut color = backdrop;
                 if background_pixel != 0 {
                     color = background_pixel;
                 }
                 
-                if sprite_pixel != 0 && (sprite_priority == 0 || background_pixel == background) {
+                if sprite_pixel != 0 && (sprite_priority == 0 || background_pixel == 0) {
                     color = sprite_pixel;
                 }
 
-                if sprite_pixel != background && background_pixel != 0 && is_sprite_zero {
-                    self.set_ppu_sprite_zero_hit(true);
+                if sprite_pixel != 0 && background_pixel != 0 && is_sprite_zero
+                    && self.scan_line < 239 {
+                    self.set_ppu_sprite_zero_hit(true, sprite_pos);
                 }
 
                 let (red, green, blue) = self.palette.get_color(color as usize, 0);
