@@ -11,7 +11,8 @@ pub mod nes {
     use crate::nes_apunoisechannel::nes::NesApuNoiseChannel;
     use crate::nes_apuchannel::nes::SAMPLES_PER_FRAME;
     use crate::nes_console::nes::TICKS_PER_FRAME;
-use crate::nes_ppu::nes::NesPpu;
+    use crate::nes_ppu::nes::NesPpu;
+    use crate::nes_ppu2::nes::NesPpu2Runner;
 
     pub struct NesApu {
         apu_io_registers: MemoryRamFlagged,
@@ -57,9 +58,9 @@ use crate::nes_ppu::nes::NesPpu;
             }
         }
         
-        pub fn execute_tick(&mut self, addr: &mut AddressBus, ppu: &mut NesPpu) {
+        pub fn execute_tick(&mut self, addr: &mut AddressBus, ppu: &mut NesPpu2Runner) {
 
-            /*
+            
             if self.apu_dma_delay > 0 {
                 self.apu_dma_delay -= 1;
             }
@@ -72,7 +73,7 @@ use crate::nes_ppu::nes::NesPpu;
             if self.apu_dma_write == 0 && (self.read(0x10) & 0x40 != 0) {
                 self.apu_dma_delay = 54; // should be lookup
             }
-             */
+             
 
             if self.apu_dma_write > 0 {
                 if self.apu_dma_read {
@@ -92,7 +93,7 @@ use crate::nes_ppu::nes::NesPpu;
                     self.ppu_dma_address += 1;
                     self.ppu_dma_read = false;
                 } else {
-                    ppu.oam_write(256 - self.ppu_dma_write, addr.byte);
+                    ppu.oam_write((256 - self.ppu_dma_write) as u8, addr.byte);
                     self.ppu_dma_read = true;
                     self.ppu_dma_write -= 1;
                 }

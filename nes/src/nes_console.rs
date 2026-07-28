@@ -9,8 +9,9 @@ pub mod nes {
     use emumemory::prelude::*;
 
     use crate::nes_cartridge::nes::NesCartridge;
-    use crate::{nes_cartridge_000::nes::NesCartridge000, nes_memory::nes::NesMemory};
+    use crate::{nes_cartridge_000::nes::NesCartridge000};
     use crate::nes_ppu::nes::NesPpu;
+    use crate::nes_ppu2::nes::NesPpu2Runner;
     use crate::nes_inesfile::nes::INesFile;
     use crate::nes_apu::nes::NesApu;
 
@@ -25,7 +26,8 @@ pub mod nes {
         cpu_runner: M6502Runner,
         addr: AddressBus,
         apu: NesApu,
-        ppu: NesPpu,
+        //ppu: NesPpu,
+        ppu2: NesPpu2Runner,
         cartridge: NesCartridge000,
         cpu_work_ram: MemoryRam,
         left_controller: u8,
@@ -45,19 +47,13 @@ pub mod nes {
             cartridge.load_prog_rom(ines_file.get_prog_rom_data());
             cartridge.load_char_rom(ines_file.get_char_rom_data());
 
-            let ppu: NesPpu = NesPpu::new();
-            let apu: NesApu = NesApu::new();
-            //let memory = NesMemory::new (Arc::clone(&cartridge), ppu, Arc::clone(&apu));
-            //let mut cpu: M6502<NesMemory> = M6502::new(memory);
-            //cpu.reset();
-            //cpu.disable_dec();
-
             let mut temp_instance = Self {
                 inframe: Mutex::new(false),
                 cpu_runner: M6502Runner::new(M6502Version::Nes),
                 addr: AddressBus { address: 0 , write: false, byte: 0, is_accumulator: false, is_abs_y: false },
-                apu,
-                ppu,
+                apu: NesApu::new(),
+                //ppu: NesPpu::new(),
+                ppu2: NesPpu2Runner::new(),
                 cartridge,
                 cpu_work_ram: MemoryRam::new(String::from("CPU Work RAM"), 0x0800),                left_controller: 0,
                 _right_controller: 0,
@@ -121,23 +117,27 @@ pub mod nes {
                 }
 
                 if (ticks % 3) == 0 {
-                    self.apu.execute_tick(&mut self.addr, &mut self.ppu);
+                    self.ppu2.execute_memory(&mut self.addr, &self.cartridge);
+                    
+                    self.apu.execute_tick(&mut self.addr, &mut self.ppu2);
                     if self.apu.ppu_dma_write == 0 && self.apu.apu_dma_write == 0 {
                         self.cpu_runner.execute_tick(&mut self.addr);
                     }
                 }
 
-                self.ppu.execute_tick(&mut self.addr, &self.cartridge, ticks);
+                self.ppu2.execute_tick(&mut self.addr, &self.cartridge);
+                //self.ppu.execute_tick(&mut self.addr, &self.cartridge, ticks);
 
-                if self.ppu.is_nmi_set() {
+                if self.ppu2.is_nmi_set() {
                     self.cpu_runner.set_nmi();
-                    self.ppu.reset_nmi();
+                    self.ppu2.reset_nmi();
                 }
                 self.read_gamepad();
                 ticks += 1;
             }
             
-            let video = self.ppu.get_screen();
+            //let video = self.ppu.get_screen();
+            let video = self.ppu2.get_screen();
             let audio = self.get_audio();
 
             (Some(video), Some(audio))

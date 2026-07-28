@@ -1,8 +1,7 @@
 
 pub mod nes {
 
-    use bevy::sprite;
-use emucpu::prelude::*;
+    use emucpu::prelude::*;
     use emumemory::prelude::*;
 
     use crate::nes_console::nes::TICKS_PER_FRAME;
@@ -257,7 +256,7 @@ use emucpu::prelude::*;
                 self.render_pixel(&cartridge);
             }
             
-            if self.scan_line == 241 && self.cycle == 1 {                
+            if self.scan_line == 241 && self.cycle == 1 {
                 self.cpu_set_vblank(true);
                 let ppu_control_addr: u8 = self.cpu_ppu_registers.read(PPU_CONTROL_ADDR % 8); 
                 self.control_register.reg(ppu_control_addr);
