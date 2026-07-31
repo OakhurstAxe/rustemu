@@ -26,7 +26,7 @@ pub mod nes {
         cpu_runner: M6502Runner,
         addr: AddressBus,
         apu: NesApu,
-        //ppu: NesPpu,
+        ppu: NesPpu,
         ppu2: NesPpu2Runner,
         cartridge: NesCartridge000,
         cpu_work_ram: MemoryRam,
@@ -52,7 +52,7 @@ pub mod nes {
                 cpu_runner: M6502Runner::new(M6502Version::Nes),
                 addr: AddressBus { address: 0 , write: false, byte: 0, is_accumulator: false, is_abs_y: false },
                 apu: NesApu::new(),
-                //ppu: NesPpu::new(),
+                ppu: NesPpu::new(),
                 ppu2: NesPpu2Runner::new(),
                 cartridge,
                 cpu_work_ram: MemoryRam::new(String::from("CPU Work RAM"), 0x0800),                left_controller: 0,
@@ -117,12 +117,12 @@ pub mod nes {
                 }
 
                 if (ticks % 3) == 0 {
-                    self.ppu2.execute_memory(&mut self.addr, &self.cartridge);
                     
                     self.apu.execute_tick(&mut self.addr, &mut self.ppu2);
                     if self.apu.ppu_dma_write == 0 && self.apu.apu_dma_write == 0 {
                         self.cpu_runner.execute_tick(&mut self.addr);
                     }
+                    self.ppu2.execute_memory(&mut self.addr, &self.cartridge);
                 }
 
                 self.ppu2.execute_tick(&mut self.addr, &self.cartridge);

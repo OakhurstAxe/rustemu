@@ -79,10 +79,11 @@ pub mod nes {
                 if self.apu_dma_read {
                     // read byte
                     addr.address = self.apu_dma_address;
-                    self.apu_dma_address += 1;
+                    self.apu_dma_address = self.apu_dma_address.wrapping_add(1);
                     self.apu_dma_read = false;
                 } else {
                     // write byte
+                    addr.byte = 0x40;
                     self.apu_dma_read = true;
                     self.apu_dma_write -= 1;
                 }
@@ -105,7 +106,10 @@ pub mod nes {
 
                 if addr.write {
                     // PPU DMA
-                    if location == 0x14 {
+                    if location == 0x10 {
+                        addr.byte = 0x00;
+                    }
+                    else if location == 0x14 {
                         self.ppu_dma_write = 256;
                         self.ppu_dma_address = (addr.byte as u16) << 8;
                     } else if location == 0x15 && ((addr.byte & 0x10) > 0) {

@@ -197,7 +197,7 @@ pub mod emu_cpu{
                     self.op_code = addr.byte as u16;
  //                    CSWasteOnly1
                     //println!("PC: {:x}, opcode: {:x} ", self.cpu.program_counter, self.op_code);
-                    self.cpu.program_counter += 1;
+                    self.cpu.program_counter = self.cpu.program_counter.wrapping_add(1);
                     self.tick_count = 0;
                 }
                 if self.is_irq_set && OpCodesUtils::get_status_flag(&mut self.cpu, INTERRUPT_FLAG) == 0 {

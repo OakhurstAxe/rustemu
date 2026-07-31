@@ -7,7 +7,6 @@ pub mod nes {
     use crate::nes_cartridge::nes::NesCartridge;
     use crate::nes_cartridge_000::nes::NesCartridge000;
     use crate::nes_palette::nes::NesPalette;
-    use crate::nes_ppu::nes::NesPpu;
 
     pub const NTSC_X_RESOLUTION: u32 = 256;
     pub const NTSC_Y_RESOLUTION: u32 = 240;
@@ -282,8 +281,8 @@ pub mod nes {
                 video_bus: VideoBus::new(),
                 registers: MemoryRam::new(String::from("PPU Registers"), 0x0008),
                 oam: MemoryRam::new(String::from("PPU OAM"), 0x0100),
-                name_table: MemoryRam::new(String::from("PPU Name Table"), 0x1000),
-                ppu_palette: MemoryRam::new(String::from("PPU Palette"), 0x0020),
+                name_table: MemoryRam::new(String::from("PPU Name Table"), 0x1F00),
+                ppu_palette: MemoryRam::new(String::from("PPU Palette"), 0x0100),
                 nmi_set: false,
                 ppu_addr_first: true,
                 ppu_scroll_x: 0,
@@ -402,7 +401,7 @@ pub mod nes {
                     byte
                 },
                 0x07 => {
-                // No buffer when reading from PPU ram
+                    // No buffer when reading from PPU ram
                     if self.ppu.ppu_addr >= 0x3f00 {
                         let byte = self.read(self.ppu.ppu_addr, cartridge);
                         let ppu_byte = self.read(self.ppu.ppu_addr - 0x1000, cartridge);
@@ -410,6 +409,8 @@ pub mod nes {
                         return byte;
                     }
                     let byte = self.ppu.video_bus.byte;
+                    let ppu_byte = self.read(self.ppu.ppu_addr, cartridge);
+                    self.ppu.video_bus.set_byte(ppu_byte);
                     let control_register = PpuControlRegister::new(self.ppu.registers.read(0));
                     self.ppu.ppu_addr = self.ppu.ppu_addr.wrapping_add(control_register.vram_address_increment());
                     byte
@@ -522,9 +523,9 @@ pub mod nes {
             }
 
             if self.ppu.scan_line == 0 && self.ppu.cycle == 0 {
-//                self.set_ppu_sprite_zero_hit(false, 0);
+                self.set_ppu_sprite_zero_hit(false, 0);
                 self.cpu_set_vblank(false);
-//                self.set_ppu_sprite_overflow(false);
+                self.set_ppu_sprite_overflow(false);
             }
 
         }
@@ -571,7 +572,7 @@ pub mod nes {
 
                 if sprite_pixel != 0 && background_pixel != 0 && is_sprite_zero
                     && self.ppu.scan_line < 239 {
-                    //self.set_ppu_sprite_zero_hit(true, sprite_pos);
+                    self.set_ppu_sprite_zero_hit(true, sprite_pos);
                 }
 
                 let (red, green, blue) = self.ppu.palette.get_color(color as usize, 0);
@@ -584,8 +585,6 @@ pub mod nes {
         }
 
         pub fn get_sprite_pixel(&mut self, screen_row: u16, screen_column: i16, cartridge: &NesCartridge000) -> (u8, u8, bool, i32) {
-
-            let control_register = PpuControlRegister::new(self.ppu.registers.read(0));
 
             if self.ppu.cycle == 255 {
 
@@ -624,7 +623,7 @@ pub mod nes {
                     continue;
                 }
 
-                let x_pos = self.ppu.sprites[i].x_pos + 8;
+                let x_pos = self.ppu.sprites[i].x_pos.wrapping_add(8);
                 if (self.ppu.cycle - x_pos as i32) < 0 || self.ppu.cycle - x_pos as i32 > 7 {
                     continue;
                 }
@@ -730,6 +729,25 @@ pub mod nes {
 
         pub fn get_screen(&mut self) -> Vec<u8> {
             self.ppu.screen.clone()
+        }
+
+        pub fn set_ppu_sprite_zero_hit(&mut self, value: bool, sprite_pos: i32) {
+
+            if value == false {
+                let byte: u8 = self.ppu.registers.read(2) & 0xbf;
+                self.ppu.registers.write(2, byte);
+            }
+
+            let background_rendered = self.ppu.registers.read(1) & 0x08 != 0;
+            let sprite_rendered = self.ppu.registers.read(1) & 0x10 != 0;
+            let background_mask = self.ppu.registers.read(1) & 0x02 != 0 || self.ppu.cycle >= 8;
+            let sprite_mask = self.ppu.registers.read(1) & 0x04 != 0 || self.ppu.cycle >= 8;
+
+            if value && background_rendered && sprite_rendered && self.ppu.cycle < 255
+                && background_mask && (sprite_mask || sprite_pos > 0) {
+                let byte = self.ppu.registers.read(2) | 0x40;
+                self.ppu.registers.write(2, byte);
+            }
         }
 
         fn reverse_bits(mut n: u8) -> u8 {

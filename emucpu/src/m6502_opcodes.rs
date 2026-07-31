@@ -1,9 +1,7 @@
 
 pub mod mopcodes {
 
-    use std::sync::Arc;
-
-use crate::m6502::emu_cpu::M6502;
+    use crate::m6502::emu_cpu::M6502;
     use crate::m6502::emu_cpu::AddressBus;
     use crate::m6502::emu_cpu::{CARRY_FLAG, ZERO_FLAG, INTERRUPT_FLAG, DECIMAL_MODE, BREAK_COMMAND, IGNORED, OVERFLOW_FLAG, NEGATIVE_FLAG};
 
@@ -427,7 +425,7 @@ use crate::m6502::emu_cpu::M6502;
 
         fn push_stack(cpu: &mut M6502, addr: &mut AddressBus, byte: u8) {
             if cpu.stack_pointer == 0 {
-                println!("Stack overflow PC:{}  sp:{}", cpu.program_counter, cpu.stack_pointer.wrapping_sub(1));
+                //println!("Stack overflow PC:{}  sp:{}", cpu.program_counter, cpu.stack_pointer.wrapping_sub(1));
             }
             addr.address = cpu.stack_pointer.wrapping_add(cpu.stack_pointer_page);
             addr.byte = byte;
@@ -437,7 +435,7 @@ use crate::m6502::emu_cpu::M6502;
 
         fn pop_stack(cpu: &mut M6502, addr: &mut AddressBus) {
             if cpu.stack_pointer > 256 {
-                println!("Stack underflow PC:{}  sp:{}", cpu.program_counter, cpu.stack_pointer);
+                //println!("Stack underflow PC:{}  sp:{}", cpu.program_counter, cpu.stack_pointer);
             }
             cpu.stack_pointer = cpu.stack_pointer.wrapping_add(1);
             addr.address = cpu.stack_pointer.wrapping_add(cpu.stack_pointer_page);
@@ -594,7 +592,7 @@ use crate::m6502::emu_cpu::M6502;
     struct CpuOpDcp{}
     impl CpuOperation for CpuOpDcp {
         fn step_0(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
-            let mut byte = cpu.lookup_address.byte.wrapping_sub(1);
+            let byte = cpu.lookup_address.byte.wrapping_sub(1);
             addr.byte = byte;
             addr.write = true;
             OpCodesUtils::set_status_flag(cpu, CARRY_FLAG, cpu.accumulator >= byte);
@@ -608,7 +606,7 @@ use crate::m6502::emu_cpu::M6502;
     // Load Store Operations
     struct CpuOpLda {}
     impl CpuOperation for CpuOpLda {
-        fn step_0(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
+        fn step_0(&self, cpu: &mut M6502, _addr: &mut AddressBus) -> bool {
             cpu.accumulator = cpu.lookup_address.byte;
             OpCodesUtils::set_negative_zero(cpu, cpu.accumulator);
             true
@@ -617,7 +615,7 @@ use crate::m6502::emu_cpu::M6502;
 
     struct CpuOpLdx {}
     impl CpuOperation for CpuOpLdx {
-        fn step_0(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
+        fn step_0(&self, cpu: &mut M6502, _addr: &mut AddressBus) -> bool {
             cpu.register_x = cpu.lookup_address.byte;
             OpCodesUtils::set_negative_zero(cpu, cpu.register_x);
             true
@@ -1190,7 +1188,7 @@ use crate::m6502::emu_cpu::M6502;
         // dummy read stack
         fn step_1(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
             cpu.lookup_address.address = addr.byte as u16;
-            addr.address = cpu.stack_pointer + cpu.stack_pointer_page;
+            addr.address = cpu.stack_pointer.wrapping_add(cpu.stack_pointer_page);
             false
         }
         // push pc high to stack
@@ -1213,6 +1211,7 @@ use crate::m6502::emu_cpu::M6502;
             cpu.lookup_address.address += (addr.byte as u16) << 8;
             cpu.lookup_address.byte = addr.byte;
             cpu.program_counter = cpu.lookup_address.address;
+            println!("JSR to {:x}", cpu.program_counter);
             true
         }
     }
@@ -1232,8 +1231,9 @@ use crate::m6502::emu_cpu::M6502;
             false
         }
         fn step_2(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
-            cpu.program_counter += (addr.byte as u16) << 8;
-            cpu.program_counter += 1;
+            cpu.program_counter = cpu.program_counter.wrapping_add((addr.byte as u16) << 8);
+            cpu.program_counter = cpu.program_counter.wrapping_add(1);
+            println!("RTS to {:x}", cpu.program_counter);
             //println!(" PC: {:x}", cpu.program_counter);
             false
         }
@@ -1464,6 +1464,7 @@ use crate::m6502::emu_cpu::M6502;
     impl CpuOperation for CpuOpBrk {
         fn needs_addr_byte(&self, _addr: &mut AddressBus) -> bool { false }
         fn step_0(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
+println!("brk");
             OpCodesUtils::set_status_flag(cpu, INTERRUPT_FLAG, true);
             cpu.program_counter += 3;
             OpCodesUtils::push_stack(cpu, addr, (cpu.program_counter >> 8) as u8);
@@ -1499,6 +1500,7 @@ use crate::m6502::emu_cpu::M6502;
     struct CpuOpNmi {}
     impl CpuOperation for CpuOpNmi {
         fn step_0(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
+println!("nmi");
             cpu.in_interrupt = true;
             OpCodesUtils::push_stack(cpu, addr, (cpu.program_counter >> 8) as u8);
             false
@@ -1530,6 +1532,7 @@ use crate::m6502::emu_cpu::M6502;
     struct CpuOpIrq {}
     impl CpuOperation for CpuOpIrq {
         fn step_0(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
+println!("irq");
             cpu.in_interrupt = true;
             OpCodesUtils::push_stack(cpu, addr, (cpu.program_counter >> 8) as u8);
             false
@@ -1561,6 +1564,7 @@ use crate::m6502::emu_cpu::M6502;
     struct CpuOpRti {}
     impl CpuOperation for CpuOpRti {
         fn step_0(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
+println!("rti");
             OpCodesUtils::set_status_flag(cpu, BREAK_COMMAND, false);
             OpCodesUtils::pop_stack(cpu, addr);
             false

@@ -437,7 +437,7 @@ pub mod maddress{
         }
         fn step_1(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
             addr.address = cpu.program_counter;
-            cpu.program_counter += 1;
+            cpu.program_counter = cpu.program_counter.wrapping_add(1);
             cpu.lookup_address.address = addr.byte as u16;
             false
         }
@@ -455,7 +455,7 @@ pub mod maddress{
             true
         }
         fn step_3(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
-            addr.address = cpu.lookup_address.address + cpu.register_x as u16;
+            addr.address = cpu.lookup_address.address.wrapping_add(cpu.register_x as u16);
             true
         }
     }
@@ -589,7 +589,7 @@ pub mod maddress{
             true
         }
         fn step_4(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
-            addr.address = cpu.lookup_address.address + cpu.register_y as u16;
+            addr.address = cpu.lookup_address.address.wrapping_add(cpu.register_y as u16);
             true
         }
     }
