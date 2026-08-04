@@ -5,8 +5,6 @@ pub mod nes {
     use std::sync::RwLock;
 
     use emumemory::{memory_mapper::emu_memory::MemoryMapper, memory_ram::emu_memory::MemoryRam};
-    use emumemory::base_memory::emu_memory::BaseMemory;
-    use crate::nes_cartridge::nes::NesCartridge;
     use crate::nes_cartridge_000::nes::NesCartridge000;
     use crate::nes_ppu::nes::NesPpu;
     use crate::nes_apu::nes::NesApu;
@@ -65,7 +63,7 @@ pub mod nes {
             }
             else if self.ppu_dma_write > 0 {
                 let byte: u8 = self.cpu_read(self.ppu_dma_address);
-                self.ppu.oam_write(256 - self.ppu_dma_write, byte);
+                //self.ppu.oam_write(256 - self.ppu_dma_write, byte);
                 self.read_bus = byte;
                 self.ppu_dma_address += 1;
                 self.ppu_dma_write -= 1;

@@ -11,8 +11,7 @@ pub mod nes {
     use crate::nes_apunoisechannel::nes::NesApuNoiseChannel;
     use crate::nes_apuchannel::nes::SAMPLES_PER_FRAME;
     use crate::nes_console::nes::TICKS_PER_FRAME;
-    use crate::nes_ppu::nes::NesPpu;
-    use crate::nes_ppu2::nes::NesPpu2Runner;
+    use crate::nes_ppu::nes::NesPpuRunner;
 
     pub struct NesApu {
         apu_io_registers: MemoryRamFlagged,
@@ -58,7 +57,7 @@ pub mod nes {
             }
         }
         
-        pub fn execute_tick(&mut self, addr: &mut AddressBus, ppu: &mut NesPpu2Runner) {
+        pub fn execute_tick(&mut self, addr: &mut AddressBus, ppu: &mut NesPpuRunner) {
 
             
             if self.apu_dma_delay > 0 {

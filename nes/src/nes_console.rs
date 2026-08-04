@@ -11,7 +11,7 @@ pub mod nes {
     use crate::nes_cartridge::nes::NesCartridge;
     use crate::{nes_cartridge_000::nes::NesCartridge000};
     use crate::nes_ppu::nes::NesPpu;
-    use crate::nes_ppu2::nes::NesPpu2Runner;
+    use crate::nes_ppu::nes::NesPpuRunner;
     use crate::nes_inesfile::nes::INesFile;
     use crate::nes_apu::nes::NesApu;
 
@@ -27,7 +27,7 @@ pub mod nes {
         addr: AddressBus,
         apu: NesApu,
         ppu: NesPpu,
-        ppu2: NesPpu2Runner,
+        ppu2: NesPpuRunner,
         cartridge: NesCartridge000,
         cpu_work_ram: MemoryRam,
         left_controller: u8,
@@ -53,9 +53,10 @@ pub mod nes {
                 addr: AddressBus { address: 0 , write: false, byte: 0, is_accumulator: false, is_abs_y: false },
                 apu: NesApu::new(),
                 ppu: NesPpu::new(),
-                ppu2: NesPpu2Runner::new(),
+                ppu2: NesPpuRunner::new(),
                 cartridge,
-                cpu_work_ram: MemoryRam::new(String::from("CPU Work RAM"), 0x0800),                left_controller: 0,
+                cpu_work_ram: MemoryRam::new(String::from("CPU Work RAM"), 0x0800),
+                left_controller: 0,
                 _right_controller: 0,
                 _debug: 0,
                 frame: 0,

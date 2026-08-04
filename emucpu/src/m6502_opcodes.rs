@@ -181,7 +181,7 @@ pub mod mopcodes {
             op_code_lookup[0x9a] = Box::new(CpuOpTxs {});
             op_code_lookup[0x9b] = Box::new(CpuOpShs {});
             op_code_lookup[0x9c] = Box::new(CpuOpShy {});
-            op_code_lookup[0x9d] = Box::new(CpuOpSta {});
+            op_code_lookup[0x9d] = Box::new(CpuOpStaAbx {});
             op_code_lookup[0x9e] = Box::new(CpuOpShx {});
             op_code_lookup[0x9f] = Box::new(CpuOpSha {});
 
@@ -634,6 +634,22 @@ pub mod mopcodes {
     struct CpuOpSta {}
     impl CpuOperation for CpuOpSta {
         fn needs_addr_byte(&self, _addr: &mut AddressBus) -> bool { false }
+        fn step_0(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
+            addr.address = cpu.lookup_address.address;
+            addr.byte = cpu.accumulator;
+            addr.write = true;
+            if cpu.lookup_address.is_abs_y {
+                return false;
+            }
+            true
+        }
+        fn step_1(&self, _cpu: &mut M6502, _addr: &mut AddressBus) -> bool {
+            false
+        }
+    }
+
+    struct CpuOpStaAbx {}
+    impl CpuOperation for CpuOpStaAbx {
         fn step_0(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
             addr.address = cpu.lookup_address.address;
             addr.byte = cpu.accumulator;
@@ -1211,7 +1227,6 @@ pub mod mopcodes {
             cpu.lookup_address.address += (addr.byte as u16) << 8;
             cpu.lookup_address.byte = addr.byte;
             cpu.program_counter = cpu.lookup_address.address;
-            println!("JSR to {:x}", cpu.program_counter);
             true
         }
     }
@@ -1233,7 +1248,6 @@ pub mod mopcodes {
         fn step_2(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
             cpu.program_counter = cpu.program_counter.wrapping_add((addr.byte as u16) << 8);
             cpu.program_counter = cpu.program_counter.wrapping_add(1);
-            println!("RTS to {:x}", cpu.program_counter);
             //println!(" PC: {:x}", cpu.program_counter);
             false
         }
@@ -1500,7 +1514,6 @@ println!("brk");
     struct CpuOpNmi {}
     impl CpuOperation for CpuOpNmi {
         fn step_0(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
-println!("nmi");
             cpu.in_interrupt = true;
             OpCodesUtils::push_stack(cpu, addr, (cpu.program_counter >> 8) as u8);
             false
@@ -1532,7 +1545,6 @@ println!("nmi");
     struct CpuOpIrq {}
     impl CpuOperation for CpuOpIrq {
         fn step_0(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
-println!("irq");
             cpu.in_interrupt = true;
             OpCodesUtils::push_stack(cpu, addr, (cpu.program_counter >> 8) as u8);
             false
@@ -1564,7 +1576,6 @@ println!("irq");
     struct CpuOpRti {}
     impl CpuOperation for CpuOpRti {
         fn step_0(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
-println!("rti");
             OpCodesUtils::set_status_flag(cpu, BREAK_COMMAND, false);
             OpCodesUtils::pop_stack(cpu, addr);
             false
