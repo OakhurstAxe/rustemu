@@ -76,7 +76,7 @@ pub mod nes {
         ) {
 
             let (video, audio) = nes_console.0.run_frame();
-            let image = video_assets.get_mut(&video_handle.0).expect("Image not found");
+            let mut image = video_assets.get_mut(&video_handle.0).expect("Image not found");
  
             match video {
                 Some(video) => {
