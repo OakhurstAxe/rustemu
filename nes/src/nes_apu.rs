@@ -11,11 +11,13 @@ pub mod nes {
     use crate::nes_apunoisechannel::nes::NesApuNoiseChannel;
     use crate::nes_apuchannel::nes::SAMPLES_PER_FRAME;
     use crate::nes_console::nes::TICKS_PER_FRAME;
-    use crate::nes_ppu::nes::NesPpuRunner;
+    use crate::nes_ppu::nes::{ NesPpuRunner, NesPpu };
 
     pub struct NesApu {
         apu_io_registers: MemoryRamFlagged,
         left_controller: u8,
+        left_controller_latch: u8,
+        left_count: u8,
         right_controller: u8,
         irq_set: bool,
         interrupt_set: bool,
@@ -39,6 +41,8 @@ pub mod nes {
             Self {
                 apu_io_registers: MemoryRamFlagged::new(0x001f, String::from("APU IO Registers")),
                 left_controller: 0,
+                left_controller_latch: 0,
+                left_count: 0,
                 right_controller: 0,
                 irq_set: false,
                 interrupt_set: false,
@@ -57,7 +61,7 @@ pub mod nes {
             }
         }
         
-        pub fn execute_tick(&mut self, addr: &mut AddressBus, ppu: &mut NesPpuRunner) {
+        pub fn execute_tick(&mut self, addr: &mut AddressBus, ppu: &mut NesPpu) {
 
             
             if self.apu_dma_delay > 0 {
@@ -93,7 +97,7 @@ pub mod nes {
                     self.ppu_dma_address += 1;
                     self.ppu_dma_read = false;
                 } else {
-                    ppu.oam_write((256 - self.ppu_dma_write) as u8, addr.byte);
+                    NesPpuRunner::oam_write(ppu, (256 - self.ppu_dma_write) as u8, addr.byte);
                     self.ppu_dma_read = true;
                     self.ppu_dma_write -= 1;
                 }
@@ -219,7 +223,7 @@ pub mod nes {
         }
 
         pub fn set_left_controller(&mut self, byte: u8) {
-            self.left_controller = byte;
+            self.left_controller_latch = byte;
         }
 
         pub fn set_right_controller(&mut self, byte: u8) {
@@ -227,6 +231,12 @@ pub mod nes {
         }
 
         pub fn get_left_controller(&mut self) -> u8 {
+            if self.left_count == 0 {
+                self.left_count = 7;
+                self.left_controller = self.left_controller_latch;
+            } else {
+                self.left_count -= 1;
+            }
             let result: u8 = self.left_controller & 0x01;
             self.left_controller >>= 1;
             result

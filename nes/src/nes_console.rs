@@ -1,5 +1,3 @@
-
-
 pub mod nes {
 
     use std::sync::Mutex;
@@ -27,7 +25,6 @@ pub mod nes {
         addr: AddressBus,
         apu: NesApu,
         ppu: NesPpu,
-        ppu2: NesPpuRunner,
         cartridge: NesCartridge000,
         cpu_work_ram: MemoryRam,
         left_controller: u8,
@@ -53,7 +50,6 @@ pub mod nes {
                 addr: AddressBus { address: 0 , write: false, byte: 0, is_accumulator: false, is_abs_y: false },
                 apu: NesApu::new(),
                 ppu: NesPpu::new(),
-                ppu2: NesPpuRunner::new(),
                 cartridge,
                 cpu_work_ram: MemoryRam::new(String::from("CPU Work RAM"), 0x0800),
                 left_controller: 0,
@@ -119,26 +115,26 @@ pub mod nes {
 
                 if (ticks % 3) == 0 {
                     
-                    self.apu.execute_tick(&mut self.addr, &mut self.ppu2);
+                    self.apu.execute_tick(&mut self.addr, &mut self.ppu);
                     if self.apu.ppu_dma_write == 0 && self.apu.apu_dma_write == 0 {
                         self.cpu_runner.execute_tick(&mut self.addr);
                     }
-                    self.ppu2.execute_memory(&mut self.addr, &self.cartridge);
+                    NesPpuRunner::execute_memory(&mut self.ppu, &mut self.addr, &self.cartridge);
                 }
 
-                self.ppu2.execute_tick(&mut self.addr, &self.cartridge);
+                NesPpuRunner::execute_tick(&mut self.ppu, &self.cartridge);
                 //self.ppu.execute_tick(&mut self.addr, &self.cartridge, ticks);
 
-                if self.ppu2.is_nmi_set() {
+                if self.ppu.nmi_set {
                     self.cpu_runner.set_nmi();
-                    self.ppu2.reset_nmi();
+                    self.ppu.nmi_set = false;
                 }
-                self.read_gamepad();
                 ticks += 1;
             }
+            self.read_gamepad();
             
             //let video = self.ppu.get_screen();
-            let video = self.ppu2.get_screen();
+            let video = self.ppu.screen.clone();
             let audio = self.get_audio();
 
             (Some(video), Some(audio))
@@ -202,13 +198,9 @@ pub mod nes {
             
         fn read_gamepad(&mut self) {
 
-            if self.apu.is_write_flag_set(0x4016) {
-                self.apu.set_left_controller(self.left_controller);
-            }
+            self.apu.set_left_controller(self.left_controller);
 
-            //if self.apu.write().unwrap().is_write_flag_set(0x4017) {
-               // self.apu.write().unwrap().set_right_controller(self.right_controller);
-            //}
+            // self.apu.write().unwrap().set_right_controller(self.right_controller);
         } 
 
     }
