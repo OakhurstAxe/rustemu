@@ -6,8 +6,7 @@ pub mod nes {
     use emucpu::prelude::*;
     use emumemory::prelude::*;
 
-    use crate::nes_cartridge::nes::NesCartridge;
-    use crate::{nes_cartridge_000::nes::NesCartridge000};
+    use crate::nes_cartridge::nes::{NesCartridge, NesCartridgeSelector, NesCartridgeTrait};
     use crate::nes_ppu::nes::NesPpu;
     use crate::nes_ppu::nes::NesPpuRunner;
     use crate::nes_inesfile::nes::INesFile;
@@ -25,7 +24,8 @@ pub mod nes {
         addr: AddressBus,
         apu: NesApu,
         ppu: NesPpu,
-        cartridge: NesCartridge000,
+        cart_data: NesCartridge,
+        cartridge: Box<dyn NesCartridgeTrait>,
         cpu_work_ram: MemoryRam,
         left_controller: u8,
         _right_controller: u8,
@@ -40,9 +40,8 @@ pub mod nes {
         pub fn new (rom_file: String) -> NesConsole {
             let mut ines_file: INesFile = INesFile::new();
             ines_file.load_file(rom_file);
-            let mut cartridge: NesCartridge000 = NesCartridge000::new();
-            cartridge.load_prog_rom(ines_file.get_prog_rom_data());
-            cartridge.load_char_rom(ines_file.get_char_rom_data());
+            let cart_data = NesCartridge::new(&ines_file);
+            let mut cartridge: Box<dyn NesCartridgeTrait> = NesCartridgeSelector::select_cartridge(&ines_file);
 
             let mut temp_instance = Self {
                 inframe: Mutex::new(false),
@@ -50,6 +49,7 @@ pub mod nes {
                 addr: AddressBus { address: 0 , write: false, byte: 0, is_accumulator: false, is_abs_y: false },
                 apu: NesApu::new(),
                 ppu: NesPpu::new(),
+                cart_data,
                 cartridge,
                 cpu_work_ram: MemoryRam::new(String::from("CPU Work RAM"), 0x0800),
                 left_controller: 0,
@@ -101,7 +101,7 @@ pub mod nes {
                     self.addr.write = false;
                     //eprintln!("unknown address {}", self.addr.address);
                 }
-                self.cartridge.execute_tick(&mut self.addr);
+                self.cartridge.execute_tick(&mut self.addr, &self.cart_data);
                 self.ram_execute_tick();
 
                 if (ticks % 2) == 0 {
@@ -119,10 +119,10 @@ pub mod nes {
                     if self.apu.ppu_dma_write == 0 && self.apu.apu_dma_write == 0 {
                         self.cpu_runner.execute_tick(&mut self.addr);
                     }
-                    NesPpuRunner::execute_memory(&mut self.ppu, &mut self.addr, &self.cartridge);
+                    NesPpuRunner::execute_memory(&mut self.ppu, &mut self.addr, &self.cartridge, &self.cart_data);
                 }
 
-                NesPpuRunner::execute_tick(&mut self.ppu, &self.cartridge);
+                NesPpuRunner::execute_tick(&mut self.ppu, &self.cartridge, &self.cart_data);
                 //self.ppu.execute_tick(&mut self.addr, &self.cartridge, ticks);
 
                 if self.ppu.nmi_set {

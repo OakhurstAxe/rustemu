@@ -40,10 +40,6 @@ pub mod nes {
             }
         }
 
-        pub fn get_nes_cargridge(&self) -> Box<dyn NesCartridge> {
-            Box::new(NesCartridge000::new())
-        }
-
         pub fn get_prog_rom_data(&self) -> Vec<u8> {
             self.prog_rom_data.clone()
         }
@@ -60,7 +56,7 @@ pub mod nes {
             self.char_rom_data.len() as u8
         }
 
-        fn _get_memory_mapper(&self) -> u16 {
+        pub fn get_memory_mapper(&self) -> u16 {
             self.memory_mapper
         }
 
@@ -87,9 +83,8 @@ pub mod nes {
             self.char_rom_size_flags = file_data[position];
             position += 5;
 
-            self.memory_mapper = ((((self.mapper_flags & 0x0F) as u16) << 8) +
-                (((self.console_type_flags & 0x0F) as u16) << 4) +
-                (self.cartridge_flags & 0x0F) as u16) as u16;
+            self.memory_mapper = ((self.console_type_flags & 0xF0) +
+                ((self.cartridge_flags & 0xF0) >> 4)) as u16;
             
             let prog_rom_size: u16 = ((((self.rom_size_flags & 0x0F) as u16) << 8) + self.prog_rom_size_lsb) as u16;
             let mut char_rom_size: u16 = ((((self.rom_size_flags & 0xF0) as u16) << 8) + self.char_rom_size_lsb) as u16;
