@@ -50,8 +50,8 @@ pub mod nes {
 
             let image = Image::new_fill(
                 Extent3d {
-                    width: IMAGE_WIDTH as u32,
-                    height: IMAGE_HEIGHT as u32,
+                    width: IMAGE_WIDTH,
+                    height: IMAGE_HEIGHT,
                     depth_or_array_layers: 1,
                 },
                 TextureDimension::D2,
@@ -87,7 +87,7 @@ pub mod nes {
                                 video[((y * IMAGE_WIDTH + x) * 3 + 1) as usize],
                                 video[((y * IMAGE_WIDTH + x) * 3 + 2) as usize],
                             );
-                            _ = image.set_color_at(x as u32, y as u32, color);
+                            _ = image.set_color_at(x, y, color);
                         }
                     }
                 },
@@ -114,12 +114,8 @@ pub mod nes {
                         0xee, 0x2, 0x0, 0x0];
                         
                     let mut buffer: Vec<u8> = vec![0; SAMPLES_PER_FRAME + 44];
-                    for i in 0..44 {
-                        buffer[i] = wav_header[i];
-                    }
-                    for i in 0..SAMPLES_PER_FRAME {
-                        buffer[i+44] = audio[i];
-                    }
+                    buffer[..44].copy_from_slice(&wav_header);
+                    buffer[44..44 + SAMPLES_PER_FRAME].copy_from_slice(&audio);
                     let buffer_array: [u8; SAMPLES_PER_FRAME + 44] = buffer.try_into().unwrap();
                     let audio_source = AudioSource{bytes: Arc::new(buffer_array)};
                     let audio_handle = audio_assets.add(audio_source);

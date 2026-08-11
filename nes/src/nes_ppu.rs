@@ -4,31 +4,31 @@ pub mod nes {
     use emumemory::prelude::*;
 
     use crate::nes_console::nes::TICKS_PER_FRAME;
-    use crate::nes_cartridge::nes::{NesCartridge, NesCartridgeTrait};
+    use crate::nes_cartridge::nes::NesCartridgeTrait;
     use crate::nes_palette::nes::NesPalette;
 
     pub const NTSC_X_RESOLUTION: u32 = 256;
     pub const NTSC_Y_RESOLUTION: u32 = 240;
 
-    const PPU_CONTROL_ADDR: u16 =  0x2000;
-    const PPU_MASK_ADDR: u16 =     0x2001;
-    const PPU_STATUS_ADDR: u16 =   0x2002;
-    const PPU_SCROLL_ADDR: u16 =   0x2005;
-    const PPU_ADDR: u16 =          0x2006;
-    const PPU_DATA_ADDR: u16 =     0x2007;
-    const PPU_OAM_ADDR: u16 =      0x2003;
-    const PPU_OAM_DATA_ADDR: u16 = 0x2004;
+    const _PPU_CONTROL_ADDR: u16 =  0x2000;
+    const _PPU_MASK_ADDR: u16 =     0x2001;
+    const _PPU_STATUS_ADDR: u16 =   0x2002;
+    const _PPU_SCROLL_ADDR: u16 =   0x2005;
+    const _PPU_ADDR: u16 =          0x2006;
+    const _PPU_DATA_ADDR: u16 =     0x2007;
+    const _PPU_OAM_ADDR: u16 =      0x2003;
+    const _PPU_OAM_DATA_ADDR: u16 = 0x2004;
     const _PPU_OAM_DMA_ADDR: u16 =  0x4014;
 
-    const PPU_ATTRIBUTE_ADDR: u16 = 0x23c0;
+    const _PPU_ATTRIBUTE_ADDR: u16 = 0x23c0;
     const _PPU_ATTRIBUTE_SIZE: u16 = 0x0040;
-    const PPU_NAMETABLE_ADDR: u16 = 0x2000;
-    const PPU_NAMETABLE_SIZE: u16 = 0x0400;
-    const PPU_PATTERN_SIZE: u16 =   0x1000;
+    const _PPU_NAMETABLE_ADDR: u16 = 0x2000;
+    const _PPU_NAMETABLE_SIZE: u16 = 0x0400;
+    const _PPU_PATTERN_SIZE: u16 =   0x1000;
     const PPU_PALETTE_ADDR: u16 =   0x3F00;
 
-    const PPU_SPRITE_SIZE: i32 =         0x0004;
-    const PPU_SPRITE_PATTERN_SIZE: u16 = 0x0008;
+    const _PPU_SPRITE_SIZE: i32 =         0x0004;
+    const _PPU_SPRITE_PATTERN_SIZE: u16 = 0x0008;
 
 
     #[derive(Default)]
@@ -273,16 +273,13 @@ pub mod nes {
 
         pub fn new () -> NesPpu {
 
-            let palette = NesPalette::new();
-            let ppu_palette = MemoryRam::new(String::from("PPU Palette"), 0x0100);
-
                 Self {
-                palette: palette,
+                palette: NesPalette::new(),
                 video_bus: VideoBus::new(),
                 registers: MemoryRam::new(String::from("PPU Registers"), 0x0008),
                 oam: MemoryRam::new(String::from("PPU OAM"), 0x0100),
                 name_table: MemoryRam::new(String::from("PPU Name Table"), 0x1F00),
-                ppu_palette: ppu_palette,
+                ppu_palette: MemoryRam::new(String::from("PPU Palette"), 0x0100),
                 nmi_set: false,
                 ppu_addr_first: true,
                 ppu_scroll_x: 0,
@@ -310,14 +307,14 @@ pub mod nes {
 
     impl NesPpuRunner {
     
-        pub fn execute_memory(ppu: &mut NesPpu, addr: &mut AddressBus, cartridge: &Box<dyn NesCartridgeTrait>, cart_data: &NesCartridge) {
+        pub fn execute_memory(ppu: &mut NesPpu, addr: &mut AddressBus, cartridge: &Box<dyn NesCartridgeTrait>) {
 
             if (0x2000..0x4000).contains(&addr.address) {
                 if addr.write {
                     Self::ppu_register_write(ppu, addr);
                     addr.write = false;
                 } else {
-                    addr.byte = Self::ppu_register_read(ppu,addr.address, cartridge, cart_data);
+                    addr.byte = Self::ppu_register_read(ppu,addr.address, cartridge);
                 }
             }                
         }
@@ -374,7 +371,7 @@ pub mod nes {
             }
         }
 
-        fn ppu_register_read(ppu: &mut NesPpu, mut location: u16, cartridge: &Box<dyn NesCartridgeTrait>, cart_data: &NesCartridge) -> u8 {
+        fn ppu_register_read(ppu: &mut NesPpu, mut location: u16, cartridge: &Box<dyn NesCartridgeTrait>) -> u8 {
             // Mirroring, and bring to zero
             location %= 8;
             
@@ -397,7 +394,7 @@ pub mod nes {
                 0x07 => {
                     // No buffer when reading from PPU ram
                     let byte = ppu.video_bus.byte;
-                    let ppu_byte = Self::read(ppu, ppu.ppu_addr, cartridge, cart_data);
+                    let ppu_byte = Self::read(ppu, ppu.ppu_addr, cartridge);
                     if ppu.ppu_addr >= 0x3f00 {
                         return ppu_byte;
                     }
@@ -421,12 +418,12 @@ pub mod nes {
             ppu.oam.write(location as u16, byte);
         }
 
-        fn read(ppu: &mut NesPpu, mut location: u16, cartridge: &Box<dyn NesCartridgeTrait>, cart_data: &NesCartridge) -> u8 {
+        fn read(ppu: &mut NesPpu, mut location: u16, cartridge: &Box<dyn NesCartridgeTrait>) -> u8 {
 
             //  Cartridge PPU ROM
             match location {
                 0x0000..=0x1FFF => {
-                    return cartridge.ppu_read(location, cart_data);
+                    return cartridge.ppu_read(location);
                 },
                 0x2000..=0x3EFF => {
                     location -= 0x2000;
@@ -451,7 +448,7 @@ pub mod nes {
                     return result;
                 },
                 _ => {
-                    eprintln!("Invalid PPU read address: {}", location);
+                    eprintln!("Invalid PPU read address: {:x}", location);
                 }
             }
             0
@@ -483,10 +480,10 @@ pub mod nes {
                 },
                 _ => {}
             }
-            eprintln!("Invalid NES memory location for PPU write {}", location);
+            eprintln!("Invalid NES memory location for PPU write {:x}", location);
         }
 
-        pub fn execute_tick(ppu: &mut NesPpu, cartridge: &Box<dyn NesCartridgeTrait>, cart_data: &NesCartridge) {
+        pub fn execute_tick(ppu: &mut NesPpu, cartridge: &Box<dyn NesCartridgeTrait>) {
 
             ppu.video_bus.execute_tick();
 
@@ -500,7 +497,7 @@ pub mod nes {
                 }
             }
 
-            Self::render_pixel(ppu, cartridge, cart_data);
+            Self::render_pixel(ppu, cartridge);
             
             if ppu.scan_line == 241 && ppu.cycle == 1 {
                 Self::cpu_set_vblank(ppu, true);
@@ -514,7 +511,7 @@ pub mod nes {
             }
 
             if ppu.scan_line == 260 && ppu.cycle == 1 {
-                ppu.ppu_addr_first = true;
+                //ppu.ppu_addr_first = true;
                 Self::cpu_set_vblank(ppu, false);
                 Self::set_ppu_sprite_zero_hit(ppu, false, 0, 0);
                 Self::set_ppu_sprite_overflow(ppu, false);
@@ -545,11 +542,11 @@ pub mod nes {
             ppu.registers.write(2, byte);
         }
 
-        fn render_pixel(ppu: &mut NesPpu, cartridge: &Box<dyn NesCartridgeTrait>, cart_data: &NesCartridge) {
+        fn render_pixel(ppu: &mut NesPpu, cartridge: &Box<dyn NesCartridgeTrait>) {
 
             let screen_x = ppu.cycle;
             let screen_y = ppu.scan_line;
-            Self::get_bg_attribute_bytes(ppu, screen_x + 8, screen_y, cartridge, cart_data);
+            Self::get_bg_attribute_bytes(ppu, screen_x + 8, screen_y, cartridge);
 
             if (8..256).contains(&screen_x) && (0..240).contains(&screen_y) {
 
@@ -557,15 +554,15 @@ pub mod nes {
 
                 let (mut sprite_pixel, mut sprite_priority, mut is_sprite_zero) = (0, 0, false);
                 if ppu_mask.show_sprites() && (ppu_mask.show_sprites_leftmost_8_pixels() || screen_x >= 8)  {
-                    (sprite_pixel, sprite_priority, is_sprite_zero) = Self::get_sprite_pixel(ppu, screen_y as u16, screen_x as u16, cartridge, cart_data);
+                    (sprite_pixel, sprite_priority, is_sprite_zero) = Self::get_sprite_pixel(ppu, screen_y as u16, screen_x as u16, cartridge);
                 }
 
                 let mut background_pixel: u8 = 0;
                 if ppu_mask.show_background() && (ppu_mask.show_background_leftmost_8_pixels() || screen_x >= 8) {
-                    background_pixel = Self::get_background_pixel(ppu, cartridge, cart_data);
+                    background_pixel = Self::get_background_pixel(ppu, cartridge);
                 }
 
-                let backdrop: u8 = Self::read(ppu, PPU_PALETTE_ADDR, cartridge, cart_data);
+                let backdrop: u8 = Self::read(ppu, PPU_PALETTE_ADDR, cartridge);
 
                 let mut color = backdrop;
 
@@ -589,7 +586,7 @@ pub mod nes {
 
         }
 
-        fn get_sprite_pixel(ppu: &mut NesPpu, screen_y: u16, screen_x: u16, cartridge: &Box<dyn NesCartridgeTrait>, cart_data: &NesCartridge) -> (u8, u8, bool) {
+        fn get_sprite_pixel(ppu: &mut NesPpu, screen_y: u16, screen_x: u16, cartridge: &Box<dyn NesCartridgeTrait>) -> (u8, u8, bool) {
             
             let mut priority: u8 = 0;
 
@@ -608,12 +605,14 @@ pub mod nes {
 
                 let sprite_attribute = SpriteAttribute::new(ppu.sprites[i].attribute);
 
-                let mut pattern_address: u16 = ((ppu.sprites[i].tile as u16) << 4) + (ppu.scan_line as u8 - y_pos - 1) as u16;
+                let mut pattern_address: u16 = (ppu.sprites[i].tile as u16) << 4;
                 if sprite_attribute.get_flip_verticle() {
-                    pattern_address = pattern_address + 7 - screen_y - y_pos  as u16;
+                    pattern_address += 7 + y_pos as u16 - screen_y - 1;
+                } else {
+                    pattern_address += screen_y - y_pos as u16 - 1;
                 }
-                let mut sprite_lsb = Self::read(ppu, pattern_address, cartridge, cart_data);
-                let mut sprite_msb = Self::read(ppu, pattern_address + 8, cartridge, cart_data);
+                let mut sprite_lsb = Self::read(ppu, pattern_address, cartridge);
+                let mut sprite_msb = Self::read(ppu, pattern_address + 8, cartridge);
 
                 if sprite_attribute.get_flip_horizontal() {
                     sprite_lsb = NesPpuRunner::reverse_bits(sprite_lsb);
@@ -630,7 +629,7 @@ pub mod nes {
                 let palette_address: u16 = ((sprite_attribute.get_palette() + 0x04) << 2) as u16 + pixel as u16;
 
                 if pixel != 0{
-                    let color: u8 = Self::read(ppu, PPU_PALETTE_ADDR + palette_address, cartridge, cart_data);
+                    let color: u8 = Self::read(ppu, PPU_PALETTE_ADDR + palette_address, cartridge);
                     return (color, priority, ppu.sprites[i].sprite_id == 0);
                 }
             }
@@ -638,22 +637,22 @@ pub mod nes {
             (0, priority, false)
         }
 
-        fn get_background_pixel(ppu: &mut NesPpu, cartridge: &Box<dyn NesCartridgeTrait>, cart_data: &NesCartridge) -> u8 {
+        fn get_background_pixel(ppu: &mut NesPpu, cartridge: &Box<dyn NesCartridgeTrait>) -> u8 {
 
             let pixel =  ((ppu.pattern_high_byte & 0x80) >> 6) + ((ppu.pattern_low_byte & 0x80) >> 7);
             let palette_address: u16 = ((ppu.attribute_byte & 0x03) << 2) as u16 + pixel as u16;
             ppu.pattern_low_byte <<= 1;
             ppu.pattern_high_byte <<= 1;
             
-            let color: u8 = Self::read(ppu, PPU_PALETTE_ADDR + palette_address, cartridge, cart_data);
+            let color: u8 = Self::read(ppu, PPU_PALETTE_ADDR + palette_address, cartridge);
 
             color
         }
 
-        fn get_bg_attribute_bytes(ppu: &mut NesPpu, screen_x: i32, screen_y: i32, cartridge: &Box<dyn NesCartridgeTrait>, cart_data: &NesCartridge) {
+        fn get_bg_attribute_bytes(ppu: &mut NesPpu, screen_x: i32, screen_y: i32, cartridge: &Box<dyn NesCartridgeTrait>) {
 
             let control_register = PpuControlRegister::new(ppu.registers.read(0));
-            let tile_row: u16 = (screen_y as u16 + ppu.ppu_scroll_y as u16) / 8;
+            let mut tile_row: u16 = (screen_y as u16 + ppu.ppu_scroll_y as u16) / 8;
             let mut tile_column: u16 = (screen_x as u16 + ppu.ppu_scroll_x as u16) / 8;
 
             let mut addr_add: i32 = 0x0;
@@ -664,6 +663,16 @@ pub mod nes {
                 if control_register.base_nametable_address() == 0x2400  || 
                     control_register.base_nametable_address() == 0x2C00 {
                     addr_add = -0x400;
+                }
+            }
+
+            if tile_row >= 32 {
+                tile_row -= 32;
+                addr_add = 0x800;
+
+                if control_register.base_nametable_address() == 0x2800  || 
+                    control_register.base_nametable_address() == 0x2C00 {
+                    addr_add = -0x800;
                 }
             }
 
@@ -679,7 +688,7 @@ pub mod nes {
                         let mut nametable_table_address: u16 = control_register.base_nametable_address();
                         nametable_table_address = (nametable_table_address as i32 + addr_add) as u16;
                         nametable_table_address += (tile_row * 32) + tile_column;
-                        ppu.nametable_hold_byte = Self::read(ppu, nametable_table_address, cartridge, cart_data);
+                        ppu.nametable_hold_byte = Self::read(ppu, nametable_table_address, cartridge);
                     },
                     // Attribute byte
                     2 => {
@@ -689,18 +698,18 @@ pub mod nes {
                         let attr_y_shift = (tile_row % 4) / 2;
                         let shift = (attr_y_shift * 2 + attr_x_shift) * 2;
                         let attribute_table_address = (addr_add + control_register.base_attributetable_address() as i32 + (attr_x + attr_y * 8) as i32) as u16;
-                        ppu.attribute_hold_byte = Self::read(ppu, attribute_table_address, cartridge, cart_data);
+                        ppu.attribute_hold_byte = Self::read(ppu, attribute_table_address, cartridge);
                         ppu.attribute_hold_byte >>= shift;
                     },
                     // Pattern lsb
                     4 => {
                         let pattern_address: u16 = control_register.background_pattern_table_address() + (ppu.nametable_hold_byte as u16 * 16) + (ppu.scan_line % 8) as u16;
-                        ppu.pattern_low_hold_byte = Self::read(ppu, pattern_address, cartridge, cart_data);
+                        ppu.pattern_low_hold_byte = Self::read(ppu, pattern_address, cartridge);
                     },
                     // Patterm msb
                     6 => {
                         let pattern_address: u16 = control_register.background_pattern_table_address() + (ppu.nametable_hold_byte as u16 * 16)  + (ppu.scan_line % 8) as u16 + 8;
-                        ppu.pattern_high_hold_byte = Self::read(ppu, pattern_address, cartridge, cart_data);
+                        ppu.pattern_high_hold_byte = Self::read(ppu, pattern_address, cartridge);
                     },
                     _ => {}
                 }

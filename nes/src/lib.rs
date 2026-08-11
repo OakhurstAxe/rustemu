@@ -4,6 +4,7 @@ pub mod nes_ppu;
 pub mod nes_cartridge;
 pub mod nes_inesfile;
 pub mod nes_cartridge_000;
+pub mod nes_cartridge_004;
 pub mod nes_console;
 pub mod nes_apu;
 pub mod nes_apuchannel;

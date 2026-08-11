@@ -8,31 +8,34 @@ pub mod nes {
     use crate::nes_cartridge::nes::NesCartridgeTrait;
 
     pub struct NesCartridge000 {
+        cart_data: NesCartridge,
     }
 
     impl NesCartridge000 {
 
-        pub fn new() -> NesCartridge000 {
-            Self { }
+        pub fn new(cart_data: NesCartridge) -> NesCartridge000 {
+            Self { 
+                cart_data,
+            }
         }
     }
 
     impl NesCartridgeTrait for NesCartridge000 {    
 
-        fn execute_tick(&mut self, addr: &mut AddressBus, cartridge: &NesCartridge) {
+        fn execute_tick(&mut self, addr: &mut AddressBus) {
 
             if addr.address >= 0x6000 {
                 if addr.write {
-                    self.cpu_write(addr.address, addr.byte, cartridge);
+                    self.cpu_write(addr.address, addr.byte);
                     addr.write = false;
                 } else {
-                    addr.byte = self.cpu_read(addr.address, cartridge);
+                    addr.byte = self.cpu_read(addr.address);
                 }
             }
 
         }
 
-        fn cpu_read(&self, mut location: u16, cartridge: &NesCartridge) -> u8 {
+        fn cpu_read(&self, mut location: u16) -> u8 {
 
             if location < 0xc000 {
 
@@ -43,30 +46,28 @@ pub mod nes {
                     location -= 0x4000;
                 }
                 
-                return cartridge.cpu_prog_rom_0[location as usize];
-
+                self.cart_data.cpu_prog_rom_0[location as usize]
+            } else {
+                location -= 0xc000;
+                self.cart_data.cpu_prog_rom_1[location as usize]
             }
-
-            location -= 0xc000;
-            cartridge.cpu_prog_rom_1[location as usize]
         }
     
-        fn cpu_write(&self, _location: u16, _byte: u8, _cartridge: &NesCartridge) {
+        fn cpu_write(&mut self, _location: u16, _byte: u8) {
             //eprintln!("This cartridge does not support cpu write {}", location);
         }
 
-        fn ppu_read(&self, mut location: u16, cartridge: &NesCartridge) -> u8 {
+        fn ppu_read(&self, mut location: u16) -> u8 {
 
             if location < 0x2000 {
-                return cartridge.ppu_char_rom_0[location as usize];
-            }
-            else {
+                self.cart_data.ppu_char_rom_0[location as usize]
+            } else {
                 location -= 0x2000;
-                cartridge.ppu_char_rom_1[location as usize]
+                self.cart_data.ppu_char_rom_1[location as usize]
             }
         }
     
-        fn ppu_write(&self, location: u16, _byte: u8, cartridge: &NesCartridge) {
+        fn ppu_write(&self, location: u16, _byte: u8) {
             eprintln!("This cartridge does not support ppu write {}", location);
         }
 

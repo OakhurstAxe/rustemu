@@ -4,4 +4,5 @@ pub mod nm6502;
 pub mod m6502;
 pub mod m6502_address;
 pub mod m6502_opcodes;
+pub mod m6502_opcode_ticks;
 pub mod prelude;

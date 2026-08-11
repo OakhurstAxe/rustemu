@@ -4,6 +4,7 @@ pub mod emu_cpu{
 
     use crate::m6502_address::maddress::{*};
     use crate::m6502_opcodes::mopcodes::{*};
+    use crate::m6502_opcode_ticks::mopcodeticks::{*};
 
     pub const CARRY_FLAG: u8     = 1;
     pub const ZERO_FLAG: u8      = 2;
@@ -90,7 +91,7 @@ pub mod emu_cpu{
         runner_step: M6502RunnerStep,
         is_reset_set: bool,
         op_code_lookup: Vec<Box<dyn CpuOperation>>,
-        op_code_ticks: Vec<u8>,
+        op_code_ticks: OpCodeTicks,
         address_method_lookup: Vec<Box<dyn AddressMethod>>,
         tick_count: u8,
         is_nmi_set: bool,
@@ -138,7 +139,7 @@ pub mod emu_cpu{
                 runner_step: M6502RunnerStep::ReadPc,
                 is_reset_set: true,
                 op_code_lookup,
-                op_code_ticks: OpCodesUtils::get_ticks(),
+                op_code_ticks: OpCodeTicks::new(),
                 address_method_lookup: AddressOpCodes::get_address_methods(),
                 tick_count: 0,
                 is_nmi_set: false,
@@ -187,15 +188,8 @@ pub mod emu_cpu{
                     self.irq_buffered = false;
                 } else {
                     self.runner_step = M6502RunnerStep::AddressStep;
-                    if self.op_code_ticks[self.op_code as usize] != self.tick_count 
-                     && self.op_code != 0xd0 && self.op_code != 0x10 
-                     && self.op_code != 0xb0 && self.op_code != 0x30
-                     && self.op_code != 0xf0 && self.op_code != 0x90 
-                     && self.op_code != 0x50 {
-                        //println!("PC: {:x}, opcode: {:x} tickcount: {} expected: {}", self.cpu.program_counter, self.op_code, self.tick_count, self.op_code_ticks[self.op_code as usize]);
-                    }
+                    //self.op_code_ticks.check_ticks(self.cpu.program_counter, self.op_code, self.tick_count);
                     self.op_code = addr.byte as u16;
- //                    CSWasteOnly1
                     //println!("PC: {:x}, opcode: {:x} ", self.cpu.program_counter, self.op_code);
                     self.cpu.program_counter = self.cpu.program_counter.wrapping_add(1);
                     self.tick_count = 0;
@@ -222,7 +216,7 @@ pub mod emu_cpu{
                 }
             } 
 
-            if self.runner_step == M6502RunnerStep::AddressStepLoadByte && self.op_code_lookup[self.op_code as usize].needs_addr_byte(addr) == false {
+            if self.runner_step == M6502RunnerStep::AddressStepLoadByte && !self.op_code_lookup[self.op_code as usize].needs_addr_byte(addr) {
                 self.cpu.lookup_address.byte = addr.byte;
                 self.runner_step = M6502RunnerStep::OpCodeStep;
             }
@@ -236,7 +230,7 @@ pub mod emu_cpu{
                 }
             } 
 
-            if self.runner_step == M6502RunnerStep::OpCodeWrite && addr.write == false {
+            if self.runner_step == M6502RunnerStep::OpCodeWrite && !addr.write {
                 self.runner_step = M6502RunnerStep::ReadPc;
                 self.can_halt = true;
                 addr.address = self.cpu.program_counter;

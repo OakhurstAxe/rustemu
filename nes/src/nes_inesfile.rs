@@ -3,9 +3,7 @@ pub mod nes {
 
     use std::fs;
 
-    use crate::nes_cartridge::nes::NesCartridge;
-    use crate::nes_cartridge_000::nes::NesCartridge000;
-
+    #[derive(Default)]
     pub struct INesFile {
         prog_rom_data: Vec<u8>,
         prog_rom_size_lsb: u16,
@@ -86,8 +84,8 @@ pub mod nes {
             self.memory_mapper = ((self.console_type_flags & 0xF0) +
                 ((self.cartridge_flags & 0xF0) >> 4)) as u16;
             
-            let prog_rom_size: u16 = ((((self.rom_size_flags & 0x0F) as u16) << 8) + self.prog_rom_size_lsb) as u16;
-            let mut char_rom_size: u16 = ((((self.rom_size_flags & 0xF0) as u16) << 8) + self.char_rom_size_lsb) as u16;
+            let prog_rom_size: u16 = (((self.rom_size_flags & 0x0F) as u16) << 8) + self.prog_rom_size_lsb;
+            let mut char_rom_size: u16 = (((self.rom_size_flags & 0xF0) as u16) << 8) + self.char_rom_size_lsb;
 
             if char_rom_size == 0 {
                 char_rom_size = 1;

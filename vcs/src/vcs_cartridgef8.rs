@@ -24,7 +24,7 @@ pub mod vcs {
             else {
                 if address_range.contains(&location) {
                     location -= 0x1000;
-                    let a_13_set = (0x2000 & location) > 0;
+                    let _a_13_set = (0x2000 & location) > 0;
                     addr.byte = cart.memory[location as usize];
                 }
             }
