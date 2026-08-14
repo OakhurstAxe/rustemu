@@ -38,10 +38,10 @@ pub mod nes {
                 prog_bank_mode: 0,
                 char_inversion: 0,
 
-                prog_bank_8000: 6,
-                prog_bank_a000: 7,
-                prog_bank_c000: 6,
-                prog_bank_e000: 7,
+                prog_bank_8000: 14,
+                prog_bank_a000: 14,
+                prog_bank_c000: 15,
+                prog_bank_e000: 15,
 
                 char_bank_0000: 0,
                 char_bank_0400: 0,
@@ -83,65 +83,22 @@ pub mod nes {
                     local_location -= 0x6000;
                     self.cart_data.cpu_prog_ram_0[local_location as usize]
                 },
-                0x8000..=0xBFFF => {
+                0x8000..=0x9FFF => {
                     local_location -= 0x8000;
-
-                    match self.prog_bank_8000 {
-                        0 => self.cart_data.cpu_prog_rom_0[local_location as usize],
-                        1 => self.cart_data.cpu_prog_rom_1[local_location as usize],
-                        2 => self.cart_data.cpu_prog_rom_2[local_location as usize],
-                        3 => self.cart_data.cpu_prog_rom_3[local_location as usize],
-                        4 => self.cart_data.cpu_prog_rom_4[local_location as usize],
-                        5 => self.cart_data.cpu_prog_rom_5[local_location as usize],
-                        6 => self.cart_data.cpu_prog_rom_6[local_location as usize],
-                        7 => self.cart_data.cpu_prog_rom_7[local_location as usize],
-                        _ => panic!("Unknwn bank number for $8000 {}", self.prog_bank_8000)
-                    }
+                    self.cart_data.cpu_prog_rom_mmc3[self.prog_bank_8000 as usize][local_location as usize]
                 },
-                0xC000..=0xFFFF => {
-                    local_location -= 0xC000;
-
-                    match self.prog_bank_a000 {
-                        0 => self.cart_data.cpu_prog_rom_0[local_location as usize],
-                        1 => self.cart_data.cpu_prog_rom_1[local_location as usize],
-                        2 => self.cart_data.cpu_prog_rom_2[local_location as usize],
-                        3 => self.cart_data.cpu_prog_rom_3[local_location as usize],
-                        4 => self.cart_data.cpu_prog_rom_4[local_location as usize],
-                        5 => self.cart_data.cpu_prog_rom_5[local_location as usize],
-                        6 => self.cart_data.cpu_prog_rom_6[local_location as usize],
-                        7 => self.cart_data.cpu_prog_rom_7[local_location as usize],
-                        _ => panic!("Unknwn bank number for $A000 {}", self.prog_bank_a000)
-                    }
+                0xA000..=0xBFFF => {
+                    local_location -= 0xA000;
+                    self.cart_data.cpu_prog_rom_mmc3[self.prog_bank_a000 as usize][local_location as usize]
                 },
-                /*
-                0xC000..=0xFFFF => {
+                0xC000..=0xDFFF => {
                     local_location -= 0xC000;
-                    match self.prog_bank_c000 {
-                        0 => self.cart_data.cpu_prog_rom_0[local_location as usize],
-                        1 => self.cart_data.cpu_prog_rom_1[local_location as usize],
-                        2 => self.cart_data.cpu_prog_rom_2[local_location as usize],
-                        3 => self.cart_data.cpu_prog_rom_3[local_location as usize],
-                        4 => self.cart_data.cpu_prog_rom_4[local_location as usize],
-                        5 => self.cart_data.cpu_prog_rom_5[local_location as usize],
-                        6 => self.cart_data.cpu_prog_rom_6[local_location as usize],
-                        7 => self.cart_data.cpu_prog_rom_7[local_location as usize],
-                        _ => panic!("Unknwn bank number for $C000 {}", self.prog_bank_c000)
-                    }
+                    self.cart_data.cpu_prog_rom_mmc3[self.prog_bank_c000 as usize][local_location as usize]
                 }
-                0xF000..=0xFFFF => {
-                    local_location -= 0xF000;
-                    match self.prog_bank_e000 {
-                        0 => self.cart_data.cpu_prog_rom_0[local_location as usize],
-                        1 => self.cart_data.cpu_prog_rom_1[local_location as usize],
-                        2 => self.cart_data.cpu_prog_rom_2[local_location as usize],
-                        3 => self.cart_data.cpu_prog_rom_3[local_location as usize],
-                        4 => self.cart_data.cpu_prog_rom_4[local_location as usize],
-                        5 => self.cart_data.cpu_prog_rom_5[local_location as usize],
-                        6 => self.cart_data.cpu_prog_rom_6[local_location as usize],
-                        7 => self.cart_data.cpu_prog_rom_7[local_location as usize],
-                        _ => panic!("Unknwn bank number for $E000 {}", self.prog_bank_e000)
-                    }
-                } */
+                0xE000..=0xFFFF => {
+                    local_location -= 0xe000;
+                    self.cart_data.cpu_prog_rom_mmc3[self.prog_bank_e000 as usize][local_location as usize]
+                } 
                 _ => {
                     0
                 }
@@ -158,52 +115,105 @@ pub mod nes {
             } else {
                 
                 match self.target_register {
-                    0x07 => {
-                        self.prog_bank_8000 = byte & 0x07;
-                    },
-                    0x08 => {
-                        self.prog_bank_a000 = byte & 0x07;
-                    }
-                    _ => {}
-                }
-
-                match self.char_inversion {
                     0 => {
-                        self.char_bank_0000 = 0;
-                        self.char_bank_0400 = 1;
-                        self.char_bank_0800 = 1;
-                        self.char_bank_0c00 = 2;
-                        self.char_bank_1000 = 2;
-                        self.char_bank_1400 = 3;
-                        self.char_bank_1800 = 4;
-                        self.char_bank_1c00 = 5;
+                        match self.char_inversion {
+                            0 => {
+                                self.char_bank_0000 = byte;
+                                self.char_bank_0400 = byte + 1;
+                            },
+                            1 => {
+                                self.char_bank_1000 = byte;
+                                self.char_bank_1400 = byte + 1;
+                            }
+                            _ => {}
+                        }
                     },
                     1 => {
-                        self.char_bank_0000 = 2;
-                        self.char_bank_0400 = 3;
-                        self.char_bank_0800 = 4;
-                        self.char_bank_0c00 = 5;
-                        self.char_bank_1000 = 0;
-                        self.char_bank_1400 = 1;
-                        self.char_bank_1800 = 1;
-                        self.char_bank_1c00 = 2;
+                        match self.char_inversion {
+                            0 => {
+                                self.char_bank_0800 = byte;
+                                self.char_bank_0c00 = byte + 1;
+                            },
+                            1 => {
+                                self.char_bank_1800 = byte;
+                                self.char_bank_1c00 = byte + 1;
+                            }
+                            _ => {}
+                        }
                     },
-                    _ => {
+                    2 => {
+                        match self.char_inversion {
+                            0 => {
+                                self.char_bank_1000 = byte;
+                            },
+                            1 => {
+                                self.char_bank_0000 = byte;
+                            }
+                            _ => {}
+                        }
                     },
-                }
-
-                match self.prog_bank_mode {
-                    0 => {
-                        self.prog_bank_8000 = 6;
-                        self.prog_bank_a000 = 7;
-                        self.prog_bank_c000 = 6;
-                        self.prog_bank_e000 = 7;
+                    3 => {
+                        match self.char_inversion {
+                            0 => {
+                                self.char_bank_1400 = byte;
+                            },
+                            1 => {
+                                self.char_bank_0400 = byte;
+                            }
+                            _ => {}
+                        }
                     },
-                    1 => {
-                        self.prog_bank_8000 = 6;
-                        self.prog_bank_a000 = 7;
-                        self.prog_bank_c000 = 6;
-                        self.prog_bank_e000 = 7;
+                    4 => {
+                        match self.char_inversion {
+                            0 => {
+                                self.char_bank_1800 = byte;
+                            },
+                            1 => {
+                                self.char_bank_0800 = byte;
+                            }
+                            _ => {}
+                        }
+                    },
+                    5 => {
+                        match self.char_inversion {
+                            0 => {
+                                self.char_bank_1c00 = byte;
+                            },
+                            1 => {
+                                self.char_bank_0c00 = byte;
+                            }
+                            _ => {}
+                        }
+                    },
+                    6 => {
+                        match self.prog_bank_mode {
+                            0 => {
+                                self.prog_bank_c000 = 14;
+                                self.prog_bank_e000 = 15;
+                                self.prog_bank_8000 = byte;
+                            },
+                            1 => {
+                                self.prog_bank_8000 = 14;
+                                self.prog_bank_e000 = 15;
+                                self.prog_bank_c000 = byte;
+                            },
+                            _ => {}
+                        }
+                    },
+                    7 => {
+                        match self.prog_bank_mode {
+                            0 => {
+                                self.prog_bank_c000 = 14;
+                                self.prog_bank_e000 = 15;
+                                self.prog_bank_a000 = byte;
+                            },
+                            1 => {
+                                self.prog_bank_8000 = 14;
+                                self.prog_bank_e000 = 15;
+                                self.prog_bank_a000 = byte;
+                            },
+                            _ => {}
+                        }
                     },
                     _ => {}
                 }
@@ -221,115 +231,42 @@ pub mod nes {
             match local_location {
                 0x0000..0x0400 =>
                 {
-                    match self.char_bank_0000 {
-                        0 => self.cart_data.ppu_char_rom_1[local_location as usize],
-                        1 => self.cart_data.ppu_char_rom_2[local_location as usize],
-                        2 => self.cart_data.ppu_char_rom_3[local_location as usize],
-                        3 => self.cart_data.ppu_char_rom_4[local_location as usize],
-                        4 => self.cart_data.ppu_char_rom_5[local_location as usize],
-                        5 => self.cart_data.ppu_char_rom_6[local_location as usize],
-                        6 => self.cart_data.ppu_char_rom_7[local_location as usize],
-                        7 => self.cart_data.ppu_char_rom_8[local_location as usize],
-                        _ => panic!("Unknwn bank number for char $0000 {}", self.char_bank_0000)
-                    }
+                    self.cart_data.ppu_char_rom_mmc3[self.char_bank_0000 as usize][local_location as usize]
                 },
                 0x0400..0x0800 =>
                 {
-                    match self.char_bank_0400 {
-                        0 => self.cart_data.ppu_char_rom_1[local_location as usize],
-                        1 => self.cart_data.ppu_char_rom_2[local_location as usize],
-                        2 => self.cart_data.ppu_char_rom_3[local_location as usize],
-                        3 => self.cart_data.ppu_char_rom_4[local_location as usize],
-                        4 => self.cart_data.ppu_char_rom_5[local_location as usize],
-                        5 => self.cart_data.ppu_char_rom_6[local_location as usize],
-                        6 => self.cart_data.ppu_char_rom_7[local_location as usize],
-                        7 => self.cart_data.ppu_char_rom_8[local_location as usize],
-                        _ => panic!("Unknwn bank number for char $0400 {}", self.char_bank_0400)
-                    }
+                    local_location -= 0x0400;
+                    self.cart_data.ppu_char_rom_mmc3[self.char_bank_0400 as usize][local_location as usize]
                 },
-                0x0800..0x0C00 =>
+                0x0800..0x0c00 =>
                 {
-                    match self.char_bank_0c00 {
-                        0 => self.cart_data.ppu_char_rom_1[local_location as usize],
-                        1 => self.cart_data.ppu_char_rom_2[local_location as usize],
-                        2 => self.cart_data.ppu_char_rom_3[local_location as usize],
-                        3 => self.cart_data.ppu_char_rom_4[local_location as usize],
-                        4 => self.cart_data.ppu_char_rom_5[local_location as usize],
-                        5 => self.cart_data.ppu_char_rom_6[local_location as usize],
-                        6 => self.cart_data.ppu_char_rom_7[local_location as usize],
-                        7 => self.cart_data.ppu_char_rom_8[local_location as usize],
-                        _ => panic!("Unknwn bank number for char $0c00 {}", self.char_bank_0c00)
-                    }
+                    local_location -= 0x0800;
+                    self.cart_data.ppu_char_rom_mmc3[self.char_bank_0800 as usize][local_location as usize]
                 },
-                0x0C00..0x1000 =>
+                0x0c00..0x1000 =>
                 {
-                    match self.char_bank_0c00 {
-                        0 => self.cart_data.ppu_char_rom_1[local_location as usize],
-                        1 => self.cart_data.ppu_char_rom_2[local_location as usize],
-                        2 => self.cart_data.ppu_char_rom_3[local_location as usize],
-                        3 => self.cart_data.ppu_char_rom_4[local_location as usize],
-                        4 => self.cart_data.ppu_char_rom_5[local_location as usize],
-                        5 => self.cart_data.ppu_char_rom_6[local_location as usize],
-                        6 => self.cart_data.ppu_char_rom_7[local_location as usize],
-                        7 => self.cart_data.ppu_char_rom_8[local_location as usize],
-                        _ => panic!("Unknwn bank number for char $0c00 {}", self.char_bank_0c00)
-                    }
+                    local_location -= 0x0c00;
+                    self.cart_data.ppu_char_rom_mmc3[self.char_bank_0c00 as usize][local_location as usize]
                 },
                 0x1000..0x1400 =>
                 {
-                    match self.char_bank_1000 {
-                        0 => self.cart_data.ppu_char_rom_1[local_location as usize],
-                        1 => self.cart_data.ppu_char_rom_2[local_location as usize],
-                        2 => self.cart_data.ppu_char_rom_3[local_location as usize],
-                        3 => self.cart_data.ppu_char_rom_4[local_location as usize],
-                        4 => self.cart_data.ppu_char_rom_5[local_location as usize],
-                        5 => self.cart_data.ppu_char_rom_6[local_location as usize],
-                        6 => self.cart_data.ppu_char_rom_7[local_location as usize],
-                        7 => self.cart_data.ppu_char_rom_8[local_location as usize],
-                        _ => panic!("Unknwn bank number for char $1000 {}", self.char_bank_1000)
-                    }
+                    local_location -= 0x1000;
+                    self.cart_data.ppu_char_rom_mmc3[self.char_bank_1000 as usize][local_location as usize]
                 },
                 0x1400..0x1800 =>
                 {
-                    match self.char_bank_1400 {
-                        0 => self.cart_data.ppu_char_rom_1[local_location as usize],
-                        1 => self.cart_data.ppu_char_rom_2[local_location as usize],
-                        2 => self.cart_data.ppu_char_rom_3[local_location as usize],
-                        3 => self.cart_data.ppu_char_rom_4[local_location as usize],
-                        4 => self.cart_data.ppu_char_rom_5[local_location as usize],
-                        5 => self.cart_data.ppu_char_rom_6[local_location as usize],
-                        6 => self.cart_data.ppu_char_rom_7[local_location as usize],
-                        7 => self.cart_data.ppu_char_rom_8[local_location as usize],
-                        _ => panic!("Unknwn bank number for char $1400 {}", self.char_bank_1400)
-                    }
+                    local_location -= 0x1400;
+                    self.cart_data.ppu_char_rom_mmc3[self.char_bank_1400 as usize][local_location as usize]
                 },
                 0x1800..0x1C00 =>
                 {
-                    match self.char_bank_1800 {
-                        0 => self.cart_data.ppu_char_rom_1[local_location as usize],
-                        1 => self.cart_data.ppu_char_rom_2[local_location as usize],
-                        2 => self.cart_data.ppu_char_rom_3[local_location as usize],
-                        3 => self.cart_data.ppu_char_rom_4[local_location as usize],
-                        4 => self.cart_data.ppu_char_rom_5[local_location as usize],
-                        5 => self.cart_data.ppu_char_rom_6[local_location as usize],
-                        6 => self.cart_data.ppu_char_rom_7[local_location as usize],
-                        7 => self.cart_data.ppu_char_rom_8[local_location as usize],
-                        _ => panic!("Unknwn bank number for char $1800 {}", self.char_bank_1800)
-                    }
+                    local_location -= 0x1800;
+                    self.cart_data.ppu_char_rom_mmc3[self.char_bank_1800 as usize][local_location as usize]
                 },
                 0x1C00..0x2000 =>
                 {
-                    match self.char_bank_1c00 {
-                        0 => self.cart_data.ppu_char_rom_1[local_location as usize],
-                        1 => self.cart_data.ppu_char_rom_2[local_location as usize],
-                        2 => self.cart_data.ppu_char_rom_3[local_location as usize],
-                        3 => self.cart_data.ppu_char_rom_4[local_location as usize],
-                        4 => self.cart_data.ppu_char_rom_5[local_location as usize],
-                        5 => self.cart_data.ppu_char_rom_6[local_location as usize],
-                        6 => self.cart_data.ppu_char_rom_7[local_location as usize],
-                        7 => self.cart_data.ppu_char_rom_8[local_location as usize],
-                        _ => panic!("Unknwn bank number for char $1c00 {}", self.char_bank_1c00)
-                    }
+                    local_location -= 0x1C00;
+                    self.cart_data.ppu_char_rom_mmc3[self.char_bank_1c00 as usize][local_location as usize]
                 },
                 _ => {
                     0

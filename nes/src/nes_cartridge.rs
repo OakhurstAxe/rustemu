@@ -31,6 +31,9 @@ pub mod nes {
         pub cpu_prog_rom_5: Vec<u8>,
         pub cpu_prog_rom_6: Vec<u8>,
         pub cpu_prog_rom_7: Vec<u8>,
+
+        pub cpu_prog_rom_mmc3: Vec<Vec<u8>>,
+        pub ppu_char_rom_mmc3: Vec<Vec<u8>>,
         
         pub ppu_char_rom_0: Vec<u8>,
         pub ppu_char_rom_1: Vec<u8>,
@@ -64,6 +67,8 @@ pub mod nes {
                 cpu_prog_rom_5: Vec::new(),
                 cpu_prog_rom_6: Vec::new(),
                 cpu_prog_rom_7: Vec::new(),
+                cpu_prog_rom_mmc3: vec![Vec::new(); 16],
+                ppu_char_rom_mmc3: vec![Vec::new(); 128],
 
                 ppu_char_rom_0: Vec::new(),
                 ppu_char_rom_1: Vec::new(),
@@ -101,14 +106,9 @@ pub mod nes {
                     self.cpu_prog_rom_1 = data[0x4000..0x8000].to_vec();
                 },
                 0x20000 => {
-                    self.cpu_prog_rom_0 = data[0..0x4000].to_vec();
-                    self.cpu_prog_rom_1 = data[0x4000..0x8000].to_vec();
-                    self.cpu_prog_rom_2 = data[0x8000..0xC000].to_vec();
-                    self.cpu_prog_rom_3 = data[0xC000..0x10000].to_vec();
-                    self.cpu_prog_rom_4 = data[0x10000..0x14000].to_vec();
-                    self.cpu_prog_rom_5 = data[0x14000..0x18000].to_vec();
-                    self.cpu_prog_rom_6 = data[0x18000..0x1C000].to_vec();
-                    self.cpu_prog_rom_7 = data[0x1C000..0x20000].to_vec();
+                    for i in 0..16 {
+                        self.cpu_prog_rom_mmc3[i] = data[(i*0x2000)..(i*0x2000)+0x2000].to_vec();
+                    }
                 },
                 _ => {
                     panic!("Unsupported program ROM size: {:x}", data.len());
@@ -128,6 +128,10 @@ pub mod nes {
                     self.ppu_char_rom_1 = data[0x2000..0x4000].to_vec();
                 },
                 0x20000 => {
+                    for i in 0..128 {
+                        self.ppu_char_rom_mmc3[i] = data[(i*0x400)..(i*0x400)+0x400].to_vec();
+                    }
+                    /*
                     self.ppu_char_rom_0 = data[0..0x2000].to_vec();
                     self.ppu_char_rom_1 = data[0x2000..0x4000].to_vec();
                     self.ppu_char_rom_2 = data[0x4000..0x6000].to_vec();
@@ -145,6 +149,7 @@ pub mod nes {
                     self.ppu_char_rom_14 = data[0x1E000..0x20000].to_vec();
                     self.ppu_char_rom_15 = data[0x1E000..0x20000].to_vec();
                     self.ppu_char_rom_16 = data[0x1E000..0x20000].to_vec();
+                     */
                 },
                 _ => {
                     panic!("Unsupported character ROM size: {:x}", data.len());
