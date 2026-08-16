@@ -588,6 +588,9 @@ pub mod nes {
 
         fn get_sprite_pixel(ppu: &mut NesPpu, screen_y: u16, screen_x: u16, cartridge: &Box<dyn NesCartridgeTrait>) -> (u8, u8, bool) {
             
+            let control_register = PpuControlRegister::new(ppu.registers.read(0));
+            let sprite_size = control_register.sprite_size();
+
             let mut priority: u8 = 0;
 
             for i in 0..=7 {
@@ -601,13 +604,31 @@ pub mod nes {
                     continue;
                 }
 
-                let y_pos = ppu.sprites[i].y_pos;
+                let mut y_pos = ppu.sprites[i].y_pos;
+                if (screen_y as i16 - y_pos as i16) < 0 || screen_y - y_pos as u16 > sprite_size as u16 {
+                    continue;
+                }
 
                 let sprite_attribute = SpriteAttribute::new(ppu.sprites[i].attribute);
 
-                let mut pattern_address: u16 = (ppu.sprites[i].tile as u16) << 4;
+                // 8x16 sprite logic
+                let mut tile_increase = 0;
+                let mut tile_flag = 0xff;
+                if sprite_size == 16 {
+                    tile_flag = 0xfe;
+                }
+                if screen_y > (y_pos as u16 + 8) && sprite_size == 16 {
+                    y_pos += 8;
+                    tile_increase = 1;
+                }
+
+                let mut pattern_address: u16 = ((ppu.sprites[i].tile as u16 & tile_flag) + tile_increase) << 4;
+                if ((ppu.sprites[i].tile & 0x01) == 1) && sprite_size == 16 {
+                    pattern_address += 0x1000;
+                }
+
                 if sprite_attribute.get_flip_verticle() {
-                    pattern_address += 7 + y_pos as u16 - screen_y - 1;
+                    pattern_address += (sprite_size as u16 - 1) + y_pos as u16 - screen_y - 1;
                 } else {
                     pattern_address += screen_y - y_pos as u16 - 1;
                 }
@@ -615,6 +636,7 @@ pub mod nes {
                 let mut sprite_msb = Self::read(ppu, pattern_address + 8, cartridge);
 
                 if sprite_attribute.get_flip_horizontal() {
+                    //println!("flip horiz");
                     sprite_lsb = NesPpuRunner::reverse_bits(sprite_lsb);
                     sprite_msb = NesPpuRunner::reverse_bits(sprite_msb);
                 }
@@ -625,7 +647,7 @@ pub mod nes {
                 sprite_lsb <<= slide;
                 sprite_msb <<= slide;
 
-                let pixel: u8 = ((sprite_msb & 0x80) >> 6) + ((sprite_lsb & 0x80) >> 7);
+                let pixel: u16 = (((sprite_msb & 0x80) >> 6) + ((sprite_lsb & 0x80) >> 7)) as u16;
                 let palette_address: u16 = ((sprite_attribute.get_palette() + 0x04) << 2) as u16 + pixel as u16;
 
                 if pixel != 0{
@@ -716,6 +738,8 @@ pub mod nes {
 
             } else if ppu.cycle == 256 {
 
+                let sprite_size = control_register.sprite_size();
+
                 for i in 0..=7 {
                     ppu.sprites[i as usize].sprite_id = -1;
                 }
@@ -729,7 +753,7 @@ pub mod nes {
                         continue;
                     }
 
-                    if (ppu.scan_line >= y_pos as i32) && (ppu.scan_line <= y_pos as i32 + 7) {
+                    if (ppu.scan_line >= y_pos as i32) && (ppu.scan_line <= y_pos as i32 + (sprite_size as i32 - 1)) {
 
                         // sprite overflow
                         if sprite_count >= 8 {
@@ -752,7 +776,7 @@ pub mod nes {
 
         fn set_ppu_sprite_zero_hit(ppu: &mut NesPpu, value: bool, screen_x: i32, screen_y: i32) {
 
-            if value == false {
+            if !value {
                 let byte: u8 = ppu.registers.read(2) & 0xbf;
                 ppu.registers.write(2, byte);
                 return;

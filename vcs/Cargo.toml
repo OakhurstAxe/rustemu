@@ -12,11 +12,3 @@ emumemory = { path = "../emumemory" }
 emucpu = { path = "../emucpu" }
 bevy = { version = "0.19.0",  default-features = false, features = ["2d", "wav"]}
 
-[profile.dev]
-opt-level = 1
-
-[profile.dev.package."*"]
-opt-level = 3
-
-[profile.release]
-debug = true
