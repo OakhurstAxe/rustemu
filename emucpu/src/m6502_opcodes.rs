@@ -1020,7 +1020,7 @@ pub mod mopcodes {
                 addr.address = cpu.lookup_address.address;
                 addr.write = true;
             }
-            true
+            false
         }
         fn step_1(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
             addr.byte = cpu.lookup_address.byte;

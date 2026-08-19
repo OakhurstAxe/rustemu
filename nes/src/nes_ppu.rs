@@ -307,7 +307,7 @@ pub mod nes {
 
     impl NesPpuRunner {
     
-        pub fn execute_memory(ppu: &mut NesPpu, addr: &mut AddressBus, cartridge: &Box<dyn NesCartridgeTrait>) {
+        pub fn execute_memory(ppu: &mut NesPpu, addr: &mut AddressBus, cartridge: &mut Box<dyn NesCartridgeTrait>) {
 
             if (0x2000..0x4000).contains(&addr.address) {
                 if addr.write {
@@ -371,7 +371,7 @@ pub mod nes {
             }
         }
 
-        fn ppu_register_read(ppu: &mut NesPpu, mut location: u16, cartridge: &Box<dyn NesCartridgeTrait>) -> u8 {
+        fn ppu_register_read(ppu: &mut NesPpu, mut location: u16, cartridge: &mut Box<dyn NesCartridgeTrait>) -> u8 {
             // Mirroring, and bring to zero
             location %= 8;
             
@@ -418,7 +418,7 @@ pub mod nes {
             ppu.oam.write(location as u16, byte);
         }
 
-        fn read(ppu: &mut NesPpu, mut location: u16, cartridge: &Box<dyn NesCartridgeTrait>) -> u8 {
+        fn read(ppu: &mut NesPpu, mut location: u16, cartridge: &mut Box<dyn NesCartridgeTrait>) -> u8 {
 
             //  Cartridge PPU ROM
             match location {
@@ -483,7 +483,7 @@ pub mod nes {
             eprintln!("Invalid NES memory location for PPU write {:x}", location);
         }
 
-        pub fn execute_tick(ppu: &mut NesPpu, cartridge: &Box<dyn NesCartridgeTrait>) {
+        pub fn execute_tick(ppu: &mut NesPpu, cartridge: &mut Box<dyn NesCartridgeTrait>) {
 
             ppu.video_bus.execute_tick();
 
@@ -542,7 +542,7 @@ pub mod nes {
             ppu.registers.write(2, byte);
         }
 
-        fn render_pixel(ppu: &mut NesPpu, cartridge: &Box<dyn NesCartridgeTrait>) {
+        fn render_pixel(ppu: &mut NesPpu, cartridge: &mut Box<dyn NesCartridgeTrait>) {
 
             let screen_x = ppu.cycle;
             let screen_y = ppu.scan_line;
@@ -586,7 +586,7 @@ pub mod nes {
 
         }
 
-        fn get_sprite_pixel(ppu: &mut NesPpu, screen_y: u16, screen_x: u16, cartridge: &Box<dyn NesCartridgeTrait>) -> (u8, u8, bool) {
+        fn get_sprite_pixel(ppu: &mut NesPpu, screen_y: u16, screen_x: u16, cartridge: &mut Box<dyn NesCartridgeTrait>) -> (u8, u8, bool) {
             
             let control_register = PpuControlRegister::new(ppu.registers.read(0));
             let sprite_size = control_register.sprite_size();
@@ -659,7 +659,7 @@ pub mod nes {
             (0, priority, false)
         }
 
-        fn get_background_pixel(ppu: &mut NesPpu, cartridge: &Box<dyn NesCartridgeTrait>) -> u8 {
+        fn get_background_pixel(ppu: &mut NesPpu, cartridge: &mut Box<dyn NesCartridgeTrait>) -> u8 {
 
             let pixel =  ((ppu.pattern_high_byte & 0x80) >> 6) + ((ppu.pattern_low_byte & 0x80) >> 7);
             let palette_address: u16 = ((ppu.attribute_byte & 0x03) << 2) as u16 + pixel as u16;
@@ -671,7 +671,7 @@ pub mod nes {
             color
         }
 
-        fn get_bg_attribute_bytes(ppu: &mut NesPpu, screen_x: i32, screen_y: i32, cartridge: &Box<dyn NesCartridgeTrait>) {
+        fn get_bg_attribute_bytes(ppu: &mut NesPpu, screen_x: i32, screen_y: i32, cartridge: &mut Box<dyn NesCartridgeTrait>) {
 
             let control_register = PpuControlRegister::new(ppu.registers.read(0));
             let mut tile_row: u16 = (screen_y as u16 + ppu.ppu_scroll_y as u16) / 8;

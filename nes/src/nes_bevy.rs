@@ -149,9 +149,9 @@ pub mod nes {
                     nes_console.0.left_controler_a(false);
                 }
 
-                if gamepad.just_pressed(GamepadButton::North) {
+                if gamepad.just_pressed(GamepadButton::East) {
                     nes_console.0.left_controler_b(true);
-                } else if gamepad.just_released(GamepadButton::North) {
+                } else if gamepad.just_released(GamepadButton::East) {
                     nes_console.0.left_controler_b(false);
                 }
 

@@ -27,7 +27,7 @@ pub mod nes {
         cartridge: Box<dyn NesCartridgeTrait>,
         cpu_work_ram: MemoryRam,
         left_controller: u8,
-        _right_controller: u8,
+        right_controller: u8,
         _debug: u8,
         pub frame: u32,
     }
@@ -51,7 +51,7 @@ pub mod nes {
                 cartridge,
                 cpu_work_ram: MemoryRam::new(String::from("CPU Work RAM"), 0x0800),
                 left_controller: 0,
-                _right_controller: 0,
+                right_controller: 0,
                 _debug: 0,
                 frame: 0,
             };
@@ -97,31 +97,36 @@ pub mod nes {
 
                 if (0x4020..0x6000).contains(&self.addr.address) {
                     self.addr.write = false;
-                    //eprintln!("unknown address {}", self.addr.address);
                 }
                 self.cartridge.execute_tick(&mut self.addr);
+                if self.cartridge.is_irq_set() {
+println!("Cart IRQ set");
+                    self.cpu_runner.set_irq();
+                    self.cartridge.reset_irq();
+                }
+
                 self.ram_execute_tick();
 
                 if (ticks % 2) == 0 {
                     // APU should be here?
                 }
                 
-                if self.apu.is_irq_set() {
-                    self.cpu_runner.set_irq();
-                    self.apu.reset_irq();
-                }
 
                 if (ticks % 3) == 0 {
                     
                     self.apu.execute_tick(&mut self.addr, &mut self.ppu);
+                    if self.apu.is_irq_set() {
+                        self.cpu_runner.set_irq();
+                        self.apu.reset_irq();
+                    }
+
                     if self.apu.ppu_dma_write == 0 && self.apu.apu_dma_write == 0 {
                         self.cpu_runner.execute_tick(&mut self.addr);
                     }
-                    NesPpuRunner::execute_memory(&mut self.ppu, &mut self.addr, &self.cartridge);
+                    NesPpuRunner::execute_memory(&mut self.ppu, &mut self.addr, &mut self.cartridge);
                 }
 
-                NesPpuRunner::execute_tick(&mut self.ppu, &self.cartridge);
-                //self.ppu.execute_tick(&mut self.addr, &self.cartridge, ticks);
+                NesPpuRunner::execute_tick(&mut self.ppu, &mut self.cartridge);
 
                 if self.ppu.nmi_set {
                     self.cpu_runner.set_nmi();
@@ -131,7 +136,6 @@ pub mod nes {
             }
             self.read_gamepad();
             
-            //let video = self.ppu.get_screen();
             let video = self.ppu.screen.clone();
             let audio = self.get_audio();
 
@@ -139,34 +143,38 @@ pub mod nes {
         }
             
         pub fn left_controler_a(&mut self, value: bool) {
-            self.left_controller &= 0xfe;
 
             if value {
                 self.left_controller |= 0x01;
+            } else {
+                self.left_controller &= 0xfe;
             }
         }
 
         pub fn left_controler_b(&mut self, value: bool) {
-            self.left_controller &= 0xfd;
 
             if value {
                 self.left_controller |= 0x02;
+            } else {
+                self.left_controller &= 0xfd;
             }
         }
 
         pub fn left_controler_select(&mut self, value: bool) {
-            self.left_controller &= 0xfb;
 
             if value {
                 self.left_controller |= 0x04;
+            } else {
+                self.left_controller &= 0xfb;
             }
         }
 
         pub fn left_controler_start(&mut self, value: bool) {
-            self.left_controller &= 0xf7;
 
             if value {
                 self.left_controller |= 0x08;
+            } else {
+                self.left_controller &= 0xf7;
             }
         }
 
@@ -195,10 +203,8 @@ pub mod nes {
         }
             
         fn read_gamepad(&mut self) {
-
             self.apu.set_left_controller(self.left_controller);
-
-            // self.apu.write().unwrap().set_right_controller(self.right_controller);
+            self.apu.set_right_controller(self.right_controller);
         } 
 
     }

@@ -22,6 +22,14 @@ pub mod nes {
 
     impl NesCartridgeTrait for NesCartridge000 {    
 
+        fn is_irq_set(&self) -> bool {
+            false
+        }
+
+        fn reset_irq(&mut self) {
+            self.cart_data.irq_set = false;
+        }
+
         fn execute_tick(&mut self, addr: &mut AddressBus) {
 
             if addr.address >= 0x6000 {
@@ -37,34 +45,28 @@ pub mod nes {
 
         fn cpu_read(&self, mut location: u16) -> u8 {
 
-            if location < 0xc000 {
-
-                if location >= 0x8000 {
-                    location -= 0x8000;
+            match location {
+                (0x6000..0x8000) => {
+                    let local_location = location - 0x6000;
+                    self.cart_data.cpu_prog_ram_0[local_location as usize]
+                },
+                (0x8000..=0xFFFF) => {
+                    let local_location = location - 0x8000;
+                    let index = local_location / 0x2000;
+                    self.cart_data.cpu_prog_rom[index as usize][(local_location - (0x2000 * index)) as usize]
                 }
-                else {
-                    location -= 0x4000;
-                }
-                
-                self.cart_data.cpu_prog_rom_0[location as usize]
-            } else {
-                location -= 0xc000;
-                self.cart_data.cpu_prog_rom_1[location as usize]
+                _ => {0}
             }
         }
     
-        fn cpu_write(&mut self, _location: u16, _byte: u8) {
-            //eprintln!("This cartridge does not support cpu write {}", location);
+        fn cpu_write(&mut self, location: u16, _byte: u8) {
+            eprintln!("This cartridge does not support cpu write {}", location);
         }
 
-        fn ppu_read(&self, mut location: u16) -> u8 {
+        fn ppu_read(&mut self, mut location: u16) -> u8 {
 
-            if location < 0x2000 {
-                self.cart_data.ppu_char_rom_0[location as usize]
-            } else {
-                location -= 0x2000;
-                self.cart_data.ppu_char_rom_1[location as usize]
-            }
+            let index = location / 0x400;
+            self.cart_data.ppu_char_rom[index as usize][(location - (0x400 * index)) as usize]
         }
     
         fn ppu_write(&self, location: u16, _byte: u8) {

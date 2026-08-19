@@ -17,8 +17,8 @@ pub mod nes {
         apu_io_registers: MemoryRamFlagged,
         left_controller: u8,
         left_controller_latch: u8,
-        left_count: u8,
         right_controller: u8,
+        right_controller_latch: u8,
         irq_set: bool,
         interrupt_set: bool,
         frame_counter: u16,
@@ -42,8 +42,8 @@ pub mod nes {
                 apu_io_registers: MemoryRamFlagged::new(0x001f, String::from("APU IO Registers")),
                 left_controller: 0,
                 left_controller_latch: 0,
-                left_count: 0,
                 right_controller: 0,
+                right_controller_latch: 0,
                 irq_set: false,
                 interrupt_set: false,
                 frame_counter: 0,
@@ -63,7 +63,14 @@ pub mod nes {
         
         pub fn execute_tick(&mut self, addr: &mut AddressBus, ppu: &mut NesPpu) {
 
-            
+            // Controller strobe
+            if self.apu_io_registers.read(0x16) & 0x01 > 0 {
+                self.left_controller = self.left_controller_latch;
+            }
+            if self.apu_io_registers.read(0x17) & 0x01 > 0 {
+                self.right_controller = self.right_controller_latch;
+            }
+
             if self.apu_dma_delay > 0 {
                 self.apu_dma_delay -= 1;
             }
@@ -126,9 +133,15 @@ pub mod nes {
                     addr.write = false;
                 } else {
                     if location == 0x16 {
-                        addr.byte = (self.get_left_controller() & 0x1f) + (addr.byte & 0xe0);
+                        addr.byte = self.left_controller & 0x01;
+                        if self.apu_io_registers.read(0x16) & 0x01 == 0 {
+                            self.left_controller >>= 1;
+                        }
                     } else if location == 0x17 {
-                        addr.byte = (self.get_right_controller() & 0x1f) + (addr.byte & 0xe0);
+                        addr.byte = self.right_controller & 0x01;
+                        if self.apu_io_registers.read(0x17) & 0x01 == 0 {
+                            self.right_controller >>= 1;
+                        }
                     }
                 }
             } else if (0x4018..0x401f).contains(&addr.address) {
@@ -195,14 +208,6 @@ pub mod nes {
                                             register4, register4_flag);
         }
 
-        pub fn is_read_flag_set(&mut self, location: u16) -> bool {
-            self.apu_io_registers.is_read_flag_set(location)
-        }
-
-        pub fn is_write_flag_set(&mut self, location: u16) -> bool {
-            self.apu_io_registers.is_write_flag_set(location)
-        }
-
         pub fn read(&mut self, location: u16) -> u8 {
             self.apu_io_registers.read(location)
         }
@@ -227,25 +232,7 @@ pub mod nes {
         }
 
         pub fn set_right_controller(&mut self, byte: u8) {
-            self.right_controller = byte;
-        }
-
-        pub fn get_left_controller(&mut self) -> u8 {
-            if self.left_count == 0 {
-                self.left_count = 7;
-                self.left_controller = self.left_controller_latch;
-            } else {
-                self.left_count -= 1;
-            }
-            let result: u8 = self.left_controller & 0x01;
-            self.left_controller >>= 1;
-            result
-        }
-
-        pub fn get_right_controller(&mut self) -> u8 {
-            let result: u8 = self.right_controller & 0x01;
-            self.right_controller >>= 1;
-            result
+            self.right_controller_latch = byte;
         }
 
         pub fn is_irq_set(&self) -> bool {
