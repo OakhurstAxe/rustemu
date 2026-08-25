@@ -133,12 +133,12 @@ pub mod nes {
                     addr.write = false;
                 } else {
                     if location == 0x16 {
-                        addr.byte = self.left_controller & 0x01;
+                        addr.byte = (addr.byte & 0xE0) | (self.left_controller & 0x01);
                         if self.apu_io_registers.read(0x16) & 0x01 == 0 {
                             self.left_controller >>= 1;
                         }
                     } else if location == 0x17 {
-                        addr.byte = self.right_controller & 0x01;
+                        addr.byte = (addr.byte & 0xE0) | (self.right_controller & 0x01);
                         if self.apu_io_registers.read(0x17) & 0x01 == 0 {
                             self.right_controller >>= 1;
                         }

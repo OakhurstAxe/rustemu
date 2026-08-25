@@ -4,6 +4,7 @@ pub mod nes {
     
     use crate::nes_inesfile::nes::INesFile;
     use crate::nes_cartridge_000::nes::NesCartridge000;
+    use crate::nes_cartridge_001::nes::NesCartridge001;
     use crate::nes_cartridge_004::nes::NesCartridge004;
 
     pub trait NesCartridgeTrait: Sync {        
@@ -19,7 +20,9 @@ pub mod nes {
     pub struct NesCartridge {
         pub cpu_prog_ram_0: Vec<u8>,
         pub cpu_prog_rom: Vec<Vec<u8>>,
+        pub cpu_prog_rom_count: usize,
         pub ppu_char_rom: Vec<Vec<u8>>,
+        pub ppu_char_rom_count: usize,
         pub irq_set: bool,
     }
 
@@ -28,7 +31,9 @@ pub mod nes {
             let mut cart = NesCartridge {
                 cpu_prog_ram_0: vec![0; 0x2000],
                 cpu_prog_rom: vec![Vec::new(); 16],
+                cpu_prog_rom_count: 0,
                 ppu_char_rom: vec![Vec::new(); 128],
+                ppu_char_rom_count: 0,
                 irq_set: false,
             };
 
@@ -39,25 +44,25 @@ pub mod nes {
 
         fn load_prog_rom(&mut self, data: Vec<u8>) {
             
-            let rom_count = data.len() / 0x2000;
+            self.cpu_prog_rom_count = data.len() / 0x2000;
 
-            for i in 0..rom_count {
+            for i in 0..self.cpu_prog_rom_count {
                 self.cpu_prog_rom[i] = data[(i*0x2000)..(i*0x2000)+0x2000].to_vec();
             }
 
             // if 0x4000 size, double copy prog roms
             if data.len() == 0x4000 {
-                for i in rom_count..rom_count*2 {
-                    self.cpu_prog_rom[i] = data[((i - rom_count)*0x2000)..((i - rom_count)*0x2000)+0x2000].to_vec();
+                for i in self.cpu_prog_rom_count..self.cpu_prog_rom_count*2 {
+                    self.cpu_prog_rom[i] = data[((i - self.cpu_prog_rom_count)*0x2000)..((i - self.cpu_prog_rom_count)*0x2000)+0x2000].to_vec();
                 }
             }
         }
     
         fn load_char_rom(&mut self, data: Vec<u8>) {
             
-            let rom_count = data.len() / 0x400;
+            self.ppu_char_rom_count = data.len() / 0x400;
 
-            for i in 0..rom_count {
+            for i in 0..self.ppu_char_rom_count {
                 self.ppu_char_rom[i] = data[(i*0x400)..(i*0x400)+0x400].to_vec();
             }
         }
@@ -75,6 +80,10 @@ pub mod nes {
                 0 =>  {
                     println!("Cart mapper 000");
                     Box::new(NesCartridge000::new(cart_data))
+                },
+                1 =>  {
+                    println!("Cart mapper 001");
+                    Box::new(NesCartridge001::new(cart_data))
                 },
                 4 => {
                     println!("Cart mapper 004");

@@ -1483,9 +1483,9 @@ println!("irq");
     struct CpuOpSha {}
     impl CpuOperation for CpuOpSha {
         fn step_0(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
-            let byte = cpu.accumulator & cpu.register_x & (((cpu.lookup_address.address & 0xff00) >> 8) as u8);
-            addr.byte = byte;
-            addr.address = cpu.lookup_address.address.wrapping_add(1);
+            let byte = cpu.accumulator & cpu.register_x & ((addr.address >> 8).wrapping_add(1) as u8);
+            //addr.byte = byte;
+            addr.address = byte as u16;
             addr.write = true;
             true
         }
@@ -1512,7 +1512,7 @@ println!("irq");
             }
             OpCodesUtils::set_status_flag(cpu, CARRY_FLAG, cpu.accumulator & 0x40 != 0);
             OpCodesUtils::set_negative_zero(cpu, cpu.accumulator);
-            OpCodesUtils::set_status_flag(cpu, OVERFLOW_FLAG, (cpu.accumulator & 0x40) ^ (cpu.accumulator & 0x20) != 0);
+            OpCodesUtils::set_status_flag(cpu, OVERFLOW_FLAG, ((cpu.accumulator & 0x40) >> 1) ^ (cpu.accumulator & 0x20) != 0);
             true
         }
     }
@@ -1530,7 +1530,11 @@ println!("irq");
 
     struct CpuOpAxs {}
     impl CpuOperation for CpuOpAxs {
-        fn step_0(&self, _cpu: &mut M6502, _addr: &mut AddressBus) -> bool {
+        fn step_0(&self, cpu: &mut M6502, _addr: &mut AddressBus) -> bool {
+            let (byte, overflow) = (cpu.accumulator & cpu.register_x).overflowing_sub(cpu.lookup_address.byte);
+            cpu.register_x = byte;
+            OpCodesUtils::set_status_flag(cpu, CARRY_FLAG, !overflow);
+            OpCodesUtils::set_negative_zero(cpu, cpu.register_x);
             true
         }
     }
@@ -1568,7 +1572,10 @@ println!("irq");
 
     struct CpuOpLxa {}
     impl CpuOperation for CpuOpLxa {
-        fn step_0(&self, _cpu: &mut M6502, _addr: &mut AddressBus) -> bool {
+        fn step_0(&self, cpu: &mut M6502, _addr: &mut AddressBus) -> bool {
+            cpu.accumulator  = cpu.lookup_address.byte;
+            cpu.register_x = cpu.lookup_address.byte;
+            OpCodesUtils::set_negative_zero(cpu, cpu.accumulator);
             true
         }
     }
@@ -1592,9 +1599,8 @@ println!("irq");
             false
         }
         fn step_1(&self, cpu: &mut M6502, addr: &mut AddressBus) -> bool {
-            let byte = (cpu.accumulator & (cpu.register_x & (cpu.lookup_address.address & 0xff00) as u8)) + 1;
-            addr.byte = byte;
-            addr.address = cpu.lookup_address.address;
+            let byte: u8 = cpu.stack_pointer as u8 & ((cpu.lookup_address.address >> 8).wrapping_add(1) as u8);
+            addr.address = byte as u16;
             addr.write = true;
             true
         }

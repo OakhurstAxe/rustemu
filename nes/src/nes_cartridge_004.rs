@@ -126,6 +126,11 @@ pub mod nes {
     
         fn cpu_write(&mut self, location: u16, byte: u8) {
             
+            if (0x6000..0x8000).contains(&location){
+                self.cart_data.cpu_prog_ram_0[(location-0x6000) as usize] = byte;
+                return;
+            }
+
             if location.is_multiple_of(2) {
 
                 match location {
